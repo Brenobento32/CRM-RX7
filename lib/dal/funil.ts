@@ -28,8 +28,9 @@ export type CardFunil = {
   valorEstimado: number | null
   temperatura: Enums['temperatura_negociacao'] | null
   responsavel: string | null
-  proximaAcao: { titulo: string; tipo: Enums['tipo_evento']; inicio: string } | null
-  ultimoContato: { em: string; tipo: string } | null
+  /** `data` é AAAA-MM-DD (dia, sem hora). */
+  proximaAcao: { titulo: string; data: string } | null
+  ultimaAtividade: { tipo: Enums['tipo_atividade']; data: string; descricao: string } | null
 }
 
 /**
@@ -71,16 +72,16 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
             temperatura: r.temperatura,
             responsavel: r.responsavel_nome,
             proximaAcao:
-              r.proxima_acao_titulo && r.proxima_acao_tipo && r.proxima_acao_inicio
-                ? {
-                    titulo: r.proxima_acao_titulo,
-                    tipo: r.proxima_acao_tipo,
-                    inicio: r.proxima_acao_inicio,
-                  }
+              r.proxima_acao_titulo && r.proxima_acao_data
+                ? { titulo: r.proxima_acao_titulo, data: r.proxima_acao_data }
                 : null,
-            ultimoContato:
-              r.ultimo_contato_em && r.ultimo_contato_tipo
-                ? { em: r.ultimo_contato_em, tipo: r.ultimo_contato_tipo }
+            ultimaAtividade:
+              r.ultima_atividade_tipo && r.ultima_atividade_data && r.ultima_atividade_descricao
+                ? {
+                    tipo: r.ultima_atividade_tipo,
+                    data: r.ultima_atividade_data,
+                    descricao: r.ultima_atividade_descricao,
+                  }
                 : null,
           },
         ]

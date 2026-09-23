@@ -4,8 +4,8 @@ import { startTransition, useActionState } from 'react'
 
 import { fecharNegociacaoAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
+import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import {
-  hojeSaoPaulo,
   ROTULO_STATUS_ONBOARDING,
   ROTULO_STATUS_PAGAMENTO,
   STATUS_ONBOARDING,

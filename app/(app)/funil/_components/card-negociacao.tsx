@@ -5,23 +5,14 @@ import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
 
 import type { CardFunil } from '@/lib/dal/funil'
-import { formatarData, formatarDataHora, formatarMoeda } from '@/lib/utils/formatacao'
+import { formatarData, formatarDia, formatarMoeda, hojeSaoPaulo } from '@/lib/utils/formatacao'
+import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 const COR_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> = {
   quente: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   morno: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   frio: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
-}
-
-/** Tipos de evento e de atividade que aparecem em "próxima ação" / "último contato". */
-const ROTULO_TIPO_CONTATO: Record<string, string> = {
-  reuniao: 'reunião',
-  call: 'call',
-  followup: 'follow-up',
-  ligacao: 'ligação',
-  email: 'e-mail',
-  whatsapp: 'WhatsApp',
 }
 
 export function CardArrastavel({ card }: { card: CardFunil }) {
@@ -88,21 +79,13 @@ export function CardConteudo({
       </p>
 
       <dl className="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-400">
-        {card.proximaAcao && (
+        {card.proximaAcao && <ProximaAcao {...card.proximaAcao} />}
+        {card.ultimaAtividade && (
           <div className="flex gap-1">
-            <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Próxima:</dt>
-            <dd className="truncate" title={card.proximaAcao.titulo}>
-              {ROTULO_TIPO_CONTATO[card.proximaAcao.tipo] ?? card.proximaAcao.tipo}{' '}
-              {formatarDataHora(card.proximaAcao.inicio)}
-            </dd>
-          </div>
-        )}
-        {card.ultimoContato && (
-          <div className="flex gap-1">
-            <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Último contato:</dt>
-            <dd className="truncate">
-              {formatarData(card.ultimoContato.em)} (
-              {ROTULO_TIPO_CONTATO[card.ultimoContato.tipo] ?? card.ultimoContato.tipo})
+            <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Última atividade:</dt>
+            <dd className="truncate" title={card.ultimaAtividade.descricao}>
+              {formatarData(card.ultimaAtividade.data)} ·{' '}
+              {ROTULO_TIPO_ATIVIDADE[card.ultimaAtividade.tipo]}
             </dd>
           </div>
         )}
@@ -114,5 +97,30 @@ export function CardConteudo({
         )}
       </dl>
     </article>
+  )
+}
+
+function ProximaAcao({ titulo, data }: { titulo: string; data: string }) {
+  const hoje = hojeSaoPaulo()
+  const atrasada = data < hoje
+
+  return (
+    <div className="flex gap-1">
+      <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Próxima ação:</dt>
+      <dd className="truncate" title={titulo}>
+        <span
+          className={
+            atrasada
+              ? 'font-medium text-red-600 dark:text-red-400'
+              : data === hoje
+                ? 'font-medium text-amber-700 dark:text-amber-400'
+                : undefined
+          }
+        >
+          {data === hoje ? 'hoje' : formatarDia(data, false)}
+        </span>{' '}
+        · {titulo}
+      </dd>
+    </div>
   )
 }

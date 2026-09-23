@@ -43,29 +43,32 @@ export type Database = {
         Row: {
           cliente_id: string
           created_at: string
+          data: string
           descricao: string
           id: string
           negociacao_id: string | null
-          owner_id: string
           tipo: Database["public"]["Enums"]["tipo_atividade"]
+          usuario_id: string
         }
         Insert: {
           cliente_id: string
           created_at?: string
+          data?: string
           descricao: string
           id?: string
           negociacao_id?: string | null
-          owner_id?: string
           tipo?: Database["public"]["Enums"]["tipo_atividade"]
+          usuario_id?: string
         }
         Update: {
           cliente_id?: string
           created_at?: string
+          data?: string
           descricao?: string
           id?: string
           negociacao_id?: string | null
-          owner_id?: string
           tipo?: Database["public"]["Enums"]["tipo_atividade"]
+          usuario_id?: string
         }
         Relationships: [
           {
@@ -98,7 +101,7 @@ export type Database = {
           },
           {
             foreignKeyName: "atividades_owner_id_fkey"
-            columns: ["owner_id"]
+            columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -442,6 +445,81 @@ export type Database = {
         }
         Relationships: []
       }
+      proximas_acoes: {
+        Row: {
+          cliente_id: string
+          concluida_em: string | null
+          created_at: string
+          data: string
+          id: string
+          negociacao_id: string | null
+          observacao: string | null
+          titulo: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          cliente_id: string
+          concluida_em?: string | null
+          created_at?: string
+          data: string
+          id?: string
+          negociacao_id?: string | null
+          observacao?: string | null
+          titulo: string
+          updated_at?: string
+          usuario_id?: string
+        }
+        Update: {
+          cliente_id?: string
+          concluida_em?: string | null
+          created_at?: string
+          data?: string
+          id?: string
+          negociacao_id?: string | null
+          observacao?: string | null
+          titulo?: string
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proximas_acoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proximas_acoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "proximas_acoes_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proximas_acoes_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proximas_acoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       funil_cards: {
@@ -454,15 +532,17 @@ export type Database = {
           id: string | null
           owner_id: string | null
           posicao: number | null
-          proxima_acao_inicio: string | null
-          proxima_acao_tipo: Database["public"]["Enums"]["tipo_evento"] | null
+          proxima_acao_data: string | null
           proxima_acao_titulo: string | null
           responsavel_nome: string | null
           temperatura:
             | Database["public"]["Enums"]["temperatura_negociacao"]
             | null
-          ultimo_contato_em: string | null
-          ultimo_contato_tipo: string | null
+          ultima_atividade_data: string | null
+          ultima_atividade_descricao: string | null
+          ultima_atividade_tipo:
+            | Database["public"]["Enums"]["tipo_atividade"]
+            | null
           valor_estimado: number | null
         }
         Relationships: [
@@ -511,6 +591,13 @@ export type Database = {
       }
       is_gerente: { Args: never; Returns: boolean }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
+      nomes_de_usuarios: {
+        Args: { p_ids: string[] }
+        Returns: {
+          id: string
+          nome: string
+        }[]
+      }
     }
     Enums: {
       etapa_funil:

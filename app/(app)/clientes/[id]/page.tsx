@@ -1,10 +1,15 @@
-import { formatInTimeZone } from 'date-fns-tz'
-import { ptBR } from 'date-fns/locale'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 
+import { botaoSecundarioClass } from '@/components/ui/estilos'
+import {
+  concluirProximaAcaoAction,
+  criarProximaAcaoAction,
+  registrarAtividadeAction,
+} from '@/lib/actions/atividades'
+import { LIMITE_TIMELINE, listarProximasAcoes, listarTimeline } from '@/lib/dal/atividades'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterCliente } from '@/lib/dal/clientes'
 import {
@@ -14,9 +19,18 @@ import {
   linkWhatsapp,
 } from '@/lib/utils/documentos'
 import { COR_ETAPA, ROTULO_ETAPA } from '@/lib/utils/etapas'
+import {
+  agoraSaoPauloLocal,
+  formatarData,
+  formatarDataHoraCompleta,
+  formatarDia,
+  hojeSaoPaulo,
+} from '@/lib/utils/formatacao'
+import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
 
-const FUSO = 'America/Sao_Paulo'
+import { FormAtividade } from './_components/form-atividade'
+import { FormProximaAcao } from './_components/form-proxima-acao'
 
 async function carregar(id: string) {
   if (!z.uuid().safeParse(id).success) notFound()
@@ -37,9 +51,19 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
   const usuario = await getUsuarioAtual()
   const { id } = await params
   const cliente = await carregar(id)
+  const [timeline, proximasAcoes] = await Promise.all([
+    listarTimeline(cliente.id),
+    listarProximasAcoes(cliente.id),
+  ])
 
-  const data = (iso: string) =>
-    formatInTimeZone(iso, FUSO, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+  const data = formatarDataHoraCompleta
+  const hoje = hojeSaoPaulo()
+
+  const opcoesNegociacao = cliente.negociacoes.map((n) => ({
+    id: n.id,
+    rotulo: `${ROTULO_ETAPA[n.etapa]} · aberta em ${formatarData(n.created_at)}`,
+  }))
+  const etapaDaNegociacao = new Map(cliente.negociacoes.map((n) => [n.id, n.etapa]))
 
   const itens: { rotulo: string; valor: React.ReactNode }[] = [
     { rotulo: 'Tipo', valor: ROTULO_TIPO_CLIENTE[cliente.tipo_cliente] },
@@ -129,6 +153,102 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Próximas ações</h2>
+
+        {proximasAcoes.length === 0 ? (
+          <p className="text-sm text-zinc-500">Nenhuma próxima ação pendente.</p>
+        ) : (
+          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
+            {proximasAcoes.map((a) => {
+              const atrasada = a.data < hoje
+              const etapa = a.negociacaoId ? etapaDaNegociacao.get(a.negociacaoId) : undefined
+              return (
+                <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium">{a.titulo}</p>
+                    <p className="text-xs text-zinc-500">
+                      <span
+                        className={
+                          atrasada
+                            ? 'font-medium text-red-600 dark:text-red-400'
+                            : a.data === hoje
+                              ? 'font-medium text-amber-700 dark:text-amber-400'
+                              : undefined
+                        }
+                      >
+                        {a.data === hoje ? 'Hoje' : formatarDia(a.data)}
+                        {atrasada && ' · atrasada'}
+                      </span>
+                      {etapa && ` · ${ROTULO_ETAPA[etapa]}`}
+                    </p>
+                    {a.observacao && (
+                      <p className="mt-1 text-zinc-600 dark:text-zinc-400">{a.observacao}</p>
+                    )}
+                  </div>
+                  <form action={concluirProximaAcaoAction.bind(null, a.id, cliente.id)}>
+                    <button type="submit" className={botaoSecundarioClass}>
+                      Concluir
+                    </button>
+                  </form>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <details className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <summary className="cursor-pointer text-sm font-medium">Agendar próxima ação</summary>
+          <div className="mt-4">
+            <FormProximaAcao
+              action={criarProximaAcaoAction.bind(null, cliente.id)}
+              negociacoes={opcoesNegociacao}
+              hoje={hoje}
+            />
+          </div>
+        </details>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Atividades</h2>
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <FormAtividade
+            action={registrarAtividadeAction.bind(null, cliente.id)}
+            negociacoes={opcoesNegociacao}
+            agora={agoraSaoPauloLocal()}
+          />
+        </div>
+
+        {timeline.length === 0 ? (
+          <p className="text-sm text-zinc-500">Nenhuma atividade registrada.</p>
+        ) : (
+          <ol className="relative space-y-5 border-l border-zinc-200 pl-5 dark:border-zinc-800">
+            {timeline.map((a) => (
+              <li key={a.id} className="relative">
+                <span
+                  className="absolute top-1.5 -left-[25px] size-2.5 rounded-full border-2 border-white bg-zinc-400 dark:border-zinc-950"
+                  aria-hidden
+                />
+                <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    {ROTULO_TIPO_ATIVIDADE[a.tipo]}
+                  </span>
+                  <time dateTime={a.data}>{data(a.data)}</time>
+                  {a.usuario && <span>· {a.usuario}</span>}
+                </p>
+                <p className="mt-1 text-sm whitespace-pre-wrap">{a.descricao}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+        {timeline.length === LIMITE_TIMELINE && (
+          <p className="text-xs text-zinc-500">
+            Mostrando as {LIMITE_TIMELINE} atividades mais recentes.
+          </p>
         )}
       </section>
 

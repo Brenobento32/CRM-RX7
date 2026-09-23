@@ -295,6 +295,54 @@ begin
   assert v_total = 1, 'fechar_negociacao deveria mover a etapa e gravar o fechamento';
   raise notice 'ok  23   fechar_negociacao grava etapa e fechamento juntos';
 
+  -- ===================================================================
+  -- Atividades e próximas ações (Fase 5A) — ainda como closer A.
+  -- ===================================================================
+
+  -- 24. Atividade não aponta para negociação de outro cliente.
+  begin
+    insert into public.atividades (cliente_id, negociacao_id, tipo, descricao)
+    values (
+      v_cliente_a,
+      (select id from public.negociacoes where cliente_id = v_cliente_b limit 1),
+      'ligacao', 'vínculo cruzado');
+    raise exception 'atividade aceitou negociação de outro cliente';
+  exception
+    when check_violation then
+      raise notice 'ok  24   atividade só se vincula a negociação do próprio cliente';
+  end;
+
+  -- 25. Registro do closer aparece para ele e fica invisível para o B.
+  insert into public.atividades (cliente_id, tipo, descricao)
+  values (v_cliente_a, 'whatsapp', 'mandou áudio');
+  insert into public.proximas_acoes (cliente_id, titulo, data)
+  values (v_cliente_a, 'ligar de novo', current_date + 1);
+
+  select count(*) into v_total
+  from public.funil_cards
+  where cliente_id = v_cliente_a
+    and ultima_atividade_tipo = 'whatsapp'
+    and proxima_acao_titulo = 'ligar de novo';
+  assert v_total >= 1, 'o card deveria mostrar a última atividade e a próxima ação';
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_b, 'role', 'authenticated')::text, true);
+  select count(*) into v_total from public.atividades;
+  assert v_total = 0, format('closer B não deveria ver atividades, viu %s', v_total);
+  select count(*) into v_total from public.proximas_acoes;
+  assert v_total = 0, format('closer B não deveria ver próximas ações, viu %s', v_total);
+  raise notice 'ok  25   atividades e próximas ações seguem a carteira do cliente';
+
+  -- 26. Closer não registra atividade em cliente alheio.
+  begin
+    insert into public.atividades (cliente_id, tipo, descricao)
+    values (v_cliente_a, 'nota', 'invasão');
+    raise exception 'closer B registrou atividade no cliente do A';
+  exception
+    when insufficient_privilege then
+      raise notice 'ok  26   closer não registra atividade em cliente alheio';
+  end;
+
   reset role;
   raise notice '';
   raise notice 'TODAS AS ASSERÇÕES PASSARAM.';

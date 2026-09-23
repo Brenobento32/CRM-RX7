@@ -134,7 +134,8 @@ o histórico de conversão se corrompe a cada reentrada.
 | `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding |
 | `historico_etapas` | Append-only. Base do relatório de conversão e ciclo de venda. **Ainda não criada** — necessária antes da Fase 7 |
 | `eventos` | Agenda: reuniões, calls, follow-ups |
-| `atividades` | Timeline da ficha do cliente |
+| `atividades` | Timeline da ficha do cliente: `tipo`, `descricao`, `data`, autor em `usuario_id` |
+| `proximas_acoes` | Follow-up combinado (`titulo`, `data`, `observacao`); pendente enquanto `concluida_em` for nulo |
 
 ### Enums
 
@@ -181,6 +182,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 2 | Auth: `proxy.ts`, login, `verifySession()`, shell com sidebar | concluída |
 | 3 | Clientes: CRUD completo — validação prática da RLS | concluída |
 | 4 | Funil Kanban: dnd-kit, optimistic UI, modal de fechamento | concluída |
+| 5A | Atividades comerciais e próxima ação na ficha e no card | concluída |
 | 5 | Agenda: CRUD de eventos, visão semana/dia | pendente |
 | 6 | Dashboard: KPIs sobre dados reais | pendente |
 | 7 | Relatórios: performance por closer, conversão, export CSV | pendente |

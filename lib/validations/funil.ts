@@ -1,7 +1,7 @@
-import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
 
 import { Constants, type Database } from '@/lib/types/database'
+import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { valorEmReais } from '@/lib/validations/negociacao'
 
 type Enums = Database['public']['Enums']
@@ -56,11 +56,6 @@ export const moverSchema = z.object({
 
 const simNao = (mensagem: string) =>
   z.enum(['sim', 'nao'], mensagem).transform((v) => v === 'sim')
-
-/** Hoje em São Paulo, no formato de `<input type="date">`. */
-export function hojeSaoPaulo() {
-  return formatInTimeZone(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd')
-}
 
 /**
  * Modal de fechamento. Todos os campos são obrigatórios, menos o link do
