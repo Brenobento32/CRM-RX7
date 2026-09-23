@@ -13,6 +13,14 @@
   --stage-negociacao: #f97316; /* 🟠 */
   --stage-fechado: #22c55e; /* 🟢 */
   --stage-perdido: #ef4444; /* 🔴 */
+
+  /* Gráficos. Série única (magnitude) em azul, validada contra a superfície
+     de cada modo; grade e texto recessivos. */
+  --chart-serie: #2a78d6;
+  --chart-trilha: #cde2fb;
+  --chart-grade: #e4e4e7;
+  --chart-texto: #52525b;
+  --chart-cursor: rgb(0 0 0 / 0.04);
 }
 
 @theme inline {
@@ -27,12 +35,21 @@
   --color-stage-negociacao: var(--stage-negociacao);
   --color-stage-fechado: var(--stage-fechado);
   --color-stage-perdido: var(--stage-perdido);
+
+  --color-chart-serie: var(--chart-serie);
+  --color-chart-trilha: var(--chart-trilha);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    --chart-serie: #3987e5;
+    --chart-trilha: #1c2a3d;
+    --chart-grade: #27272a;
+    --chart-texto: #a1a1aa;
+    --chart-cursor: rgb(255 255 255 / 0.05);
   }
 }
 

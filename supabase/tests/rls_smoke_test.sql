@@ -385,6 +385,40 @@ begin
       raise notice 'ok  28   closer não vê nem altera evento alheio';
   end;
 
+  -- ===================================================================
+  -- Dashboard (Fase 6) — ainda como closer B, que ficou sem carteira.
+  -- ===================================================================
+
+  -- 29. Closer recebe só a própria linha e não vê histórico alheio.
+  select count(*) into v_total
+  from public.dashboard_por_usuario(current_date - 30, current_date);
+  assert v_total = 1, format('closer B deveria receber 1 linha no dashboard, recebeu %s', v_total);
+
+  select count(*) into v_total
+  from public.dashboard_por_usuario(current_date - 30, current_date)
+  where usuario_id = v_closer_b and abertas = 0 and vendido_valor = 0;
+  assert v_total = 1, 'a linha do closer B deveria estar zerada (carteira transferida)';
+
+  select count(*) into v_total from public.historico_etapas;
+  assert v_total = 0, format('closer B não deveria ver histórico de etapas, viu %s', v_total);
+  raise notice 'ok  29   dashboard e histórico respeitam a carteira';
+
+  -- 30. Os números do closer A refletem o fechamento do passo 23, e o
+  --     histórico registrou a mudança para "fechado".
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+
+  select count(*) into v_total
+  from public.dashboard_por_usuario(current_date - 30, current_date)
+  where usuario_id = v_closer_a and ganhos >= 1 and vendido_valor >= 5000;
+  assert v_total = 1, 'o dashboard do closer A deveria contar o fechamento do passo 23';
+
+  select count(*) into v_total
+  from public.historico_etapas
+  where negociacao_id = v_negoc_b and etapa_nova = 'fechado';
+  assert v_total = 1, 'o histórico deveria registrar a ida para "fechado"';
+  raise notice 'ok  30   dashboard soma o fechamento; histórico registra a etapa';
+
   reset role;
   raise notice '';
   raise notice 'TODAS AS ASSERÇÕES PASSARAM.';

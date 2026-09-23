@@ -95,3 +95,15 @@ export function diaEmSaoPaulo(iso: string): string {
 export function instanteSaoPaulo(dia: string, hora = '00:00'): Date {
   return fromZonedTime(`${dia}T${hora}:00`, FUSO_HORARIO)
 }
+
+const percentual = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 })
+
+/** 0.4231 → "42,3%" */
+export function formatarPercentual(fracao: number): string {
+  return percentual.format(fracao)
+}
+
+/** Primeiro dia do mês (AAAA-MM-01) → "set/26". */
+export function formatarMes(mes: string): string {
+  return formatInTimeZone(meioDiaUtc(mes), 'UTC', 'MMM/yy', { locale: ptBR })
+}

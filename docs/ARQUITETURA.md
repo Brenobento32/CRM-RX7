@@ -132,7 +132,7 @@ o histórico de conversão se corrompe a cada reentrada.
 | `clientes` | Dados cadastrais, `owner_id`, soft delete via `deleted_at` |
 | `negociacoes` | O card do Kanban: etapa, valor estimado, posição, owner |
 | `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding |
-| `historico_etapas` | Append-only. Base do relatório de conversão e ciclo de venda. **Ainda não criada** — necessária antes da Fase 7 |
+| `historico_etapas` | Append-only, escrito por trigger a cada mudança de etapa. Alimenta "últimas movimentações" e será a base do relatório de conversão e ciclo de venda |
 | `eventos` | Agenda: reunião, ligação, follow-up, apresentação. Dono em `usuario_id`; `google_event_id` / `sincronizado_em` reservados para o Google Calendar |
 | `atividades` | Timeline da ficha do cliente: `tipo`, `descricao`, `data`, autor em `usuario_id` |
 | `proximas_acoes` | Follow-up combinado (`titulo`, `data`, `observacao`); pendente enquanto `concluida_em` for nulo |
@@ -184,7 +184,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 4 | Funil Kanban: dnd-kit, optimistic UI, modal de fechamento | concluída |
 | 5A | Atividades comerciais e próxima ação na ficha e no card | concluída |
 | 5B | Agenda: eventos, compromissos do dia, status → timeline | concluída |
-| 6 | Dashboard: KPIs sobre dados reais | pendente |
+| 6 | Dashboard: KPIs sobre dados reais | concluída |
 | 7 | Relatórios: performance por closer, conversão, export CSV | pendente |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 

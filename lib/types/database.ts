@@ -339,6 +339,55 @@ export type Database = {
           },
         ]
       }
+      historico_etapas: {
+        Row: {
+          created_at: string
+          etapa_anterior: Database["public"]["Enums"]["etapa_funil"] | null
+          etapa_nova: Database["public"]["Enums"]["etapa_funil"]
+          id: number
+          negociacao_id: string
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          etapa_anterior?: Database["public"]["Enums"]["etapa_funil"] | null
+          etapa_nova: Database["public"]["Enums"]["etapa_funil"]
+          id?: never
+          negociacao_id: string
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          etapa_anterior?: Database["public"]["Enums"]["etapa_funil"] | null
+          etapa_nova?: Database["public"]["Enums"]["etapa_funil"]
+          id?: never
+          negociacao_id?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_etapas_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_etapas_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_etapas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       negociacoes: {
         Row: {
           cliente_id: string
@@ -587,6 +636,38 @@ export type Database = {
           p_whatsapp?: string
         }
         Returns: string
+      }
+      dashboard_etapas: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: {
+          etapa: Database["public"]["Enums"]["etapa_funil"]
+          quantidade: number
+          valor: number
+        }[]
+      }
+      dashboard_por_usuario: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: {
+          abertas: number
+          atividades: number
+          ganhos: number
+          nome: string
+          perdidos: number
+          pipeline_valor: number
+          reunioes_proximas: number
+          reunioes_realizadas: number
+          role: Database["public"]["Enums"]["user_role"]
+          usuario_id: string
+          vendido_valor: number
+        }[]
+      }
+      dashboard_vendas_mensais: {
+        Args: { p_meses?: number }
+        Returns: {
+          mes: string
+          quantidade: number
+          valor: number
+        }[]
       }
       fechar_negociacao: {
         Args: {
