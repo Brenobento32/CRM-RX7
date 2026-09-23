@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Scorpion CRM
 
-## Getting Started
+CRM comercial da Scorpion — gestão de clientes, funil de vendas, agenda e
+relatórios, com permissões distintas para gerente e closer.
 
-First, run the development server:
+## Rodando localmente
+
+Requer **Node.js 20.9+**.
 
 ```bash
+npm install
+cp .env.example .env.local   # preencher com os dados do projeto Supabase
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A aplicação sobe em http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Comando | O que faz |
+| --- | --- |
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run start` | Servir o build de produção |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | Checagem de tipos sem emitir arquivos |
+| `npm run db:types` | Regera `lib/types/database.ts` a partir do schema do Supabase |
 
-## Learn More
+## Documentação
 
-To learn more about Next.js, take a look at the following resources:
+Arquitetura, modelo de dados, modelo de permissões, roadmap e convenções estão
+em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md). Leia antes de abrir código.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Dois pontos que economizam tempo:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Este projeto usa **Next.js 16**, onde `middleware.ts` virou `proxy.ts` e
+  `cookies()`, `headers()`, `params` e `searchParams` são assíncronos. A
+  documentação da versão instalada está em `node_modules/next/dist/docs/`.
+- A regra "closer vê apenas seus clientes" é aplicada por **RLS no Postgres**,
+  não pelo código da aplicação. Nunca use a chave `service_role` no caminho de
+  um request.
