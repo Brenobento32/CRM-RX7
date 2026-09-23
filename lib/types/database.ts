@@ -93,6 +93,9 @@ export type Database = {
       }
       clientes: {
         Row: {
+          cargo: string | null
+          cnpj: string | null
+          cpf: string | null
           created_at: string
           deleted_at: string | null
           documento: string | null
@@ -103,10 +106,16 @@ export type Database = {
           observacoes: string | null
           origem: string | null
           owner_id: string
+          responsavel: string | null
           telefone: string | null
+          tipo_cliente: Database["public"]["Enums"]["tipo_cliente"]
           updated_at: string
+          whatsapp: string | null
         }
         Insert: {
+          cargo?: string | null
+          cnpj?: string | null
+          cpf?: string | null
           created_at?: string
           deleted_at?: string | null
           documento?: string | null
@@ -117,10 +126,16 @@ export type Database = {
           observacoes?: string | null
           origem?: string | null
           owner_id: string
+          responsavel?: string | null
           telefone?: string | null
+          tipo_cliente?: Database["public"]["Enums"]["tipo_cliente"]
           updated_at?: string
+          whatsapp?: string | null
         }
         Update: {
+          cargo?: string | null
+          cnpj?: string | null
+          cpf?: string | null
           created_at?: string
           deleted_at?: string | null
           documento?: string | null
@@ -131,8 +146,11 @@ export type Database = {
           observacoes?: string | null
           origem?: string | null
           owner_id?: string
+          responsavel?: string | null
           telefone?: string | null
+          tipo_cliente?: Database["public"]["Enums"]["tipo_cliente"]
           updated_at?: string
+          whatsapp?: string | null
         }
         Relationships: [
           {
@@ -364,6 +382,23 @@ export type Database = {
     }
     Functions: {
       cliente_owner: { Args: { p_cliente_id: string }; Returns: string }
+      criar_cliente: {
+        Args: {
+          p_cargo?: string
+          p_cnpj?: string
+          p_cpf?: string
+          p_email?: string
+          p_empresa?: string
+          p_nome: string
+          p_observacoes?: string
+          p_owner_id?: string
+          p_responsavel?: string
+          p_telefone?: string
+          p_tipo_cliente: Database["public"]["Enums"]["tipo_cliente"]
+          p_whatsapp?: string
+        }
+        Returns: string
+      }
       is_gerente: { Args: never; Returns: boolean }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
     }
@@ -379,6 +414,7 @@ export type Database = {
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento: "pendente" | "parcial" | "pago" | "atrasado"
       tipo_atividade: "nota" | "ligacao" | "email" | "whatsapp" | "reuniao"
+      tipo_cliente: "pessoa_fisica" | "empresa"
       tipo_evento: "reuniao" | "call" | "followup"
       user_role: "gerente" | "closer"
     }
@@ -523,6 +559,7 @@ export const Constants = {
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
       status_pagamento: ["pendente", "parcial", "pago", "atrasado"],
       tipo_atividade: ["nota", "ligacao", "email", "whatsapp", "reuniao"],
+      tipo_cliente: ["pessoa_fisica", "empresa"],
       tipo_evento: ["reuniao", "call", "followup"],
       user_role: ["gerente", "closer"],
     },

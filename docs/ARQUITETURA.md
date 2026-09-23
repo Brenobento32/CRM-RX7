@@ -147,6 +147,7 @@ status_onboarding nao_iniciado | em_andamento | concluido
 tipo_evento       reuniao | call | followup
 status_evento     agendado | realizado | no_show | cancelado
 tipo_atividade    nota | ligacao | email | whatsapp | reuniao
+tipo_cliente      pessoa_fisica | empresa
 ```
 
 ### Regras que moram no banco, não no formulário
@@ -177,7 +178,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 0 | Fundação: dependências, clientes Supabase, env, estrutura, docs | concluída |
 | 1 | Banco: migrations, enums, triggers, RLS | concluída |
 | 2 | Auth: `proxy.ts`, login, `verifySession()`, shell com sidebar | concluída |
-| 3 | Clientes: CRUD completo — validação prática da RLS | pendente |
+| 3 | Clientes: CRUD completo — validação prática da RLS | concluída |
 | 4 | Funil Kanban: dnd-kit, optimistic UI, modal de fechamento | pendente |
 | 5 | Agenda: CRUD de eventos, visão semana/dia | pendente |
 | 6 | Dashboard: KPIs sobre dados reais | pendente |

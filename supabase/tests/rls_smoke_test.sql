@@ -220,6 +220,35 @@ begin
   assert v_total = 1, 'a negociação deveria acompanhar a transferência de carteira';
   raise notice 'ok  18   transferência de carteira propaga para as negociações';
 
+  -- ===================================================================
+  -- criar_cliente (Fase 3)
+  -- ===================================================================
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+
+  -- 19. Cria o cliente na carteira do closer, com negociação inicial.
+  v_cliente_a := public.criar_cliente(
+    p_tipo_cliente => 'empresa', p_nome => 'Contato Novo',
+    p_empresa => 'Empresa Nova', p_email => 'contato@nova.local');
+  select count(*) into v_total
+  from public.negociacoes
+  where cliente_id = v_cliente_a
+    and etapa = 'reuniao_agendada'
+    and owner_id = v_closer_a;
+  assert v_total = 1, 'criar_cliente deveria abrir uma negociação em reuniao_agendada';
+  raise notice 'ok  19   criar_cliente abre a negociação inicial na carteira do closer';
+
+  -- 20. Closer não cria cliente na carteira de outra pessoa.
+  begin
+    perform public.criar_cliente(
+      p_tipo_cliente => 'pessoa_fisica', p_nome => 'Fraude',
+      p_owner_id => v_closer_b);
+    raise exception 'closer A conseguiu criar cliente na carteira do B';
+  exception
+    when insufficient_privilege then
+      raise notice 'ok  20   closer não cria cliente em carteira alheia';
+  end;
+
   reset role;
   raise notice '';
   raise notice 'TODAS AS ASSERÇÕES PASSARAM.';
