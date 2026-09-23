@@ -1,3 +1,10 @@
+import { cookies } from 'next/headers'
+
+import {
+  COOKIE_SIDEBAR,
+  SIDEBAR_RECOLHIDA,
+} from '@/components/layout/preferencia-sidebar'
+import { ShellApp } from '@/components/layout/shell-app'
 import { Sidebar } from '@/components/layout/sidebar'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 
@@ -13,14 +20,12 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const usuario = await getUsuarioAtual()
+  const [usuario, cookieStore] = await Promise.all([getUsuarioAtual(), cookies()])
+  const recolhida = cookieStore.get(COOKIE_SIDEBAR)?.value === SIDEBAR_RECOLHIDA
 
   return (
-    <div className="flex min-h-full flex-1">
-      <Sidebar usuario={usuario} />
-      <main className="flex-1 pl-60">
-        <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
-      </main>
-    </div>
+    <ShellApp recolhidaInicial={recolhida} sidebar={<Sidebar usuario={usuario} />}>
+      {children}
+    </ShellApp>
   )
 }

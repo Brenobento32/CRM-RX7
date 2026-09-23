@@ -52,6 +52,14 @@ export const moverSchema = z.object({
   id: z.uuid(),
   etapa: z.enum(ETAPAS, 'Etapa inválida.'),
   posicao,
+  /**
+   * Outros cards da coluna de destino com posição nova, quando o Kanban
+   * precisou renumerar a coluna por falta de espaço entre os vizinhos.
+   */
+  reposicionar: z
+    .array(z.object({ id: z.uuid(), posicao }))
+    .max(1000, 'Coluna grande demais para renumerar.')
+    .default([]),
 })
 
 const simNao = (mensagem: string) =>

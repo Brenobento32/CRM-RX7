@@ -50,7 +50,10 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
     .from('funil_cards')
     .select('*')
     .or(`etapa.not.in.(fechado,perdido),data_entrada_etapa.gte."${corte}"`)
+    // `id` desempata: sem ele, cards com a mesma posição trocam de lugar a
+    // cada carregamento.
     .order('posicao', { ascending: true })
+    .order('id', { ascending: true })
 
   if (error) {
     throw new Error('Não foi possível carregar o funil.', { cause: error })
@@ -105,11 +108,16 @@ const NAO_ENCONTRADA: ResultadoFunil = {
  * fechado sem fechamento e perdido sem motivo.
  *
  * Closer só move o que é dele: a RLS esconde a linha e o UPDATE afeta 0.
+ *
+ * `reposicionar` traz os outros cards da coluna quando ela foi renumerada.
+ * Esses UPDATEs mudam só a posição e só de cards que já estão na etapa —
+ * nunca servem para trocar a etapa de ninguém.
  */
 export async function moverNegociacao(
   id: string,
   etapa: EtapaFunil,
   posicao: number,
+  reposicionar: { id: string; posicao: number }[] = [],
 ): Promise<ResultadoFunil> {
   await getUsuarioAtual()
   const supabase = await createClient()
@@ -121,7 +129,21 @@ export async function moverNegociacao(
   const { data, error } = await query.select('id').maybeSingle()
 
   if (error) return traduzirErro(error)
-  return data ? { ok: true } : NAO_ENCONTRADA
+  if (!data) return NAO_ENCONTRADA
+
+  const outros = reposicionar.filter((r) => r.id !== id)
+  if (outros.length > 0) {
+    const resultados = await Promise.all(
+      outros.map((r) =>
+        supabase.from('negociacoes').update({ posicao: r.posicao }).eq('id', r.id).eq('etapa', etapa),
+      ),
+    )
+    // Falha aqui só afeta a ordem visual; o movimento principal já foi gravado.
+    const falhas = resultados.filter((r) => r.error)
+    if (falhas.length > 0) console.error('Renumerar coluna do funil', falhas[0].error)
+  }
+
+  return { ok: true }
 }
 
 /** Fechamento + mudança de etapa numa transação (`public.fechar_negociacao`). */

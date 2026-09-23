@@ -6,9 +6,11 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -41,11 +43,29 @@ type MovimentoPendente = {
   antes: Colunas
 }
 
+/** Mesma ordem da consulta (`posicao`, depois `id`), para empates não trocarem de lugar. */
+function compararCards(a: CardFunil, b: CardFunil): number {
+  return a.posicao - b.posicao || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+}
+
 function agrupar(cards: CardFunil[]): Colunas {
   const colunas = Object.fromEntries(ETAPAS.map((e) => [e, [] as CardFunil[]])) as Colunas
   for (const card of cards) colunas[card.etapa].push(card)
-  for (const etapa of ETAPAS) colunas[etapa].sort((a, b) => a.posicao - b.posicao)
+  for (const etapa of ETAPAS) colunas[etapa].sort(compararCards)
   return colunas
+}
+
+/**
+ * Alvo do arraste: o que está sob o ponteiro, e só sem ponteiro (teclado) ou
+ * fora de qualquer área a distância entre cantos.
+ *
+ * `closestCorners` sozinho falha em coluna vazia: ela estica até a altura da
+ * coluna mais cheia, os cantos de baixo ficam longe, e um card da coluna
+ * vizinha acaba "mais perto" — o card voltava para a coluna de origem.
+ */
+const deteccaoDeColisao: CollisionDetection = (args) => {
+  const sobPonteiro = pointerWithin(args)
+  return sobPonteiro.length > 0 ? sobPonteiro : closestCorners(args)
 }
 
 /** O `id` de um droppable é a etapa; o de um card, o id da negociação. */
@@ -59,12 +79,24 @@ const PASSO = 1000
 /**
  * Posição nova = ponto médio entre os vizinhos. Assim mover um card grava
  * uma linha só, em vez de renumerar a coluna inteira.
+ *
+ * Devolve `null` quando não há espaço: vizinhos com a mesma posição (a
+ * negociação nova nasce com o default 1000) ou tão próximos que o ponto
+ * médio já não fica estritamente entre eles.
  */
-function posicaoEntre(anterior?: CardFunil, proximo?: CardFunil): number {
-  if (anterior && proximo) return (anterior.posicao + proximo.posicao) / 2
+function posicaoEntre(anterior?: CardFunil, proximo?: CardFunil): number | null {
+  if (anterior && proximo) {
+    const meio = (anterior.posicao + proximo.posicao) / 2
+    return anterior.posicao < meio && meio < proximo.posicao ? meio : null
+  }
   if (anterior) return anterior.posicao + PASSO
   if (proximo) return proximo.posicao - PASSO
   return PASSO
+}
+
+/** Coluna renumerada 1000, 2000, … na ordem atual. */
+function renumerar(coluna: CardFunil[]): CardFunil[] {
+  return coluna.map((c, i) => ({ ...c, posicao: (i + 1) * PASSO }))
 }
 
 export function Kanban({ cards }: { cards: CardFunil[] }) {
@@ -141,7 +173,7 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
     const lista = colunas[etapa]
     const de = lista.findIndex((c) => c.id === id)
     const indiceOver = lista.findIndex((c) => c.id === over.id)
-    const ordenada = arrayMove(lista, de, indiceOver >= 0 ? indiceOver : de)
+    let ordenada = arrayMove(lista, de, indiceOver >= 0 ? indiceOver : de)
     const indice = ordenada.findIndex((c) => c.id === id)
 
     // Soltou no mesmo lugar de onde saiu: nada a gravar.
@@ -151,25 +183,76 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
       return
     }
 
-    const posicao = posicaoEntre(ordenada[indice - 1], ordenada[indice + 1])
+    let posicao = posicaoEntre(ordenada[indice - 1], ordenada[indice + 1])
+    // Sem espaço entre os vizinhos: renumera a coluna e grava junto as
+    // posições que mudaram, para não criar empate.
+    let reposicionar: { id: string; posicao: number }[] = []
+    if (posicao === null) {
+      const renumerada = renumerar(ordenada)
+      reposicionar = renumerada
+        .filter((c, i) => i !== indice && c.posicao !== ordenada[i].posicao)
+        .map((c) => ({ id: c.id, posicao: c.posicao }))
+      ordenada = renumerada
+      posicao = renumerada[indice].posicao
+    }
+
     const card = { ...ordenada[indice], etapa, posicao }
     ordenada[indice] = card
     setColunas({ ...colunas, [etapa]: ordenada })
 
-    // Entrar em fechado/perdido: o card fica na coluna, mas só é gravado
-    // depois que o modal for preenchido.
-    if (exigeModal(etapa) && etapa !== inicio.etapa) {
-      setPendente({ card, etapa, posicao, antes: inicio.colunas })
+    gravar({ card, origem: inicio.etapa, posicao, reposicionar, antes: inicio.colunas })
+  }
+
+  /**
+   * Grava um movimento já aplicado no quadro. Entrar em fechado/perdido só
+   * abre o modal — o card fica na coluna, mas é gravado quando o modal for
+   * preenchido. Qualquer falha devolve o quadro ao estado `antes`.
+   */
+  function gravar({
+    card,
+    origem,
+    posicao,
+    reposicionar = [],
+    antes,
+  }: {
+    card: CardFunil
+    origem: EtapaFunil
+    posicao: number
+    reposicionar?: { id: string; posicao: number }[]
+    antes: Colunas
+  }) {
+    const etapa = card.etapa
+    if (exigeModal(etapa) && etapa !== origem) {
+      setPendente({ card, etapa, posicao, antes })
       return
     }
 
     startTransition(async () => {
-      const resultado = await moverNegociacaoAction({ id, etapa, posicao })
+      const resultado = await moverNegociacaoAction({ id: card.id, etapa, posicao, reposicionar })
       if (!resultado.ok) {
-        setColunas(inicio.colunas)
+        setColunas(antes)
         setErro(resultado.mensagem)
       }
     })
+  }
+
+  /** "Mover para" do card: vai para o fim da coluna de destino, sem arrastar. */
+  function moverPara(id: string, destino: EtapaFunil) {
+    const origem = etapaDe(colunas, id)
+    const atual = origem && colunas[origem].find((c) => c.id === id)
+    if (!origem || !atual || origem === destino || pendente) return
+
+    const coluna = colunas[destino]
+    const posicao = posicaoEntre(coluna.at(-1), undefined) ?? PASSO
+    const card = { ...atual, etapa: destino, posicao }
+
+    setErro(null)
+    setColunas({
+      ...colunas,
+      [origem]: colunas[origem].filter((c) => c.id !== id),
+      [destino]: [...coluna, card],
+    })
+    gravar({ card, origem, posicao, antes: colunas })
   }
 
   function aoCancelarArraste() {
@@ -197,7 +280,7 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
       <DndContext
         id={dndId}
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={deteccaoDeColisao}
         onDragStart={aoIniciar}
         onDragOver={aoPassar}
         onDragEnd={aoSoltar}
@@ -205,7 +288,7 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
           {ETAPAS.map((etapa) => (
-            <Coluna key={etapa} etapa={etapa} cards={colunas[etapa]} />
+            <Coluna key={etapa} etapa={etapa} cards={colunas[etapa]} onMover={moverPara} />
           ))}
         </div>
 
@@ -232,14 +315,26 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
   )
 }
 
-function Coluna({ etapa, cards }: { etapa: EtapaFunil; cards: CardFunil[] }) {
+function Coluna({
+  etapa,
+  cards,
+  onMover,
+}: {
+  etapa: EtapaFunil
+  cards: CardFunil[]
+  onMover: (id: string, etapa: EtapaFunil) => void
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa })
   const total = cards.reduce((soma, c) => soma + (c.valorEstimado ?? 0), 0)
 
   return (
+    // A coluna inteira (cabeçalho incluso) é a área de soltura.
     <section
+      ref={setNodeRef}
       aria-labelledby={`coluna-${etapa}`}
-      className="flex w-72 shrink-0 flex-col rounded-xl bg-zinc-100 dark:bg-zinc-900"
+      className={`flex w-72 shrink-0 flex-col rounded-xl transition-colors ${
+        isOver ? 'bg-zinc-200 dark:bg-zinc-800' : 'bg-zinc-100 dark:bg-zinc-900'
+      }`}
     >
       <header className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
         <h2 id={`coluna-${etapa}`} className="flex items-center gap-2 text-sm font-semibold">
@@ -255,14 +350,9 @@ function Coluna({ etapa, cards }: { etapa: EtapaFunil; cards: CardFunil[] }) {
       </header>
 
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-        <ul
-          ref={setNodeRef}
-          className={`flex min-h-32 flex-1 flex-col gap-2 rounded-b-xl p-2 transition-colors ${
-            isOver ? 'bg-zinc-200/70 dark:bg-zinc-800/70' : ''
-          }`}
-        >
+        <ul className="flex min-h-32 flex-1 flex-col gap-2 p-2">
           {cards.map((card) => (
-            <CardArrastavel key={card.id} card={card} />
+            <CardArrastavel key={card.id} card={card} onMover={onMover} />
           ))}
         </ul>
       </SortableContext>

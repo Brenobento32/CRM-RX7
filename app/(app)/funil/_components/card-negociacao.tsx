@@ -5,9 +5,12 @@ import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
 
 import type { CardFunil } from '@/lib/dal/funil'
+import type { EtapaFunil } from '@/lib/utils/etapas'
 import { formatarData, formatarDia, formatarMoeda, hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
+
+import { MenuMoverPara } from './menu-mover'
 
 const COR_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> = {
   quente: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
@@ -15,7 +18,13 @@ const COR_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> = {
   frio: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
 }
 
-export function CardArrastavel({ card }: { card: CardFunil }) {
+export function CardArrastavel({
+  card,
+  onMover,
+}: {
+  card: CardFunil
+  onMover: (id: string, etapa: EtapaFunil) => void
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id })
 
@@ -28,7 +37,16 @@ export function CardArrastavel({ card }: { card: CardFunil }) {
       {...attributes}
       {...listeners}
     >
-      <CardConteudo card={card} />
+      <CardConteudo
+        card={card}
+        menu={
+          <MenuMoverPara
+            etapaAtual={card.etapa}
+            nomeCliente={card.clienteNome}
+            onEscolher={(etapa) => onMover(card.id, etapa)}
+          />
+        }
+      />
     </li>
   )
 }
@@ -36,9 +54,12 @@ export function CardArrastavel({ card }: { card: CardFunil }) {
 export function CardConteudo({
   card,
   flutuando = false,
+  menu,
 }: {
   card: CardFunil
   flutuando?: boolean
+  /** Menu "Mover para"; ausente na cópia flutuante do arraste. */
+  menu?: React.ReactNode
 }) {
   return (
     <article
@@ -61,13 +82,16 @@ export function CardConteudo({
             </p>
           )}
         </div>
-        {card.temperatura && (
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${COR_TEMPERATURA[card.temperatura]}`}
-          >
-            {ROTULO_TEMPERATURA[card.temperatura]}
-          </span>
-        )}
+        <div className="flex shrink-0 items-start gap-1">
+          {card.temperatura && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${COR_TEMPERATURA[card.temperatura]}`}
+            >
+              {ROTULO_TEMPERATURA[card.temperatura]}
+            </span>
+          )}
+          {menu}
+        </div>
       </div>
 
       <p className="mt-2 font-semibold tabular-nums">

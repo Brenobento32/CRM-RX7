@@ -21,14 +21,15 @@ export async function moverNegociacaoAction(input: {
   id: string
   etapa: string
   posicao: number
+  reposicionar?: { id: string; posicao: number }[]
 }): Promise<ResultadoFunil> {
   const parsed = moverSchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, mensagem: parsed.error.issues[0]?.message ?? 'Movimento inválido.' }
   }
 
-  const { id, etapa, posicao } = parsed.data
-  const resultado = await moverNegociacao(id, etapa, posicao)
+  const { id, etapa, posicao, reposicionar } = parsed.data
+  const resultado = await moverNegociacao(id, etapa, posicao, reposicionar)
 
   if (resultado.ok) revalidatePath('/funil')
   return resultado
