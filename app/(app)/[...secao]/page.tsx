@@ -11,7 +11,6 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
  */
 const EM_BREVE: Record<string, string> = {
   agenda: 'Agenda',
-  funil: 'Funil',
   relatorios: 'Relatórios',
   configuracoes: 'Configurações',
 }

@@ -1,0 +1,118 @@
+'use client'
+
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import Link from 'next/link'
+
+import type { CardFunil } from '@/lib/dal/funil'
+import { formatarData, formatarDataHora, formatarMoeda } from '@/lib/utils/formatacao'
+import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
+
+const COR_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> = {
+  quente: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+  morno: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  frio: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+}
+
+/** Tipos de evento e de atividade que aparecem em "próxima ação" / "último contato". */
+const ROTULO_TIPO_CONTATO: Record<string, string> = {
+  reuniao: 'reunião',
+  call: 'call',
+  followup: 'follow-up',
+  ligacao: 'ligação',
+  email: 'e-mail',
+  whatsapp: 'WhatsApp',
+}
+
+export function CardArrastavel({ card }: { card: CardFunil }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: card.id })
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? 'opacity-40' : undefined}
+      aria-label={`Negociação de ${card.clienteNome}`}
+      {...attributes}
+      {...listeners}
+    >
+      <CardConteudo card={card} />
+    </li>
+  )
+}
+
+export function CardConteudo({
+  card,
+  flutuando = false,
+}: {
+  card: CardFunil
+  flutuando?: boolean
+}) {
+  return (
+    <article
+      className={`cursor-grab touch-none rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950 ${
+        flutuando ? 'cursor-grabbing shadow-lg ring-2 ring-zinc-900/10' : 'shadow-xs hover:border-zinc-300 dark:hover:border-zinc-700'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <Link
+            href={`/clientes/${card.clienteId}`}
+            className="block truncate font-medium hover:underline"
+            title={card.clienteNome}
+          >
+            {card.clienteNome}
+          </Link>
+          {card.clienteEmpresa && (
+            <p className="truncate text-xs text-zinc-500" title={card.clienteEmpresa}>
+              {card.clienteEmpresa}
+            </p>
+          )}
+        </div>
+        {card.temperatura && (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${COR_TEMPERATURA[card.temperatura]}`}
+          >
+            {ROTULO_TEMPERATURA[card.temperatura]}
+          </span>
+        )}
+      </div>
+
+      <p className="mt-2 font-semibold tabular-nums">
+        {card.valorEstimado !== null ? (
+          formatarMoeda(card.valorEstimado)
+        ) : (
+          <span className="font-normal text-zinc-400">Sem valor estimado</span>
+        )}
+      </p>
+
+      <dl className="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-400">
+        {card.proximaAcao && (
+          <div className="flex gap-1">
+            <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Próxima:</dt>
+            <dd className="truncate" title={card.proximaAcao.titulo}>
+              {ROTULO_TIPO_CONTATO[card.proximaAcao.tipo] ?? card.proximaAcao.tipo}{' '}
+              {formatarDataHora(card.proximaAcao.inicio)}
+            </dd>
+          </div>
+        )}
+        {card.ultimoContato && (
+          <div className="flex gap-1">
+            <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Último contato:</dt>
+            <dd className="truncate">
+              {formatarData(card.ultimoContato.em)} (
+              {ROTULO_TIPO_CONTATO[card.ultimoContato.tipo] ?? card.ultimoContato.tipo})
+            </dd>
+          </div>
+        )}
+        {card.responsavel && (
+          <div className="flex gap-1">
+            <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Responsável:</dt>
+            <dd className="truncate">{card.responsavel}</dd>
+          </div>
+        )}
+      </dl>
+    </article>
+  )
+}

@@ -249,6 +249,52 @@ begin
       raise notice 'ok  20   closer não cria cliente em carteira alheia';
   end;
 
+  -- ===================================================================
+  -- Funil (Fase 4)
+  -- ===================================================================
+
+  -- 21. A view do funil respeita a RLS (security_invoker).
+  select count(*) into v_total from public.funil_cards;
+  assert v_total = (select count(*) from public.negociacoes),
+    format('closer A deveria ver no funil só as próprias negociações, viu %s', v_total);
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_b, 'role', 'authenticated')::text, true);
+  select count(*) into v_total from public.funil_cards;
+  assert v_total = 0,
+    format('closer B (carteira transferida no passo 18) não deveria ver cards, viu %s', v_total);
+  raise notice 'ok  21   funil_cards respeita a RLS';
+
+  -- 22. Closer não fecha negociação alheia.
+  begin
+    perform public.fechar_negociacao(
+      p_negociacao_id => v_negoc_a, p_posicao => 1000, p_valor_vendido => 100,
+      p_data_fechamento => current_date, p_contrato_enviado => true,
+      p_contrato_assinado => false, p_status_pagamento => 'pendente',
+      p_status_onboarding => 'nao_iniciado');
+    raise exception 'closer B conseguiu fechar negociação do closer A';
+  exception
+    when no_data_found then
+      raise notice 'ok  22   closer não fecha negociação alheia';
+  end;
+
+  -- 23. fechar_negociacao move a etapa e grava o fechamento juntos.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  select id into v_negoc_b from public.negociacoes where cliente_id = v_cliente_a;
+  perform public.fechar_negociacao(
+    p_negociacao_id => v_negoc_b, p_posicao => 1000, p_valor_vendido => 5000,
+    p_data_fechamento => current_date, p_contrato_enviado => true,
+    p_contrato_assinado => true, p_status_pagamento => 'cancelado',
+    p_status_onboarding => 'em_andamento',
+    p_link_contrato => 'https://contratos.local/123');
+  select count(*) into v_total
+  from public.negociacoes n
+  join public.fechamentos f on f.negociacao_id = n.id
+  where n.id = v_negoc_b and n.etapa = 'fechado' and f.valor_vendido = 5000;
+  assert v_total = 1, 'fechar_negociacao deveria mover a etapa e gravar o fechamento';
+  raise notice 'ok  23   fechar_negociacao grava etapa e fechamento juntos';
+
   reset role;
   raise notice '';
   raise notice 'TODAS AS ASSERÇÕES PASSARAM.';

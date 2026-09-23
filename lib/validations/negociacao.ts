@@ -19,10 +19,11 @@ const vazioParaNull = (v: string) => (v.trim() === '' ? null : v.trim())
 /**
  * Valor em reais. Aceita "15000", "15000.50", "15.000", "15.000,50" e
  * "R$ 15.000,50".
- * Devolve string com duas casas ("15000.50"): o Postgres grava em
- * numeric(14,2) e o valor não passa por float no caminho.
+ * Devolve string com duas casas ("15000.50"), sem aritmética de float. O
+ * limite de 12 dígitos inteiros cabe em numeric(14,2) e também converte para
+ * `number` sem perda de centavos, que é como o supabase-js envia numeric.
  */
-const valorEmReais = z
+export const valorEmReais = z
   .string()
   .transform((v, ctx) => {
     const limpo = v.replace(/R\$|\s/g, '')

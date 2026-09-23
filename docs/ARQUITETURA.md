@@ -142,7 +142,7 @@ o histórico de conversão se corrompe a cada reentrada.
 user_role         gerente | closer
 etapa_funil       reuniao_agendada | reuniao_realizada | proposta_enviada |
                   negociacao | fechado | perdido
-status_pagamento  pendente | parcial | pago | atrasado
+status_pagamento  pendente | parcial | pago | atrasado | cancelado
 status_onboarding nao_iniciado | em_andamento | concluido
 tipo_evento       reuniao | call | followup
 status_evento     agendado | realizado | no_show | cancelado
@@ -180,7 +180,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 1 | Banco: migrations, enums, triggers, RLS | concluída |
 | 2 | Auth: `proxy.ts`, login, `verifySession()`, shell com sidebar | concluída |
 | 3 | Clientes: CRUD completo — validação prática da RLS | concluída |
-| 4 | Funil Kanban: dnd-kit, optimistic UI, modal de fechamento | pendente |
+| 4 | Funil Kanban: dnd-kit, optimistic UI, modal de fechamento | concluída |
 | 5 | Agenda: CRUD de eventos, visão semana/dia | pendente |
 | 6 | Dashboard: KPIs sobre dados reais | pendente |
 | 7 | Relatórios: performance por closer, conversão, export CSV | pendente |

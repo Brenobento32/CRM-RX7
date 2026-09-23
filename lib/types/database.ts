@@ -76,6 +76,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "atividades_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "atividades_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "atividades_negociacao_id_fkey"
             columns: ["negociacao_id"]
             isOneToOne: false
@@ -214,6 +228,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "eventos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "eventos_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "eventos_negociacao_id_fkey"
             columns: ["negociacao_id"]
             isOneToOne: false
@@ -236,8 +264,10 @@ export type Database = {
           contrato_enviado: boolean
           contrato_enviado_em: string | null
           created_at: string
+          data_fechamento: string
           fechado_em: string
           fechado_por: string
+          link_contrato: string | null
           negociacao_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
@@ -250,8 +280,10 @@ export type Database = {
           contrato_enviado: boolean
           contrato_enviado_em?: string | null
           created_at?: string
+          data_fechamento: string
           fechado_em?: string
           fechado_por?: string
+          link_contrato?: string | null
           negociacao_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
@@ -264,8 +296,10 @@ export type Database = {
           contrato_enviado?: boolean
           contrato_enviado_em?: string | null
           created_at?: string
+          data_fechamento?: string
           fechado_em?: string
           fechado_por?: string
+          link_contrato?: string | null
           negociacao_id?: string
           status_onboarding?: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento?: Database["public"]["Enums"]["status_pagamento"]
@@ -278,6 +312,13 @@ export type Database = {
             columns: ["fechado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fechamentos_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: true
+            referencedRelation: "funil_cards"
             referencedColumns: ["id"]
           },
           {
@@ -356,6 +397,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "negociacoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+          {
             foreignKeyName: "negociacoes_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
@@ -396,7 +444,37 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      funil_cards: {
+        Row: {
+          cliente_empresa: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          data_entrada_etapa: string | null
+          etapa: Database["public"]["Enums"]["etapa_funil"] | null
+          id: string | null
+          owner_id: string | null
+          posicao: number | null
+          proxima_acao_inicio: string | null
+          proxima_acao_tipo: Database["public"]["Enums"]["tipo_evento"] | null
+          proxima_acao_titulo: string | null
+          responsavel_nome: string | null
+          temperatura:
+            | Database["public"]["Enums"]["temperatura_negociacao"]
+            | null
+          ultimo_contato_em: string | null
+          ultimo_contato_tipo: string | null
+          valor_estimado: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negociacoes_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       cliente_owner: { Args: { p_cliente_id: string }; Returns: string }
@@ -417,6 +495,20 @@ export type Database = {
         }
         Returns: string
       }
+      fechar_negociacao: {
+        Args: {
+          p_contrato_assinado: boolean
+          p_contrato_enviado: boolean
+          p_data_fechamento: string
+          p_link_contrato?: string
+          p_negociacao_id: string
+          p_posicao: number
+          p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
+          p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          p_valor_vendido: number
+        }
+        Returns: undefined
+      }
       is_gerente: { Args: never; Returns: boolean }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
     }
@@ -430,7 +522,12 @@ export type Database = {
         | "perdido"
       status_evento: "agendado" | "realizado" | "no_show" | "cancelado"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
-      status_pagamento: "pendente" | "parcial" | "pago" | "atrasado"
+      status_pagamento:
+        | "pendente"
+        | "parcial"
+        | "pago"
+        | "atrasado"
+        | "cancelado"
       temperatura_negociacao: "quente" | "morno" | "frio"
       tipo_atividade: "nota" | "ligacao" | "email" | "whatsapp" | "reuniao"
       tipo_cliente: "pessoa_fisica" | "empresa"
@@ -576,7 +673,13 @@ export const Constants = {
       ],
       status_evento: ["agendado", "realizado", "no_show", "cancelado"],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
-      status_pagamento: ["pendente", "parcial", "pago", "atrasado"],
+      status_pagamento: [
+        "pendente",
+        "parcial",
+        "pago",
+        "atrasado",
+        "cancelado",
+      ],
       temperatura_negociacao: ["quente", "morno", "frio"],
       tipo_atividade: ["nota", "ligacao", "email", "whatsapp", "reuniao"],
       tipo_cliente: ["pessoa_fisica", "empresa"],
