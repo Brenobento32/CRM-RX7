@@ -11,7 +11,6 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
  */
 const EM_BREVE: Record<string, string> = {
   relatorios: 'Relatórios',
-  configuracoes: 'Configurações',
 }
 
 export default async function EmBrevePage({

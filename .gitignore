@@ -42,3 +42,6 @@ next-env.d.ts
 
 # permitir o template de variáveis de ambiente
 !.env.example
+
+# SQL gerado pela importação da planilha (contém dados de clientes)
+scripts/.saida/

@@ -475,27 +475,33 @@ export type Database = {
           ativo: boolean
           created_at: string
           email: string
+          foto_url: string | null
           id: string
           nome: string
           role: Database["public"]["Enums"]["user_role"]
+          telefone: string | null
           updated_at: string
         }
         Insert: {
           ativo?: boolean
           created_at?: string
           email: string
+          foto_url?: string | null
           id: string
           nome: string
           role?: Database["public"]["Enums"]["user_role"]
+          telefone?: string | null
           updated_at?: string
         }
         Update: {
           ativo?: boolean
           created_at?: string
           email?: string
+          foto_url?: string | null
           id?: string
           nome?: string
           role?: Database["public"]["Enums"]["user_role"]
+          telefone?: string | null
           updated_at?: string
         }
         Relationships: []

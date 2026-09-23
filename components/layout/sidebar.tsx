@@ -1,12 +1,9 @@
+import { Avatar } from '@/components/ui/avatar'
 import { logout } from '@/lib/actions/auth'
 import type { UsuarioAtual } from '@/lib/dal/auth'
+import { ROTULO_PAPEL } from '@/lib/validations/usuario'
 
 import { SidebarNav } from './sidebar-nav'
-
-const ROTULO_PAPEL: Record<UsuarioAtual['role'], string> = {
-  gerente: 'Gerente',
-  closer: 'Closer',
-}
 
 export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
   return (
@@ -18,19 +15,19 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
       <SidebarNav />
 
       <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium" title={usuario.nome}>
-            {usuario.nome}
-          </p>
-          <p
-            className="truncate text-xs text-zinc-500"
-            title={usuario.email}
-          >
-            {usuario.email}
-          </p>
-          <span className="mt-2 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-            {ROTULO_PAPEL[usuario.role]}
-          </span>
+        <div className="flex min-w-0 items-start gap-3">
+          <Avatar nome={usuario.nome} fotoUrl={usuario.fotoUrl} tamanho="md" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium" title={usuario.nome}>
+              {usuario.nome}
+            </p>
+            <p className="truncate text-xs text-zinc-500" title={usuario.email}>
+              {usuario.email}
+            </p>
+            <span className="mt-2 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              {ROTULO_PAPEL[usuario.role]}
+            </span>
+          </div>
         </div>
 
         <form action={logout} className="mt-3">

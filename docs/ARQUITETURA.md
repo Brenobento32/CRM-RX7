@@ -61,7 +61,15 @@ RLS, o Postgres devolve apenas as linhas permitidas mesmo num `select *`.
    verdade da autorização.
 2. **Chave `anon`, nunca `service_role`** — o JWT do usuário viaja na
    requisição, então o Postgres sabe quem está perguntando. A `service_role`
-   ignora a RLS e não deve existir no caminho de nenhum request.
+   ignora a RLS e não deve existir no caminho de nenhum request do Next.
+
+   **Única exceção:** a Edge Function `admin-usuarios`
+   (`supabase/functions/admin-usuarios`). Criar usuário e bloquear o login no
+   Auth exigem a API de admin, que só funciona com a `service_role`. A chave
+   fica no ambiente das Edge Functions (injetada pelo Supabase), nunca no
+   `.env` do Next. A função exige JWT e confere `is_gerente()` com o token de
+   quem chama antes de usar o cliente admin. Deploy:
+   `npx supabase functions deploy admin-usuarios --use-api`.
 3. **Data Access Layer (`lib/dal`)** — único lugar que conversa com o banco.
    Verifica a sessão, aplica filtros e devolve DTOs enxutos, de modo que
    nenhum objeto cru de banco chegue a um Client Component.
@@ -106,7 +114,8 @@ lib/
   utils/
 
 supabase/
-  migrations/      SQL versionado: schema, RLS, triggers
+  migrations/      SQL versionado: schema, RLS, triggers, bucket de avatares
+  functions/       Edge Functions (Deno) — só admin-usuarios, com service_role
   tests/           teste de fumaça da RLS, para rodar no SQL Editor
 
 docs/
@@ -128,7 +137,7 @@ o histórico de conversão se corrompe a cada reentrada.
 
 | Tabela | Papel |
 | --- | --- |
-| `profiles` | Espelho de `auth.users` com `role` (gerente / closer) |
+| `profiles` | Espelho de `auth.users`: `role` (gerente / closer), `ativo`, `telefone`, `foto_url`. Nunca excluído — desativar bloqueia o login. Sempre há ao menos um gerente ativo (trigger) |
 | `clientes` | Dados cadastrais, `owner_id`, soft delete via `deleted_at` |
 | `negociacoes` | O card do Kanban: etapa, valor estimado, posição, owner |
 | `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding |

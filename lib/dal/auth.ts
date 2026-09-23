@@ -14,6 +14,7 @@ export type UsuarioAtual = {
   nome: string
   email: string
   role: UserRole
+  fotoUrl: string | null
 }
 
 /**
@@ -52,7 +53,7 @@ export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual> => {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, nome, email, role, ativo')
+    .select('id, nome, email, role, ativo, foto_url')
     .eq('id', userId)
     .maybeSingle()
 
@@ -71,6 +72,7 @@ export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual> => {
     nome: profile.nome,
     email: profile.email,
     role: profile.role,
+    fotoUrl: profile.foto_url,
   }
 })
 
