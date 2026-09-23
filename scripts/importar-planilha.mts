@@ -9,7 +9,7 @@
  *
  * Uso:
  *   node scripts/importar-planilha.mts <planilha.xlsx>
- *   node scripts/importar-planilha.mts <planilha.xlsx> --dono email@x.com --sql scripts/.saida/importacao.sql
+ *   node scripts/importar-planilha.mts <planilha.xlsx> --dono <email ou uuid> --sql scripts/.saida/importacao.sql
  *   ... --simular   (gera um SQL que valida tudo no banco e desfaz no final)
  *
  * Mapeamento completo e decisões: docs/IMPORTACAO-PLANILHA.md
@@ -419,18 +419,6 @@ function mapear(
     }
 
     const objecao = texto(col('objecao'))
-    // O texto da objeção às vezes conta o desfecho que o status não registrou.
-    // Só sinaliza: fechar exige os dados do fechamento, e perder exige motivo.
-    const objecaoNorm = normalizar(objecao ?? '')
-    if (/\bfechou\b|\bfechado\b|\bfechamos\b/.test(objecaoNorm)) {
-      aviso('A objeção sugere que o negócio FECHOU — importado na etapa da planilha; feche pelo Kanban.')
-    }
-    if (/nao tem interesse|sem interesse|nao tem como investir|churn|desist/.test(objecaoNorm)) {
-      aviso('A objeção sugere PERDA ou pausa — importado na etapa da planilha; revise no Kanban.')
-    }
-    if (objecaoNorm === 'sem resposta') {
-      aviso('"Objeção" é "Sem Resposta" (status de contato, não objeção) — importado como está.')
-    }
     const responsavel = texto(col('responsavel'))
     if (responsavel && /\([^)]*$/.test(responsavel)) {
       aviso(`"Responsavel" parece cortado: "${responsavel}".`)
@@ -462,6 +450,9 @@ function mapear(
 // ---------------------------------------------------------------------------
 // Geração do SQL
 // ---------------------------------------------------------------------------
+
+/** `--dono` aceita o e-mail ou o UUID do usuário. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function lit(v: string | number | null): string {
   if (v === null) return 'null'
@@ -502,7 +493,8 @@ declare
 begin
   select id into v_dono
   from public.profiles
-  where lower(email) = lower(${lit(dono)}) and ativo;
+  where ${UUID.test(dono) ? `id = ${lit(dono)}::uuid` : `lower(email) = lower(${lit(dono)})`}
+    and ativo;
 
   if v_dono is null then
     raise exception 'Dono % não encontrado ou inativo em profiles.', ${lit(dono)};
@@ -648,10 +640,10 @@ function principal() {
   const dono = argumento('--dono')
   const saida = argumento('--sql')
   if (!dono || !saida) {
-    console.log('\nNada foi gerado. Para gerar o SQL de importação: --dono <email do closer> --sql <arquivo.sql>')
+    console.log('\nNada foi gerado. Para gerar o SQL de importação: --dono <e-mail ou UUID do closer> --sql <arquivo.sql>')
     return
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dono)) {
+  if (!UUID.test(dono) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dono)) {
     console.error(`\n--dono inválido: ${dono}`)
     process.exit(1)
   }
