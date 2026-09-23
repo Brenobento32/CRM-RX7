@@ -31,6 +31,7 @@ declare
   v_negoc_a   uuid;
   v_negoc_b   uuid;
   v_evento    uuid;
+  v_etapa     uuid;
 
   v_total     integer;
   v_papel     public.user_role;
@@ -112,7 +113,7 @@ begin
   raise notice 'ok  5    UPDATE em cliente alheio não afeta nenhuma linha';
 
   -- 6. Não consegue mover negociação alheia.
-  update public.negociacoes set etapa = 'proposta_enviada' where id = v_negoc_b;
+  update public.negociacoes set etapa_id = public.etapa_id_por_chave('proposta_enviada') where id = v_negoc_b;
   get diagnostics v_total = row_count;
   assert v_total = 0, 'closer A não pode mover negociação do closer B';
   raise notice 'ok  6    closer A não move negociação alheia';
@@ -142,7 +143,7 @@ begin
   -- 10. Fechar sem registro de fechamento é impossível.
   execute 'set constraints all immediate';
   begin
-    update public.negociacoes set etapa = 'fechado' where id = v_negoc_a;
+    update public.negociacoes set etapa_id = public.etapa_id_por_chave('fechado') where id = v_negoc_a;
     assert false, 'fechar sem registro de fechamento deveria falhar';
   exception when check_violation then
     raise notice 'ok  10   etapa "fechado" exige registro de fechamento';
@@ -150,7 +151,7 @@ begin
 
   -- 11. Perder sem motivo é impossível.
   begin
-    update public.negociacoes set etapa = 'perdido' where id = v_negoc_a;
+    update public.negociacoes set etapa_id = public.etapa_id_por_chave('perdido') where id = v_negoc_a;
     assert false, 'perder sem motivo deveria falhar';
   exception when check_violation then
     raise notice 'ok  11   etapa "perdido" exige motivo_perda';
@@ -163,7 +164,7 @@ begin
   )
   values (v_negoc_a, 9500.00, current_date, true, true, 'pendente', 'nao_iniciado', v_closer_a);
 
-  update public.negociacoes set etapa = 'fechado' where id = v_negoc_a;
+  update public.negociacoes set etapa_id = public.etapa_id_por_chave('fechado') where id = v_negoc_a;
   get diagnostics v_total = row_count;
   assert v_total = 1, 'com fechamento registrado, a negociação precisa fechar';
   raise notice 'ok  12   fechamento completo permite mover para "fechado"';
@@ -197,8 +198,12 @@ begin
     json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
 
   -- 15. Enxerga os dois clientes.
-  select count(*) into v_total from public.clientes;
-  assert v_total = 2, format('gerente deveria ver 2 clientes, viu %s', v_total);
+  -- Só os clientes do teste: o banco pode ter dados reais, que o gerente
+  -- também enxerga.
+  select count(*) into v_total
+  from public.clientes
+  where id in (v_cliente_a, v_cliente_b);
+  assert v_total = 2, format('gerente deveria ver os 2 clientes de teste, viu %s', v_total);
   raise notice 'ok  15   gerente vê a carteira inteira';
 
   -- 16. Edita cliente de qualquer closer.
@@ -208,7 +213,7 @@ begin
   raise notice 'ok  16   gerente edita cliente de qualquer closer';
 
   -- 17. Move negociação de qualquer closer.
-  update public.negociacoes set etapa = 'proposta_enviada' where id = v_negoc_b;
+  update public.negociacoes set etapa_id = public.etapa_id_por_chave('proposta_enviada') where id = v_negoc_b;
   get diagnostics v_total = row_count;
   assert v_total = 1, 'gerente precisa conseguir mover qualquer negociação';
   raise notice 'ok  17   gerente move negociação de qualquer closer';
@@ -234,7 +239,7 @@ begin
   select count(*) into v_total
   from public.negociacoes
   where cliente_id = v_cliente_a
-    and etapa = 'reuniao_agendada'
+    and etapa_id = public.etapa_id_por_chave('reuniao_agendada')
     and owner_id = v_closer_a;
   assert v_total = 1, 'criar_cliente deveria abrir uma negociação em reuniao_agendada';
   raise notice 'ok  19   criar_cliente abre a negociação inicial na carteira do closer';
@@ -292,7 +297,7 @@ begin
   select count(*) into v_total
   from public.negociacoes n
   join public.fechamentos f on f.negociacao_id = n.id
-  where n.id = v_negoc_b and n.etapa = 'fechado' and f.valor_vendido = 5000;
+  where n.id = v_negoc_b and n.etapa_id = public.etapa_id_por_chave('fechado') and f.valor_vendido = 5000;
   assert v_total = 1, 'fechar_negociacao deveria mover a etapa e gravar o fechamento';
   raise notice 'ok  23   fechar_negociacao grava etapa e fechamento juntos';
 
@@ -415,9 +420,118 @@ begin
 
   select count(*) into v_total
   from public.historico_etapas
-  where negociacao_id = v_negoc_b and etapa_nova = 'fechado';
+  where negociacao_id = v_negoc_b and etapa_nova_id = public.etapa_id_por_chave('fechado');
   assert v_total = 1, 'o histórico deveria registrar a ida para "fechado"';
   raise notice 'ok  30   dashboard soma o fechamento; histórico registra a etapa';
+
+  -- ===================================================================
+  -- Etapas do funil (Fase 8B) — começa como closer A.
+  -- ===================================================================
+
+  -- 31. Closer lê as etapas, mas não cria.
+  select count(*) into v_total from public.etapas_funil where ativo;
+  assert v_total >= 6, format('closer deveria ler as etapas, leu %s', v_total);
+  begin
+    insert into public.etapas_funil (nome, cor, ordem) values ('Do closer', 'cinza', 3600);
+    raise exception 'closer criou etapa';
+  exception
+    when insufficient_privilege then
+      raise notice 'ok  31   closer lê etapas mas não cria';
+  end;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+
+  -- 32. Gerente cria personalizada antes de Negociação; nasce aberta.
+  insert into public.etapas_funil (nome, cor, ordem)
+  values ('Follow-up teste', 'ciano', 3500)
+  returning id into v_etapa;
+  assert public.etapa_tipo(v_etapa) = 'aberta', 'personalizada deveria nascer aberta';
+  raise notice 'ok  32   gerente cria etapa personalizada (aberta)';
+
+  -- 33. Nem depois de Negociação, nem do tipo ganha, nem cor fora da paleta.
+  begin
+    insert into public.etapas_funil (nome, cor, ordem) values ('Depois', 'rosa', 5000);
+    raise exception 'aceitou personalizada depois de Negociação';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.etapas_funil (nome, cor, ordem, tipo) values ('Outro ganho', 'rosa', 3700, 'ganha');
+    raise exception 'aceitou segunda etapa ganha';
+  exception when check_violation or unique_violation then null;
+  end;
+  begin
+    execute $sql$insert into public.etapas_funil (nome, cor, ordem) values ('Magenta', 'magenta', 3800)$sql$;
+    raise exception 'aceitou cor fora da paleta';
+  exception when invalid_text_representation then null;
+  end;
+  raise notice 'ok  33   posição, tipo e cor das personalizadas são validados';
+
+  -- 34. Etapa de sistema: só a cor muda; não é excluída.
+  begin
+    update public.etapas_funil set nome = 'Renomeada' where chave = 'proposta_enviada';
+    raise exception 'renomeou etapa de sistema';
+  exception when check_violation then null;
+  end;
+  begin
+    update public.etapas_funil set ordem = 3900 where chave = 'proposta_enviada';
+    raise exception 'reordenou etapa de sistema';
+  exception when check_violation then null;
+  end;
+  update public.etapas_funil set cor = 'rosa' where chave = 'proposta_enviada';
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'gerente deveria mudar a cor da etapa de sistema';
+  delete from public.etapas_funil where chave = 'negociacao';
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'etapa de sistema não pode ser excluída';
+  raise notice 'ok  34   etapa de sistema: só a cor muda, e não é excluída';
+
+  -- 35. Com negociação dentro, a personalizada não é desativada nem excluída.
+  update public.negociacoes set etapa_id = v_etapa where id = v_negoc_a;
+  begin
+    update public.etapas_funil set ativo = false where id = v_etapa;
+    raise exception 'desativou etapa com negociação';
+  exception when check_violation then null;
+  end;
+  begin
+    delete from public.etapas_funil where id = v_etapa;
+    raise exception 'excluiu etapa com negociação';
+  exception when check_violation then null;
+  end;
+  raise notice 'ok  35   etapa com negociações não é desativada nem excluída';
+
+  -- 36. Esvaziada mas com histórico: desativa, não exclui; e ninguém entra nela.
+  update public.negociacoes set etapa_id = public.etapa_id_por_chave('proposta_enviada') where id = v_negoc_a;
+  begin
+    delete from public.etapas_funil where id = v_etapa;
+    raise exception 'excluiu etapa com histórico';
+  exception when check_violation then null;
+  end;
+  update public.etapas_funil set ativo = false where id = v_etapa;
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'etapa com histórico e sem negociações deveria ser desativada';
+  begin
+    update public.negociacoes set etapa_id = v_etapa where id = v_negoc_a;
+    raise exception 'moveu negociação para etapa desativada';
+  exception when check_violation then null;
+  end;
+  raise notice 'ok  36   com histórico: só desativa; etapa desativada não recebe negociações';
+
+  -- 37. Nunca usada: pode excluir.
+  insert into public.etapas_funil (nome, cor, ordem) values ('Nunca usada', 'cinza', 3600)
+  returning id into v_etapa;
+  delete from public.etapas_funil where id = v_etapa;
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'etapa nunca usada deveria ser excluída';
+  raise notice 'ok  37   etapa nunca usada é excluída';
+
+  -- 38. Etapa perdida exige motivo (agora por tipo, não pelo nome).
+  begin
+    update public.negociacoes set etapa_id = public.etapa_id_por_chave('perdido') where id = v_negoc_a;
+    raise exception 'perdida sem motivo foi aceita';
+  exception when check_violation then
+    raise notice 'ok  38   etapa perdida exige motivo';
+  end;
 
   reset role;
   raise notice '';

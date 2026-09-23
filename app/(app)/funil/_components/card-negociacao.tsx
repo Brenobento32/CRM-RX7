@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
 
 import type { CardFunil } from '@/lib/dal/funil'
-import type { EtapaFunil } from '@/lib/utils/etapas'
+import type { EtapaKanban } from '@/lib/utils/etapas'
 import { formatarData, formatarDia, formatarMoeda, hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
@@ -20,10 +20,12 @@ const COR_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> = {
 
 export function CardArrastavel({
   card,
+  etapas,
   onMover,
 }: {
   card: CardFunil
-  onMover: (id: string, etapa: EtapaFunil) => void
+  etapas: EtapaKanban[]
+  onMover: (id: string, etapaId: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id })
@@ -41,7 +43,8 @@ export function CardArrastavel({
         card={card}
         menu={
           <MenuMoverPara
-            etapaAtual={card.etapa}
+            etapaAtual={card.etapaId}
+            etapas={etapas}
             nomeCliente={card.clienteNome}
             onEscolher={(etapa) => onMover(card.id, etapa)}
           />

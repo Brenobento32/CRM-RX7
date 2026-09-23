@@ -2,7 +2,6 @@ import Link from 'next/link'
 
 import { alterarStatusEventoAction } from '@/lib/actions/eventos'
 import type { Evento } from '@/lib/dal/eventos'
-import { ROTULO_ETAPA } from '@/lib/utils/etapas'
 import { diaEmSaoPaulo, formatarDia, formatarHora } from '@/lib/utils/formatacao'
 import {
   ROTULO_STATUS_EVENTO,
@@ -71,7 +70,7 @@ export function EventoItem({
           ) : (
             'Cliente fora da sua carteira'
           )}
-          {evento.etapa && ` · ${ROTULO_ETAPA[evento.etapa]}`}
+          {evento.etapa && ` · ${evento.etapa.nome}`}
           {mostrarResponsavel && evento.usuario && ` · ${evento.usuario}`}
         </p>
 

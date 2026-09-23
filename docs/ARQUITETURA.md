@@ -141,6 +141,7 @@ o histórico de conversão se corrompe a cada reentrada.
 | `clientes` | Dados cadastrais, `owner_id`, soft delete via `deleted_at` |
 | `negociacoes` | O card do Kanban: etapa, valor estimado, posição, owner |
 | `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding |
+| `etapas_funil` | Colunas do Kanban (Fase 8B). As 6 de sistema (`chave` preenchida) só mudam de cor; personalizadas mudam nome, cor e posição, sempre antes de Negociação. Excluir só o que nunca foi usado; o resto é desativado |
 | `historico_etapas` | Append-only, escrito por trigger a cada mudança de etapa. Alimenta "últimas movimentações" e será a base do relatório de conversão e ciclo de venda |
 | `eventos` | Agenda: reunião, ligação, follow-up, apresentação. Dono em `usuario_id`; `google_event_id` / `sincronizado_em` reservados para o Google Calendar |
 | `atividades` | Timeline da ficha do cliente: `tipo`, `descricao`, `data`, autor em `usuario_id` |
@@ -150,8 +151,9 @@ o histórico de conversão se corrompe a cada reentrada.
 
 ```
 user_role         gerente | closer
-etapa_funil       reuniao_agendada | reuniao_realizada | proposta_enviada |
-                  negociacao | fechado | perdido
+tipo_etapa        aberta | ganha | perdida
+cor_etapa         azul | violeta | amarelo | laranja | verde | vermelho |
+                  ciano | rosa | turquesa | cinza
 status_pagamento  pendente | parcial | pago | atrasado | cancelado
 status_onboarding nao_iniciado | em_andamento | concluido
 tipo_evento       reuniao | ligacao | followup | apresentacao
@@ -161,12 +163,29 @@ tipo_cliente      pessoa_fisica | empresa
 temperatura_negociacao  quente | morno | frio
 ```
 
+### Etapas: regras seguem o tipo, nunca o nome
+
+Desde a Fase 8B as etapas são linhas de `etapas_funil`, e `negociacoes.etapa_id`
+aponta para elas. As regras de negócio olham o **tipo** da etapa:
+
+| Tipo | Etapa | Regra |
+| --- | --- | --- |
+| `aberta` | as 4 de trabalho + todas as personalizadas | nenhuma |
+| `ganha` | Fechado (única) | exige registro em `fechamentos` |
+| `perdida` | Perdido (única) | exige `motivo_perda` |
+
+Negociação nova começa sempre em Reunião agendada (`etapa_id_por_chave`).
+No código, etapas de sistema são referenciadas pela `chave`, nunca pelo id ou
+pelo nome. Cores vêm de uma paleta fixa (`cor_etapa`); o app mapeia cada nome
+para o hex em `lib/utils/etapas.ts`.
+
 ### Regras que moram no banco, não no formulário
 
-- Passar uma negociação para `fechado` exige uma linha em `fechamentos`
-  (valor vendido, contrato enviado, contrato assinado, status de pagamento,
-  onboarding). Garantido por trigger.
-- Passar para `perdido` exige `motivo_perda`.
+- Passar uma negociação para a etapa `ganha` (Fechado) exige uma linha em
+  `fechamentos` (valor vendido, contrato enviado, contrato assinado, status de
+  pagamento, onboarding). Garantido por trigger.
+- Passar para a etapa `perdida` (Perdido) exige `motivo_perda`. Trigger.
+- Nenhuma negociação entra numa etapa desativada. Trigger.
 - `atividades` não tem policy de `UPDATE`: uma entrada da timeline não se
   edita, para não apagar o rastro de quem falou o quê e quando.
 - Um closer não altera a própria coluna `role`. A policy de UPDATE de
@@ -195,6 +214,8 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 5B | Agenda: eventos, compromissos do dia, status → timeline | concluída |
 | 6 | Dashboard: KPIs sobre dados reais | concluída |
 | 7 | Relatórios: performance por closer, conversão, export CSV | pendente |
+| 8A | UX: sidebar recolhível, "Mover para" no Kanban | concluída |
+| 8B | Funil dinâmico: etapas em tabela, configuráveis pelo gerente | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer

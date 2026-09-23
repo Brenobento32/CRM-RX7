@@ -6,7 +6,7 @@ import { cache } from 'react'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import type { EtapaFunil } from '@/lib/utils/etapas'
+import type { EtapaVisual } from '@/lib/utils/etapas'
 import type { CampoCliente, ClienteInput } from '@/lib/validations/cliente'
 
 type TipoCliente = Database['public']['Enums']['tipo_cliente']
@@ -33,7 +33,7 @@ export type ClienteDetalhe = ClienteResumo & {
   observacoes: string | null
   owner_id: string
   updated_at: string
-  negociacoes: { id: string; etapa: EtapaFunil; created_at: string }[]
+  negociacoes: { id: string; etapa: EtapaVisual; created_at: string }[]
 }
 
 export type OpcaoResponsavel = { id: string; nome: string; role: string }
@@ -96,7 +96,7 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
       `id, tipo_cliente, nome, empresa, cpf, cnpj, telefone, whatsapp, email,
        responsavel, cargo, observacoes, owner_id, created_at, updated_at,
        dono:profiles!clientes_owner_id_fkey(nome),
-       negociacoes(id, etapa, created_at)`,
+       negociacoes(id, created_at, etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))`,
     )
     .eq('id', id)
     .is('deleted_at', null)

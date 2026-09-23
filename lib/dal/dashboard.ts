@@ -4,7 +4,7 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import type { EtapaFunil } from '@/lib/utils/etapas'
+import type { CorEtapa, EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
 import type { Periodo } from '@/lib/utils/periodo'
 
 type Enums = Database['public']['Enums']
@@ -32,7 +32,14 @@ export type PerformanceUsuario = Kpis & {
   atividades: number
 }
 
-export type EtapaResumo = { etapa: EtapaFunil; quantidade: number; valor: number }
+export type EtapaResumo = {
+  etapaId: string
+  nome: string
+  cor: CorEtapa
+  tipo: TipoEtapa
+  quantidade: number
+  valor: number
+}
 
 export type VendaMensal = { mes: string; valor: number; quantidade: number }
 
@@ -48,8 +55,8 @@ export type AtividadeRecente = {
 
 export type Movimentacao = {
   id: number
-  etapaAnterior: EtapaFunil | null
-  etapaNova: EtapaFunil
+  etapaAnterior: EtapaVisual | null
+  etapaNova: EtapaVisual
   data: string
   clienteId: string | null
   clienteNome: string | null
@@ -99,7 +106,9 @@ export async function obterDashboard(periodo: Periodo): Promise<Dashboard> {
     supabase
       .from('historico_etapas')
       .select(
-        `id, etapa_anterior, etapa_nova, created_at, usuario_id,
+        `id, created_at, usuario_id,
+         anterior:etapas_funil!historico_etapas_etapa_anterior_id_fkey(nome, cor),
+         nova:etapas_funil!historico_etapas_etapa_nova_id_fkey(nome, cor),
          negociacao:negociacoes!historico_etapas_negociacao_id_fkey(
            cliente_id, cliente:clientes!negociacoes_cliente_id_fkey(nome)
          )`,
@@ -138,7 +147,10 @@ export async function obterDashboard(periodo: Periodo): Promise<Dashboard> {
     kpis: somarKpis(pessoas),
     porUsuario: pessoas,
     etapas: (etapas.data ?? []).map((e) => ({
-      etapa: e.etapa,
+      etapaId: e.etapa_id,
+      nome: e.nome,
+      cor: e.cor,
+      tipo: e.tipo,
       quantidade: Number(e.quantidade),
       valor: Number(e.valor),
     })),
@@ -158,8 +170,8 @@ export async function obterDashboard(periodo: Periodo): Promise<Dashboard> {
     })),
     movimentacoes: (historico.data ?? []).map((h) => ({
       id: h.id,
-      etapaAnterior: h.etapa_anterior,
-      etapaNova: h.etapa_nova,
+      etapaAnterior: h.anterior,
+      etapaNova: h.nova,
       data: h.created_at,
       clienteId: h.negociacao?.cliente_id ?? null,
       clienteNome: h.negociacao?.cliente?.nome ?? null,

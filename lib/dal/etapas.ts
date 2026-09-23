@@ -1,0 +1,221 @@
+import 'server-only'
+
+import type { PostgrestError } from '@supabase/supabase-js'
+import { cache } from 'react'
+
+import { getUsuarioAtual } from '@/lib/dal/auth'
+import { createClient } from '@/lib/supabase/server'
+import type { CorEtapa, EtapaKanban, TipoEtapa } from '@/lib/utils/etapas'
+import type { CriarEtapaInput, Direcao, EditarEtapaInput } from '@/lib/validations/etapa'
+
+export type Etapa = EtapaKanban & {
+  ordem: number
+  sistema: boolean
+  chave: string | null
+  ativo: boolean
+}
+
+export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean }
+
+/** Distância padrão entre etapas quando não há vizinho de um dos lados. */
+const PASSO = 1000
+
+const COLUNAS = 'id, nome, cor, tipo, ordem, sistema, chave, ativo'
+
+function paraEtapa(e: {
+  id: string
+  nome: string
+  cor: CorEtapa
+  tipo: TipoEtapa
+  ordem: number
+  sistema: boolean
+  chave: string | null
+  ativo: boolean
+}): Etapa {
+  return { ...e, ordem: Number(e.ordem) }
+}
+
+/**
+ * Etapas ativas, na ordem das colunas. Todo usuário logado lê (RLS). Em
+ * `cache` porque layout, Kanban e formulários pedem a mesma lista.
+ */
+export const listarEtapas = cache(async (): Promise<Etapa[]> => {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('etapas_funil')
+    .select(COLUNAS)
+    .eq('ativo', true)
+    .order('ordem')
+
+  if (error) throw new Error('Não foi possível carregar as etapas do funil.', { cause: error })
+  return data.map(paraEtapa)
+})
+
+// ---------------------------------------------------------------------------
+// Configuração — somente gerente. A RLS e os triggers de `etapas_funil`
+// garantem as regras; a checagem aqui só evita a viagem e dá mensagem clara.
+// ---------------------------------------------------------------------------
+
+async function exigirGerente() {
+  const usuario = await getUsuarioAtual()
+  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram o funil.')
+}
+
+/** Todas as etapas (ativas e desativadas) com o uso de cada uma. */
+export async function listarEtapasComUso(): Promise<EtapaComUso[]> {
+  await exigirGerente()
+  const supabase = await createClient()
+
+  const [etapas, uso] = await Promise.all([
+    supabase.from('etapas_funil').select(COLUNAS).order('ordem'),
+    supabase.rpc('etapas_funil_uso'),
+  ])
+  if (etapas.error) throw new Error('Não foi possível carregar as etapas.', { cause: etapas.error })
+  if (uso.error) throw new Error('Não foi possível carregar o uso das etapas.', { cause: uso.error })
+
+  const porEtapa = new Map(uso.data.map((u) => [u.etapa_id, u]))
+  return etapas.data.map((e) => ({
+    ...paraEtapa(e),
+    negociacoesAtuais: Number(porEtapa.get(e.id)?.negociacoes_atuais ?? 0),
+    jaUsada: porEtapa.get(e.id)?.ja_usada ?? false,
+  }))
+}
+
+export async function obterEtapa(id: string): Promise<Etapa | null> {
+  await exigirGerente()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('etapas_funil').select(COLUNAS).eq('id', id).maybeSingle()
+  if (error) throw new Error('Não foi possível carregar a etapa.', { cause: error })
+  return data ? paraEtapa(data) : null
+}
+
+export type ResultadoEtapa = { ok: true } | { ok: false; mensagem: string; campo?: 'nome' | 'cor' }
+
+/**
+ * As abertas que podem trocar de lugar com uma personalizada: tudo o que
+ * está antes de Negociação. Negociação é o limite (fica fora da lista).
+ */
+function abertasAntesDeNegociacao(etapas: Etapa[]) {
+  const negociacao = etapas.find((e) => e.chave === 'negociacao')
+  if (!negociacao) throw new Error('Etapa Negociação não encontrada.')
+  return {
+    limite: negociacao.ordem,
+    lista: etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.ordem < negociacao.ordem),
+  }
+}
+
+/** Nova personalizada entra logo antes de Negociação. */
+export async function criarEtapa(input: CriarEtapaInput): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const supabase = await createClient()
+
+  const { data: todas, error: erroLista } = await supabase.from('etapas_funil').select(COLUNAS)
+  if (erroLista) return traduzirErro(erroLista)
+
+  const { limite, lista } = abertasAntesDeNegociacao(todas.map(paraEtapa))
+  const ultima = lista.at(-1)
+  const ordem = ultima ? (ultima.ordem + limite) / 2 : limite - PASSO
+
+  const { error } = await supabase
+    .from('etapas_funil')
+    .insert({ nome: input.nome, cor: input.cor, ordem, tipo: 'aberta' })
+
+  return error ? traduzirErro(error) : { ok: true }
+}
+
+export async function editarEtapa(id: string, input: EditarEtapaInput): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const atual = await obterEtapa(id)
+  if (!atual) return { ok: false, mensagem: 'Etapa não encontrada.' }
+
+  // Sistema: só a cor. O trigger recusaria mudar o nome de qualquer jeito.
+  const alteracoes = atual.sistema || !input.nome ? { cor: input.cor } : { nome: input.nome, cor: input.cor }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('etapas_funil').update(alteracoes).eq('id', id)
+  return error ? traduzirErro(error) : { ok: true }
+}
+
+/**
+ * Sobe ou desce uma personalizada uma posição entre as abertas antes de
+ * Negociação. Grava só a etapa movida: a nova ordem é o ponto médio entre os
+ * vizinhos do lugar de destino.
+ */
+export async function moverEtapa(id: string, direcao: Direcao): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const supabase = await createClient()
+
+  const { data: todas, error: erroLista } = await supabase.from('etapas_funil').select(COLUNAS)
+  if (erroLista) return traduzirErro(erroLista)
+
+  const etapas = todas.map(paraEtapa).sort((a, b) => a.ordem - b.ordem)
+  const { limite, lista } = abertasAntesDeNegociacao(etapas)
+  const i = lista.findIndex((e) => e.id === id)
+  const etapa = lista[i]
+
+  if (!etapa || etapa.sistema) {
+    return { ok: false, mensagem: 'Só etapas personalizadas ativas mudam de posição.' }
+  }
+
+  let ordem: number
+  if (direcao === 'cima') {
+    if (i === 0) return { ok: false, mensagem: 'A etapa já é a primeira do funil.' }
+    const antesDoVizinho = lista[i - 2]?.ordem ?? lista[i - 1].ordem - 2 * PASSO
+    ordem = (antesDoVizinho + lista[i - 1].ordem) / 2
+  } else {
+    if (i === lista.length - 1) {
+      return { ok: false, mensagem: 'Etapas personalizadas ficam antes de Negociação.' }
+    }
+    const depoisDoVizinho = lista[i + 2]?.ordem ?? limite
+    ordem = (lista[i + 1].ordem + depoisDoVizinho) / 2
+  }
+
+  // Ordem é única na tabela (inclui desativadas); o ponto médio de valores
+  // distintos praticamente nunca colide, mas se colidir a mensagem é clara.
+  const { error } = await supabase.from('etapas_funil').update({ ordem }).eq('id', id)
+  return error ? traduzirErro(error) : { ok: true }
+}
+
+export async function definirAtivoEtapa(id: string, ativo: boolean): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('etapas_funil')
+    .update({ ativo })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  if (error) return traduzirErro(error)
+  return data ? { ok: true } : { ok: false, mensagem: 'Etapa não encontrada.' }
+}
+
+export async function excluirEtapa(id: string): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('etapas_funil').delete().eq('id', id).select('id').maybeSingle()
+  if (error) return traduzirErro(error)
+  return data ? { ok: true } : { ok: false, mensagem: 'Etapa não encontrada ou não pode ser excluída.' }
+}
+
+/**
+ * As regras vêm dos triggers de `etapas_funil`, que já escrevem a mensagem
+ * para o usuário (código 23514).
+ */
+function traduzirErro(error: PostgrestError): ResultadoEtapa {
+  if (error.code === '23514') return { ok: false, mensagem: error.message }
+  if (error.code === '23505') {
+    if (error.message.includes('nome')) {
+      return { ok: false, campo: 'nome', mensagem: 'Já existe uma etapa ativa com esse nome.' }
+    }
+    return { ok: false, mensagem: 'Conflito de posição entre etapas. Tente de novo.' }
+  }
+  if (error.code === '23503') {
+    return { ok: false, mensagem: 'A etapa já teve negociações. Desative-a em vez de excluir.' }
+  }
+  if (error.code === '42501') return { ok: false, mensagem: 'Somente gerentes configuram o funil.' }
+
+  console.error('Erro em etapas_funil', error)
+  return { ok: false, mensagem: 'Não foi possível salvar a etapa. Tente novamente.' }
+}

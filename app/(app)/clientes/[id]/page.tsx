@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { z } from 'zod'
 
 import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import {
   concluirProximaAcaoAction,
   criarProximaAcaoAction,
@@ -19,7 +20,6 @@ import {
   formatarTelefone,
   linkWhatsapp,
 } from '@/lib/utils/documentos'
-import { COR_ETAPA, ROTULO_ETAPA } from '@/lib/utils/etapas'
 import {
   agoraSaoPauloLocal,
   formatarData,
@@ -65,7 +65,7 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
 
   const opcoesNegociacao = cliente.negociacoes.map((n) => ({
     id: n.id,
-    rotulo: `${ROTULO_ETAPA[n.etapa]} · aberta em ${formatarData(n.created_at)}`,
+    rotulo: `${n.etapa.nome} · aberta em ${formatarData(n.created_at)}`,
   }))
   const etapaDaNegociacao = new Map(cliente.negociacoes.map((n) => [n.id, n.etapa]))
 
@@ -150,8 +150,8 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
             {cliente.negociacoes.map((n) => (
               <li key={n.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <span className="flex items-center gap-2">
-                  <span className={`size-2.5 rounded-full ${COR_ETAPA[n.etapa]}`} aria-hidden />
-                  {ROTULO_ETAPA[n.etapa]}
+                  <PontoEtapa cor={n.etapa.cor} />
+                  {n.etapa.nome}
                 </span>
                 <span className="text-zinc-500">Aberta em {data(n.created_at)}</span>
               </li>
@@ -210,7 +210,7 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
                         {a.data === hoje ? 'Hoje' : formatarDia(a.data)}
                         {atrasada && ' · atrasada'}
                       </span>
-                      {etapa && ` · ${ROTULO_ETAPA[etapa]}`}
+                      {etapa && ` · ${etapa.nome}`}
                     </p>
                     {a.observacao && (
                       <p className="mt-1 text-zinc-600 dark:text-zinc-400">{a.observacao}</p>

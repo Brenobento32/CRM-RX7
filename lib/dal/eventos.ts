@@ -7,7 +7,7 @@ import { cache } from 'react'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
-import type { EtapaFunil } from '@/lib/utils/etapas'
+import type { EtapaVisual } from '@/lib/utils/etapas'
 import { hojeSaoPaulo, instanteSaoPaulo, somarDias } from '@/lib/utils/formatacao'
 import type {
   CampoEvento,
@@ -28,7 +28,7 @@ export type Evento = {
   clienteNome: string | null
   clienteEmpresa: string | null
   negociacaoId: string | null
-  etapa: EtapaFunil | null
+  etapa: EtapaVisual | null
   usuarioId: string
   usuario: string | null
 }
@@ -37,7 +37,7 @@ export type OpcaoCliente = {
   id: string
   nome: string
   empresa: string | null
-  negociacoes: { id: string; etapa: EtapaFunil; created_at: string }[]
+  negociacoes: { id: string; etapa: EtapaVisual; created_at: string }[]
 }
 
 /** Quantos dias para trás a lista "aguardando status" olha. */
@@ -47,7 +47,7 @@ const LIMITE_LISTA = 50
 const COLUNAS = `id, titulo, descricao, tipo, status, inicio, fim, cliente_id,
   negociacao_id, usuario_id,
   cliente:clientes!eventos_cliente_id_fkey(nome, empresa),
-  negociacao:negociacoes!eventos_negociacao_id_fkey(etapa)`
+  negociacao:negociacoes!eventos_negociacao_id_fkey(etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))`
 
 type Supabase = Awaited<ReturnType<typeof createClient>>
 
@@ -73,7 +73,7 @@ type Linha = {
   negociacao_id: string | null
   usuario_id: string
   cliente: { nome: string; empresa: string | null } | null
-  negociacao: { etapa: EtapaFunil } | null
+  negociacao: { etapa: EtapaVisual } | null
 }
 
 async function mapear(linhas: Linha[]): Promise<Evento[]> {
@@ -188,7 +188,7 @@ export async function listarOpcoesClientes(): Promise<OpcaoCliente[]> {
 
   const { data, error } = await supabase
     .from('clientes')
-    .select('id, nome, empresa, negociacoes(id, etapa, created_at)')
+    .select('id, nome, empresa, negociacoes(id, created_at, etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))')
     .is('deleted_at', null)
     .order('nome')
     .limit(1000)

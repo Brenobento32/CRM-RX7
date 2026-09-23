@@ -19,7 +19,7 @@ export type EstadoModalFunil = {
 
 export async function moverNegociacaoAction(input: {
   id: string
-  etapa: string
+  etapaId: string
   posicao: number
   reposicionar?: { id: string; posicao: number }[]
 }): Promise<ResultadoFunil> {
@@ -28,8 +28,8 @@ export async function moverNegociacaoAction(input: {
     return { ok: false, mensagem: parsed.error.issues[0]?.message ?? 'Movimento inválido.' }
   }
 
-  const { id, etapa, posicao, reposicionar } = parsed.data
-  const resultado = await moverNegociacao(id, etapa, posicao, reposicionar)
+  const { id, etapaId, posicao, reposicionar } = parsed.data
+  const resultado = await moverNegociacao(id, etapaId, posicao, reposicionar)
 
   if (resultado.ok) revalidatePath('/funil')
   return resultado

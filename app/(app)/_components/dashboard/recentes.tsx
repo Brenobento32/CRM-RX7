@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import type { AtividadeRecente, Movimentacao } from '@/lib/dal/dashboard'
-import { COR_ETAPA, ROTULO_ETAPA } from '@/lib/utils/etapas'
 import { formatarDataHora } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 
@@ -43,8 +43,8 @@ export function AtividadesRecentes({ itens }: { itens: AtividadeRecente[] }) {
 function Etapa({ etapa }: { etapa: Movimentacao['etapaNova'] }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`size-2 rounded-full ${COR_ETAPA[etapa]}`} aria-hidden />
-      {ROTULO_ETAPA[etapa]}
+      <PontoEtapa cor={etapa.cor} className="size-2" />
+      {etapa.nome}
     </span>
   )
 }

@@ -6,21 +6,17 @@ import { subDays } from 'date-fns'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import type { EtapaFunil } from '@/lib/utils/etapas'
-import {
-  exigeModal,
-  type FechamentoInput,
-  type PerdaInput,
-} from '@/lib/validations/funil'
+import { tipoExigeModal } from '@/lib/utils/etapas'
+import type { FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 
 type Enums = Database['public']['Enums']
 
-/** Quantos dias um card fechado/perdido continua visível no quadro. */
+/** Quantos dias um card em etapa ganha/perdida continua visível no quadro. */
 export const DIAS_VISIVEIS_ENCERRADOS = 30
 
 export type CardFunil = {
   id: string
-  etapa: EtapaFunil
+  etapaId: string
   posicao: number
   clienteId: string
   clienteNome: string
@@ -37,8 +33,9 @@ export type CardFunil = {
  * Cards do funil visíveis ao usuário. Como em clientes, não há filtro por
  * dono aqui: a view `funil_cards` é `security_invoker` e a RLS decide.
  *
- * Fechados e perdidos saem do quadro após {@link DIAS_VISIVEIS_ENCERRADOS}
- * dias na etapa — senão essas duas colunas crescem para sempre.
+ * Cards em etapa ganha ou perdida saem do quadro após
+ * {@link DIAS_VISIVEIS_ENCERRADOS} dias na etapa — senão essas duas colunas
+ * crescem para sempre.
  */
 export async function listarCardsFunil(): Promise<CardFunil[]> {
   await getUsuarioAtual()
@@ -49,7 +46,7 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
   const { data, error } = await supabase
     .from('funil_cards')
     .select('*')
-    .or(`etapa.not.in.(fechado,perdido),data_entrada_etapa.gte."${corte}"`)
+    .or(`etapa_tipo.eq.aberta,data_entrada_etapa.gte."${corte}"`)
     // `id` desempata: sem ele, cards com a mesma posição trocam de lugar a
     // cada carregamento.
     .order('posicao', { ascending: true })
@@ -62,11 +59,11 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
   // Colunas de view vêm todas como anuláveis nos tipos gerados; as que são
   // NOT NULL nas tabelas de origem nunca chegam nulas.
   return data.flatMap((r) =>
-    r.id && r.etapa && r.cliente_id && r.cliente_nome && r.posicao !== null
+    r.id && r.etapa_id && r.cliente_id && r.cliente_nome && r.posicao !== null
       ? [
           {
             id: r.id,
-            etapa: r.etapa,
+            etapaId: r.etapa_id,
             posicao: r.posicao,
             clienteId: r.cliente_id,
             clienteNome: r.cliente_nome,
@@ -100,12 +97,13 @@ const NAO_ENCONTRADA: ResultadoFunil = {
 }
 
 /**
- * Move entre etapas comuns ou reordena dentro da coluna.
+ * Move entre etapas abertas ou reordena dentro da coluna.
  *
- * Para fechado/perdido só a posição muda, e apenas se o card já estiver lá
- * (`.eq('etapa', ...)`): entrar nessas etapas é com `fecharNegociacao` /
- * `marcarPerdida`. Mesmo que esta checagem falhasse, o banco recusaria
- * fechado sem fechamento e perdido sem motivo.
+ * O tipo da etapa de destino é lido do banco. Em etapa ganha/perdida só a
+ * posição muda, e apenas se o card já estiver lá (`.eq('etapa_id', ...)`):
+ * entrar nelas é com `fecharNegociacao` / `marcarPerdida`. Mesmo que esta
+ * checagem falhasse, o banco recusaria ganha sem fechamento e perdida sem
+ * motivo, e também etapa desativada.
  *
  * Closer só move o que é dele: a RLS esconde a linha e o UPDATE afeta 0.
  *
@@ -115,16 +113,24 @@ const NAO_ENCONTRADA: ResultadoFunil = {
  */
 export async function moverNegociacao(
   id: string,
-  etapa: EtapaFunil,
+  etapaId: string,
   posicao: number,
   reposicionar: { id: string; posicao: number }[] = [],
 ): Promise<ResultadoFunil> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
-  const query = exigeModal(etapa)
-    ? supabase.from('negociacoes').update({ posicao }).eq('id', id).eq('etapa', etapa)
-    : supabase.from('negociacoes').update({ etapa, posicao }).eq('id', id)
+  const { data: etapa, error: erroEtapa } = await supabase
+    .from('etapas_funil')
+    .select('tipo, ativo')
+    .eq('id', etapaId)
+    .maybeSingle()
+  if (erroEtapa) return traduzirErro(erroEtapa)
+  if (!etapa || !etapa.ativo) return { ok: false, mensagem: 'Etapa não encontrada ou desativada.' }
+
+  const query = tipoExigeModal(etapa.tipo)
+    ? supabase.from('negociacoes').update({ posicao }).eq('id', id).eq('etapa_id', etapaId)
+    : supabase.from('negociacoes').update({ etapa_id: etapaId, posicao }).eq('id', id)
 
   const { data, error } = await query.select('id').maybeSingle()
 
@@ -135,7 +141,7 @@ export async function moverNegociacao(
   if (outros.length > 0) {
     const resultados = await Promise.all(
       outros.map((r) =>
-        supabase.from('negociacoes').update({ posicao: r.posicao }).eq('id', r.id).eq('etapa', etapa),
+        supabase.from('negociacoes').update({ posicao: r.posicao }).eq('id', r.id).eq('etapa_id', etapaId),
       ),
     )
     // Falha aqui só afeta a ordem visual; o movimento principal já foi gravado.
@@ -167,14 +173,21 @@ export async function fecharNegociacao(f: FechamentoInput): Promise<ResultadoFun
   return { ok: true }
 }
 
-/** Um único UPDATE; a constraint do banco exige o motivo junto com a etapa. */
+/** Um único UPDATE; o trigger do banco exige o motivo junto com a etapa perdida. */
 export async function marcarPerdida(p: PerdaInput): Promise<ResultadoFunil> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
+  const { data: perdida, error: erroEtapa } = await supabase
+    .from('etapas_funil')
+    .select('id')
+    .eq('tipo', 'perdida')
+    .single()
+  if (erroEtapa) return traduzirErro(erroEtapa)
+
   const { data, error } = await supabase
     .from('negociacoes')
-    .update({ etapa: 'perdido', motivo_perda: p.motivo_perda, posicao: p.posicao })
+    .update({ etapa_id: perdida.id, motivo_perda: p.motivo_perda, posicao: p.posicao })
     .eq('id', p.negociacao_id)
     .select('id')
     .maybeSingle()

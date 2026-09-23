@@ -4,16 +4,6 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Etapas do funil. Definidas uma única vez aqui para que o Kanban, os
-     badges da lista de clientes e as séries dos gráficos de relatório usem
-     exatamente a mesma cor por etapa. */
-  --stage-reuniao-agendada: #3b82f6; /* 🔵 */
-  --stage-reuniao-realizada: #8b5cf6; /* 🟣 */
-  --stage-proposta-enviada: #eab308; /* 🟡 */
-  --stage-negociacao: #f97316; /* 🟠 */
-  --stage-fechado: #22c55e; /* 🟢 */
-  --stage-perdido: #ef4444; /* 🔴 */
-
   /* Gráficos. Série única (magnitude) em azul, validada contra a superfície
      de cada modo; grade e texto recessivos. */
   --chart-serie: #2a78d6;
@@ -28,13 +18,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-
-  --color-stage-reuniao-agendada: var(--stage-reuniao-agendada);
-  --color-stage-reuniao-realizada: var(--stage-reuniao-realizada);
-  --color-stage-proposta-enviada: var(--stage-proposta-enviada);
-  --color-stage-negociacao: var(--stage-negociacao);
-  --color-stage-fechado: var(--stage-fechado);
-  --color-stage-perdido: var(--stage-perdido);
 
   --color-chart-serie: var(--chart-serie);
   --color-chart-trilha: var(--chart-trilha);

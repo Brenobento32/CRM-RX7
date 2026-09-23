@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { listarEtapas } from '@/lib/dal/etapas'
 import { DIAS_VISIVEIS_ENCERRADOS, listarCardsFunil } from '@/lib/dal/funil'
 
 import { Kanban } from './_components/kanban'
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function FunilPage() {
   const usuario = await getUsuarioAtual()
-  const cards = await listarCardsFunil()
+  const [cards, etapas] = await Promise.all([listarCardsFunil(), listarEtapas()])
 
   return (
     <div>
@@ -25,7 +26,10 @@ export default async function FunilPage() {
         </p>
       </div>
 
-      <Kanban cards={cards} />
+      <Kanban
+        cards={cards}
+        etapas={etapas.map(({ id, nome, cor, tipo }) => ({ id, nome, cor, tipo }))}
+      />
     </div>
   )
 }

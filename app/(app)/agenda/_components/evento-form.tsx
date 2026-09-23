@@ -7,7 +7,6 @@ import { ErroCampo } from '@/components/ui/erro-campo'
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
 import type { EstadoFormEvento } from '@/lib/actions/eventos'
 import type { OpcaoCliente } from '@/lib/dal/eventos'
-import { ROTULO_ETAPA } from '@/lib/utils/etapas'
 import { formatarData } from '@/lib/utils/formatacao'
 import {
   ROTULO_TIPO_EVENTO,
@@ -98,7 +97,7 @@ export function EventoForm({
             <option value="">Nenhuma</option>
             {negociacoes.map((n) => (
               <option key={n.id} value={n.id}>
-                {ROTULO_ETAPA[n.etapa]} · aberta em {formatarData(n.created_at)}
+                {n.etapa.nome} · aberta em {formatarData(n.created_at)}
               </option>
             ))}
           </select>

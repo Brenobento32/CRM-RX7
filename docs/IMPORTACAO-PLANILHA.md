@@ -1,5 +1,9 @@
 # Importação da planilha "Atendimento Clientes - Scorpion"
 
+> **Obsoleto.** A importação foi executada em 23/09/2026 (18 clientes). Depois
+> dela, a Fase 8B trocou o enum de etapas pela tabela `etapas_funil`, e o SQL
+> que o script gera não é mais compatível com o banco.
+
 Migração **única** da planilha de controle de clientes usada antes do CRM.
 
 - Script: `scripts/importar-planilha.mts`

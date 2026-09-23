@@ -1,4 +1,9 @@
 /**
+ * OBSOLETO — já executado (importação da carteira inicial, set/2026).
+ * O SQL que ele gera usa a coluna `negociacoes.etapa` (enum), removida na
+ * Fase 8B em favor de `etapa_id` → `etapas_funil`. Não rode de novo sem
+ * adaptar a geração do SQL.
+ *
  * Migração única da planilha "Atendimento Clientes - Scorpion.xlsx" para o CRM.
  *
  * O script NUNCA grava no banco. Ele:

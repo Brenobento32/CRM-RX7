@@ -2,8 +2,8 @@
 
 import { useEffect, useId, useRef } from 'react'
 
-import { COR_ETAPA, ROTULO_ETAPA, type EtapaFunil } from '@/lib/utils/etapas'
-import { ETAPAS, exigeModal } from '@/lib/validations/funil'
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
+import { tipoExigeModal, type EtapaKanban } from '@/lib/utils/etapas'
 
 const LARGURA_MENU = 208
 
@@ -19,12 +19,15 @@ const LARGURA_MENU = 208
  */
 export function MenuMoverPara({
   etapaAtual,
+  etapas,
   nomeCliente,
   onEscolher,
 }: {
-  etapaAtual: EtapaFunil
+  /** Id da etapa em que o card está. */
+  etapaAtual: string
+  etapas: EtapaKanban[]
   nomeCliente: string
-  onEscolher: (etapa: EtapaFunil) => void
+  onEscolher: (etapaId: string) => void
 }) {
   const id = useId()
   const botaoRef = useRef<HTMLButtonElement>(null)
@@ -116,20 +119,20 @@ export function MenuMoverPara({
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
         <p className="px-2 pt-1 pb-1.5 text-xs font-medium text-zinc-500">Mover para</p>
-        {ETAPAS.filter((etapa) => etapa !== etapaAtual).map((etapa) => (
+        {etapas.filter((etapa) => etapa.id !== etapaAtual).map((etapa) => (
           <button
-            key={etapa}
+            key={etapa.id}
             type="button"
             role="menuitem"
             onClick={() => {
               menuRef.current?.hidePopover()
-              onEscolher(etapa)
+              onEscolher(etapa.id)
             }}
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-100 focus:bg-zinc-100 focus:outline-none dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
           >
-            <span className={`size-2.5 shrink-0 rounded-full ${COR_ETAPA[etapa]}`} aria-hidden />
-            {ROTULO_ETAPA[etapa]}
-            {exigeModal(etapa) && <span className="ml-auto text-xs text-zinc-400">…</span>}
+            <PontoEtapa cor={etapa.cor} />
+            <span className="truncate">{etapa.nome}</span>
+            {tipoExigeModal(etapa.tipo) && <span className="ml-auto text-xs text-zinc-400">…</span>}
           </button>
         ))}
       </div>

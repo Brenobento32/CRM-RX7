@@ -11,7 +11,6 @@ import {
 } from 'recharts'
 
 import type { EtapaResumo } from '@/lib/dal/dashboard'
-import { ROTULO_ETAPA } from '@/lib/utils/etapas'
 import { formatarMoeda, formatarMoedaCompacta } from '@/lib/utils/formatacao'
 
 import { CaixaTooltip, TabelaDados } from './grafico-comum'
@@ -22,7 +21,7 @@ import { CaixaTooltip, TabelaDados } from './grafico-comum'
  * só, já que o que se compara é magnitude.
  */
 export function GraficoEtapas({ dados }: { dados: EtapaResumo[] }) {
-  const pontos = dados.map((d) => ({ ...d, rotulo: ROTULO_ETAPA[d.etapa] }))
+  const pontos = dados.map((d) => ({ ...d, rotulo: d.nome }))
 
   return (
     <div>

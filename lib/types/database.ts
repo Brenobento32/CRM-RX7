@@ -179,6 +179,56 @@ export type Database = {
           },
         ]
       }
+      etapas_funil: {
+        Row: {
+          ativo: boolean
+          chave: string | null
+          cor: Database["public"]["Enums"]["cor_etapa"]
+          created_at: string
+          criado_por: string | null
+          id: string
+          nome: string
+          ordem: number
+          sistema: boolean
+          tipo: Database["public"]["Enums"]["tipo_etapa"]
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          chave?: string | null
+          cor: Database["public"]["Enums"]["cor_etapa"]
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome: string
+          ordem: number
+          sistema?: boolean
+          tipo?: Database["public"]["Enums"]["tipo_etapa"]
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          chave?: string | null
+          cor?: Database["public"]["Enums"]["cor_etapa"]
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          sistema?: boolean
+          tipo?: Database["public"]["Enums"]["tipo_etapa"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etapas_funil_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos: {
         Row: {
           cliente_id: string
@@ -342,29 +392,43 @@ export type Database = {
       historico_etapas: {
         Row: {
           created_at: string
-          etapa_anterior: Database["public"]["Enums"]["etapa_funil"] | null
-          etapa_nova: Database["public"]["Enums"]["etapa_funil"]
+          etapa_anterior_id: string | null
+          etapa_nova_id: string
           id: number
           negociacao_id: string
           usuario_id: string | null
         }
         Insert: {
           created_at?: string
-          etapa_anterior?: Database["public"]["Enums"]["etapa_funil"] | null
-          etapa_nova: Database["public"]["Enums"]["etapa_funil"]
+          etapa_anterior_id?: string | null
+          etapa_nova_id: string
           id?: never
           negociacao_id: string
           usuario_id?: string | null
         }
         Update: {
           created_at?: string
-          etapa_anterior?: Database["public"]["Enums"]["etapa_funil"] | null
-          etapa_nova?: Database["public"]["Enums"]["etapa_funil"]
+          etapa_anterior_id?: string | null
+          etapa_nova_id?: string
           id?: never
           negociacao_id?: string
           usuario_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "historico_etapas_etapa_anterior_id_fkey"
+            columns: ["etapa_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_etapas_etapa_nova_id_fkey"
+            columns: ["etapa_nova_id"]
+            isOneToOne: false
+            referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "historico_etapas_negociacao_id_fkey"
             columns: ["negociacao_id"]
@@ -395,7 +459,7 @@ export type Database = {
           data_entrada_etapa: string
           data_primeira_reuniao: string | null
           data_proposta: string | null
-          etapa: Database["public"]["Enums"]["etapa_funil"]
+          etapa_id: string
           id: string
           motivo_perda: string | null
           objecao_principal: string | null
@@ -414,7 +478,7 @@ export type Database = {
           data_entrada_etapa?: string
           data_primeira_reuniao?: string | null
           data_proposta?: string | null
-          etapa?: Database["public"]["Enums"]["etapa_funil"]
+          etapa_id?: string
           id?: string
           motivo_perda?: string | null
           objecao_principal?: string | null
@@ -433,7 +497,7 @@ export type Database = {
           data_entrada_etapa?: string
           data_primeira_reuniao?: string | null
           data_proposta?: string | null
-          etapa?: Database["public"]["Enums"]["etapa_funil"]
+          etapa_id?: string
           id?: string
           motivo_perda?: string | null
           objecao_principal?: string | null
@@ -460,6 +524,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "funil_cards"
             referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "negociacoes_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "negociacoes_owner_id_fkey"
@@ -589,7 +660,10 @@ export type Database = {
           cliente_id: string | null
           cliente_nome: string | null
           data_entrada_etapa: string | null
-          etapa: Database["public"]["Enums"]["etapa_funil"] | null
+          etapa_cor: Database["public"]["Enums"]["cor_etapa"] | null
+          etapa_id: string | null
+          etapa_nome: string | null
+          etapa_tipo: Database["public"]["Enums"]["tipo_etapa"] | null
           id: string | null
           owner_id: string | null
           posicao: number | null
@@ -607,6 +681,13 @@ export type Database = {
           valor_estimado: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "negociacoes_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "negociacoes_owner_id_fkey"
             columns: ["owner_id"]
@@ -646,8 +727,12 @@ export type Database = {
       dashboard_etapas: {
         Args: { p_fim: string; p_inicio: string }
         Returns: {
-          etapa: Database["public"]["Enums"]["etapa_funil"]
+          cor: Database["public"]["Enums"]["cor_etapa"]
+          etapa_id: string
+          nome: string
+          ordem: number
           quantidade: number
+          tipo: Database["public"]["Enums"]["tipo_etapa"]
           valor: number
         }[]
       }
@@ -675,6 +760,19 @@ export type Database = {
           valor: number
         }[]
       }
+      etapa_id_por_chave: { Args: { p_chave: string }; Returns: string }
+      etapa_tipo: {
+        Args: { p_etapa_id: string }
+        Returns: Database["public"]["Enums"]["tipo_etapa"]
+      }
+      etapas_funil_uso: {
+        Args: never
+        Returns: {
+          etapa_id: string
+          ja_usada: boolean
+          negociacoes_atuais: number
+        }[]
+      }
       fechar_negociacao: {
         Args: {
           p_contrato_assinado: boolean
@@ -700,13 +798,17 @@ export type Database = {
       }
     }
     Enums: {
-      etapa_funil:
-        | "reuniao_agendada"
-        | "reuniao_realizada"
-        | "proposta_enviada"
-        | "negociacao"
-        | "fechado"
-        | "perdido"
+      cor_etapa:
+        | "azul"
+        | "violeta"
+        | "amarelo"
+        | "laranja"
+        | "verde"
+        | "vermelho"
+        | "ciano"
+        | "rosa"
+        | "turquesa"
+        | "cinza"
       status_evento: "agendado" | "realizado" | "nao_compareceu" | "cancelado"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento:
@@ -718,6 +820,7 @@ export type Database = {
       temperatura_negociacao: "quente" | "morno" | "frio"
       tipo_atividade: "nota" | "ligacao" | "email" | "whatsapp" | "reuniao"
       tipo_cliente: "pessoa_fisica" | "empresa"
+      tipo_etapa: "aberta" | "ganha" | "perdida"
       tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao"
       user_role: "gerente" | "closer"
     }
@@ -850,13 +953,17 @@ export const Constants = {
   },
   public: {
     Enums: {
-      etapa_funil: [
-        "reuniao_agendada",
-        "reuniao_realizada",
-        "proposta_enviada",
-        "negociacao",
-        "fechado",
-        "perdido",
+      cor_etapa: [
+        "azul",
+        "violeta",
+        "amarelo",
+        "laranja",
+        "verde",
+        "vermelho",
+        "ciano",
+        "rosa",
+        "turquesa",
+        "cinza",
       ],
       status_evento: ["agendado", "realizado", "nao_compareceu", "cancelado"],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
@@ -870,6 +977,7 @@ export const Constants = {
       temperatura_negociacao: ["quente", "morno", "frio"],
       tipo_atividade: ["nota", "ligacao", "email", "whatsapp", "reuniao"],
       tipo_cliente: ["pessoa_fisica", "empresa"],
+      tipo_etapa: ["aberta", "ganha", "perdida"],
       tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao"],
       user_role: ["gerente", "closer"],
     },

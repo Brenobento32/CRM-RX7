@@ -23,21 +23,23 @@ import {
 } from '@dnd-kit/sortable'
 import { useId, useRef, useState, useTransition } from 'react'
 
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { moverNegociacaoAction } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
-import { COR_ETAPA, ROTULO_ETAPA, type EtapaFunil } from '@/lib/utils/etapas'
+import { tipoExigeModal, type EtapaKanban } from '@/lib/utils/etapas'
 import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
-import { ETAPAS, exigeModal } from '@/lib/validations/funil'
 
 import { CardArrastavel, CardConteudo } from './card-negociacao'
 import { ModalFechamento } from './modal-fechamento'
 import { ModalPerda } from './modal-perda'
 
-type Colunas = Record<EtapaFunil, CardFunil[]>
+/** Cards por id de etapa. */
+type Colunas = Record<string, CardFunil[]>
 
 type MovimentoPendente = {
   card: CardFunil
-  etapa: 'fechado' | 'perdido'
+  /** Qual modal abrir: fechamento (ganha) ou motivo (perdida). */
+  tipo: 'ganha' | 'perdida'
   posicao: number
   /** Estado do quadro antes do arraste, para desfazer se o modal for cancelado. */
   antes: Colunas
@@ -48,10 +50,12 @@ function compararCards(a: CardFunil, b: CardFunil): number {
   return a.posicao - b.posicao || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 }
 
-function agrupar(cards: CardFunil[]): Colunas {
-  const colunas = Object.fromEntries(ETAPAS.map((e) => [e, [] as CardFunil[]])) as Colunas
-  for (const card of cards) colunas[card.etapa].push(card)
-  for (const etapa of ETAPAS) colunas[etapa].sort(compararCards)
+function agrupar(cards: CardFunil[], etapas: EtapaKanban[]): Colunas {
+  const colunas: Colunas = Object.fromEntries(etapas.map((e) => [e.id, [] as CardFunil[]]))
+  // Etapa desativada nunca tem cards (o banco impede); se aparecer um card
+  // sem coluna, ele simplesmente não é exibido.
+  for (const card of cards) colunas[card.etapaId]?.push(card)
+  for (const lista of Object.values(colunas)) lista.sort(compararCards)
   return colunas
 }
 
@@ -68,10 +72,10 @@ const deteccaoDeColisao: CollisionDetection = (args) => {
   return sobPonteiro.length > 0 ? sobPonteiro : closestCorners(args)
 }
 
-/** O `id` de um droppable é a etapa; o de um card, o id da negociação. */
-function etapaDe(colunas: Colunas, id: string): EtapaFunil | undefined {
-  if ((ETAPAS as readonly string[]).includes(id)) return id as EtapaFunil
-  return ETAPAS.find((e) => colunas[e].some((c) => c.id === id))
+/** O `id` de um droppable é o da etapa; o de um card, o da negociação. */
+function etapaDe(colunas: Colunas, id: string): string | undefined {
+  if (Object.hasOwn(colunas, id)) return id
+  return Object.keys(colunas).find((e) => colunas[e].some((c) => c.id === id))
 }
 
 const PASSO = 1000
@@ -99,23 +103,25 @@ function renumerar(coluna: CardFunil[]): CardFunil[] {
   return coluna.map((c, i) => ({ ...c, posicao: (i + 1) * PASSO }))
 }
 
-export function Kanban({ cards }: { cards: CardFunil[] }) {
+export function Kanban({ cards, etapas }: { cards: CardFunil[]; etapas: EtapaKanban[] }) {
   const dndId = useId()
-  const [colunas, setColunas] = useState(() => agrupar(cards))
+  const [colunas, setColunas] = useState(() => agrupar(cards, etapas))
 
   // Quando o servidor manda dados novos (após uma action), o quadro é
   // reconstruído a partir deles — a fonte da verdade é o banco.
-  const [cardsDoServidor, setCardsDoServidor] = useState(cards)
-  if (cards !== cardsDoServidor) {
-    setCardsDoServidor(cards)
-    setColunas(agrupar(cards))
+  const [doServidor, setDoServidor] = useState({ cards, etapas })
+  if (cards !== doServidor.cards || etapas !== doServidor.etapas) {
+    setDoServidor({ cards, etapas })
+    setColunas(agrupar(cards, etapas))
   }
+
+  const tipoDe = (etapaId: string) => etapas.find((e) => e.id === etapaId)?.tipo ?? 'aberta'
 
   const [ativo, setAtivo] = useState<CardFunil | null>(null)
   const [pendente, setPendente] = useState<MovimentoPendente | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, startTransition] = useTransition()
-  const inicioArraste = useRef<{ colunas: Colunas; etapa: EtapaFunil } | null>(null)
+  const inicioArraste = useRef<{ colunas: Colunas; etapa: string } | null>(null)
 
   const sensors = useSensors(
     // A distância mínima deixa o clique no nome do cliente funcionar como link.
@@ -150,7 +156,7 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
       return {
         ...atual,
         [de]: atual[de].filter((c) => c.id !== active.id),
-        [para]: [...destino.slice(0, indice), { ...card, etapa: para }, ...destino.slice(indice)],
+        [para]: [...destino.slice(0, indice), { ...card, etapaId: para }, ...destino.slice(indice)],
       }
     })
   }
@@ -196,7 +202,7 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
       posicao = renumerada[indice].posicao
     }
 
-    const card = { ...ordenada[indice], etapa, posicao }
+    const card = { ...ordenada[indice], etapaId: etapa, posicao }
     ordenada[indice] = card
     setColunas({ ...colunas, [etapa]: ordenada })
 
@@ -204,8 +210,8 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
   }
 
   /**
-   * Grava um movimento já aplicado no quadro. Entrar em fechado/perdido só
-   * abre o modal — o card fica na coluna, mas é gravado quando o modal for
+   * Grava um movimento já aplicado no quadro. Entrar em etapa ganha/perdida
+   * só abre o modal — o card fica na coluna, mas é gravado quando o modal for
    * preenchido. Qualquer falha devolve o quadro ao estado `antes`.
    */
   function gravar({
@@ -216,19 +222,20 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
     antes,
   }: {
     card: CardFunil
-    origem: EtapaFunil
+    origem: string
     posicao: number
     reposicionar?: { id: string; posicao: number }[]
     antes: Colunas
   }) {
-    const etapa = card.etapa
-    if (exigeModal(etapa) && etapa !== origem) {
-      setPendente({ card, etapa, posicao, antes })
+    const etapaId = card.etapaId
+    const tipo = tipoDe(etapaId)
+    if (tipoExigeModal(tipo) && etapaId !== origem) {
+      setPendente({ card, tipo, posicao, antes })
       return
     }
 
     startTransition(async () => {
-      const resultado = await moverNegociacaoAction({ id: card.id, etapa, posicao, reposicionar })
+      const resultado = await moverNegociacaoAction({ id: card.id, etapaId, posicao, reposicionar })
       if (!resultado.ok) {
         setColunas(antes)
         setErro(resultado.mensagem)
@@ -237,14 +244,14 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
   }
 
   /** "Mover para" do card: vai para o fim da coluna de destino, sem arrastar. */
-  function moverPara(id: string, destino: EtapaFunil) {
+  function moverPara(id: string, destino: string) {
     const origem = etapaDe(colunas, id)
     const atual = origem && colunas[origem].find((c) => c.id === id)
     if (!origem || !atual || origem === destino || pendente) return
 
-    const coluna = colunas[destino]
+    const coluna = colunas[destino] ?? []
     const posicao = posicaoEntre(coluna.at(-1), undefined) ?? PASSO
-    const card = { ...atual, etapa: destino, posicao }
+    const card = { ...atual, etapaId: destino, posicao }
 
     setErro(null)
     setColunas({
@@ -287,15 +294,21 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
         onDragCancel={aoCancelarArraste}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {ETAPAS.map((etapa) => (
-            <Coluna key={etapa} etapa={etapa} cards={colunas[etapa]} onMover={moverPara} />
+          {etapas.map((etapa) => (
+            <Coluna
+              key={etapa.id}
+              etapa={etapa}
+              etapas={etapas}
+              cards={colunas[etapa.id] ?? []}
+              onMover={moverPara}
+            />
           ))}
         </div>
 
         <DragOverlay>{ativo && <CardConteudo card={ativo} flutuando />}</DragOverlay>
       </DndContext>
 
-      {pendente?.etapa === 'fechado' && (
+      {pendente?.tipo === 'ganha' && (
         <ModalFechamento
           card={pendente.card}
           posicao={pendente.posicao}
@@ -303,7 +316,7 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
           onConcluido={() => setPendente(null)}
         />
       )}
-      {pendente?.etapa === 'perdido' && (
+      {pendente?.tipo === 'perdida' && (
         <ModalPerda
           card={pendente.card}
           posicao={pendente.posicao}
@@ -317,29 +330,33 @@ export function Kanban({ cards }: { cards: CardFunil[] }) {
 
 function Coluna({
   etapa,
+  etapas,
   cards,
   onMover,
 }: {
-  etapa: EtapaFunil
+  etapa: EtapaKanban
+  etapas: EtapaKanban[]
   cards: CardFunil[]
-  onMover: (id: string, etapa: EtapaFunil) => void
+  onMover: (id: string, etapaId: string) => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: etapa })
+  const { setNodeRef, isOver } = useDroppable({ id: etapa.id })
   const total = cards.reduce((soma, c) => soma + (c.valorEstimado ?? 0), 0)
 
   return (
     // A coluna inteira (cabeçalho incluso) é a área de soltura.
     <section
       ref={setNodeRef}
-      aria-labelledby={`coluna-${etapa}`}
+      aria-labelledby={`coluna-${etapa.id}`}
       className={`flex w-72 shrink-0 flex-col rounded-xl transition-colors ${
         isOver ? 'bg-zinc-200 dark:bg-zinc-800' : 'bg-zinc-100 dark:bg-zinc-900'
       }`}
     >
       <header className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
-        <h2 id={`coluna-${etapa}`} className="flex items-center gap-2 text-sm font-semibold">
-          <span className={`size-2.5 rounded-full ${COR_ETAPA[etapa]}`} aria-hidden />
-          {ROTULO_ETAPA[etapa]}
+        <h2 id={`coluna-${etapa.id}`} className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+          <PontoEtapa cor={etapa.cor} />
+          <span className="truncate" title={etapa.nome}>
+            {etapa.nome}
+          </span>
           <span className="rounded-full bg-white px-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
             {cards.length}
           </span>
@@ -352,7 +369,7 @@ function Coluna({
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <ul className="flex min-h-32 flex-1 flex-col gap-2 p-2">
           {cards.map((card) => (
-            <CardArrastavel key={card.id} card={card} onMover={onMover} />
+            <CardArrastavel key={card.id} card={card} etapas={etapas} onMover={onMover} />
           ))}
         </ul>
       </SortableContext>

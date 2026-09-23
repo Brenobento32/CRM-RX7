@@ -1,5 +1,5 @@
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import type { EtapaResumo } from '@/lib/dal/dashboard'
-import { COR_ETAPA, ROTULO_ETAPA } from '@/lib/utils/etapas'
 
 /**
  * Quantidade por etapa. Barras num único tom (magnitude); a cor da etapa
@@ -12,10 +12,10 @@ export function FunilVisual({ etapas }: { etapas: EtapaResumo[] }) {
   return (
     <ol className="space-y-3">
       {etapas.map((e) => (
-        <li key={e.etapa} className="grid grid-cols-[9.5rem_1fr_2.5rem] items-center gap-3 text-sm">
+        <li key={e.etapaId} className="grid grid-cols-[9.5rem_1fr_2.5rem] items-center gap-3 text-sm">
           <span className="flex items-center gap-2 truncate">
-            <span className={`size-2.5 shrink-0 rounded-full ${COR_ETAPA[e.etapa]}`} aria-hidden />
-            {ROTULO_ETAPA[e.etapa]}
+            <PontoEtapa cor={e.cor} />
+            <span className="truncate" title={e.nome}>{e.nome}</span>
           </span>
           <span className="h-3 rounded-r bg-chart-trilha/60" aria-hidden>
             <span

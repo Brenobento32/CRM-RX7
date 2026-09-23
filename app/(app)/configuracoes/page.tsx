@@ -27,6 +27,17 @@ export default async function ConfiguracoesPage() {
               </p>
             </Link>
           </li>
+          <li>
+            <Link
+              href="/configuracoes/etapas"
+              className="block rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
+            >
+              <p className="font-medium">Etapas do funil</p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                Criar etapas personalizadas, mudar cores e a ordem das colunas.
+              </p>
+            </Link>
+          </li>
         </ul>
       ) : (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">

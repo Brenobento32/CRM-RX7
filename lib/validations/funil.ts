@@ -6,15 +6,6 @@ import { valorEmReais } from '@/lib/validations/negociacao'
 
 type Enums = Database['public']['Enums']
 
-export const ETAPAS = Constants.public.Enums.etapa_funil
-
-/** Etapas que só se alcançam pelo modal, nunca por um simples arrastar. */
-export const ETAPAS_COM_MODAL = ['fechado', 'perdido'] as const satisfies readonly Enums['etapa_funil'][]
-
-export function exigeModal(etapa: Enums['etapa_funil']): etapa is 'fechado' | 'perdido' {
-  return (ETAPAS_COM_MODAL as readonly string[]).includes(etapa)
-}
-
 /**
  * Status oferecidos no fechamento. `atrasado` existe no banco, mas não faz
  * sentido no momento em que o negócio acabou de ser fechado.
@@ -45,12 +36,13 @@ export const ROTULO_STATUS_ONBOARDING: Record<Enums['status_onboarding'], string
 const posicao = z.coerce.number('Posição inválida.').refine(Number.isFinite, 'Posição inválida.')
 
 /**
- * Arrastar o card. Para fechado/perdido, só reordena um card que já está na
- * coluna — entrar nelas exige o modal (ver `fechamentoSchema` / `perdaSchema`).
+ * Arrastar o card (ou "Mover para"). Nas etapas ganha/perdida só reordena um
+ * card que já está lá — entrar nelas exige o modal (ver `fechamentoSchema` /
+ * `perdaSchema`). O tipo da etapa é conferido no banco, nunca vem do cliente.
  */
 export const moverSchema = z.object({
   id: z.uuid(),
-  etapa: z.enum(ETAPAS, 'Etapa inválida.'),
+  etapaId: z.uuid('Etapa inválida.'),
   posicao,
   /**
    * Outros cards da coluna de destino com posição nova, quando o Kanban
