@@ -10,7 +10,6 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
  * correspondente pode sair daqui. Quando todas existirem, apague este arquivo.
  */
 const EM_BREVE: Record<string, string> = {
-  agenda: 'Agenda',
   relatorios: 'Relatórios',
   configuracoes: 'Configurações',
 }

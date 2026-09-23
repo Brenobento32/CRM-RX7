@@ -1,4 +1,5 @@
-import { formatInTimeZone } from 'date-fns-tz'
+import { addDays } from 'date-fns'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
 
 export const FUSO_HORARIO = 'America/Sao_Paulo'
@@ -53,4 +54,44 @@ export function agoraSaoPauloLocal(): string {
 export function formatarDia(dia: string, comAno = true): string {
   const [ano, mes, d] = dia.split('-')
   return comAno ? `${d}/${mes}/${ano}` : `${d}/${mes}`
+}
+
+/** Hora "HH:mm" em São Paulo. */
+export function formatarHora(iso: string): string {
+  return formatInTimeZone(iso, FUSO_HORARIO, 'HH:mm')
+}
+
+/**
+ * Dias como AAAA-MM-DD. O meio-dia UTC garante o mesmo dia em qualquer fuso
+ * do servidor, então somar e formatar não escorrega para o dia vizinho.
+ */
+function meioDiaUtc(dia: string): Date {
+  return new Date(`${dia}T12:00:00Z`)
+}
+
+export function diaValido(dia: unknown): dia is string {
+  return (
+    typeof dia === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(dia) &&
+    meioDiaUtc(dia).toISOString().startsWith(dia)
+  )
+}
+
+export function somarDias(dia: string, dias: number): string {
+  return addDays(meioDiaUtc(dia), dias).toISOString().slice(0, 10)
+}
+
+/** "terça-feira, 23 de setembro" */
+export function formatarDiaExtenso(dia: string): string {
+  return formatInTimeZone(meioDiaUtc(dia), 'UTC', "EEEE, d 'de' MMMM", { locale: ptBR })
+}
+
+/** Dia (AAAA-MM-DD) do instante `iso`, em São Paulo. */
+export function diaEmSaoPaulo(iso: string): string {
+  return formatInTimeZone(iso, FUSO_HORARIO, 'yyyy-MM-dd')
+}
+
+/** Instante UTC de "dia às hora" no horário de São Paulo. */
+export function instanteSaoPaulo(dia: string, hora = '00:00'): Date {
+  return fromZonedTime(`${dia}T${hora}:00`, FUSO_HORARIO)
 }

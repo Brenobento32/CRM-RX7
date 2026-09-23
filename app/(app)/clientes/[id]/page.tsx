@@ -12,6 +12,7 @@ import {
 import { LIMITE_TIMELINE, listarProximasAcoes, listarTimeline } from '@/lib/dal/atividades'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterCliente } from '@/lib/dal/clientes'
+import { listarEventosDoCliente } from '@/lib/dal/eventos'
 import {
   formatarCnpj,
   formatarCpf,
@@ -28,6 +29,8 @@ import {
 } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
+
+import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
 
 import { FormAtividade } from './_components/form-atividade'
 import { FormProximaAcao } from './_components/form-proxima-acao'
@@ -51,9 +54,10 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
   const usuario = await getUsuarioAtual()
   const { id } = await params
   const cliente = await carregar(id)
-  const [timeline, proximasAcoes] = await Promise.all([
+  const [timeline, proximasAcoes, eventos] = await Promise.all([
     listarTimeline(cliente.id),
     listarProximasAcoes(cliente.id),
+    listarEventosDoCliente(cliente.id),
   ])
 
   const data = formatarDataHoraCompleta
@@ -153,6 +157,29 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Agenda</h2>
+          <Link href={`/agenda/novo?cliente=${cliente.id}`} className={botaoSecundarioClass}>
+            Agendar evento
+          </Link>
+        </div>
+        {eventos.length === 0 ? (
+          <p className="text-sm text-zinc-500">Nenhum compromisso agendado.</p>
+        ) : (
+          <ListaEventos>
+            {eventos.map((e) => (
+              <EventoItem
+                key={e.id}
+                evento={e}
+                mostrarData
+                mostrarResponsavel={usuario.role === 'gerente'}
+              />
+            ))}
+          </ListaEventos>
         )}
       </section>
 

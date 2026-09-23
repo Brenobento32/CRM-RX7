@@ -133,7 +133,7 @@ o histórico de conversão se corrompe a cada reentrada.
 | `negociacoes` | O card do Kanban: etapa, valor estimado, posição, owner |
 | `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding |
 | `historico_etapas` | Append-only. Base do relatório de conversão e ciclo de venda. **Ainda não criada** — necessária antes da Fase 7 |
-| `eventos` | Agenda: reuniões, calls, follow-ups |
+| `eventos` | Agenda: reunião, ligação, follow-up, apresentação. Dono em `usuario_id`; `google_event_id` / `sincronizado_em` reservados para o Google Calendar |
 | `atividades` | Timeline da ficha do cliente: `tipo`, `descricao`, `data`, autor em `usuario_id` |
 | `proximas_acoes` | Follow-up combinado (`titulo`, `data`, `observacao`); pendente enquanto `concluida_em` for nulo |
 
@@ -145,8 +145,8 @@ etapa_funil       reuniao_agendada | reuniao_realizada | proposta_enviada |
                   negociacao | fechado | perdido
 status_pagamento  pendente | parcial | pago | atrasado | cancelado
 status_onboarding nao_iniciado | em_andamento | concluido
-tipo_evento       reuniao | call | followup
-status_evento     agendado | realizado | no_show | cancelado
+tipo_evento       reuniao | ligacao | followup | apresentacao
+status_evento     agendado | realizado | nao_compareceu | cancelado
 tipo_atividade    nota | ligacao | email | whatsapp | reuniao
 tipo_cliente      pessoa_fisica | empresa
 temperatura_negociacao  quente | morno | frio
@@ -183,7 +183,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 3 | Clientes: CRUD completo — validação prática da RLS | concluída |
 | 4 | Funil Kanban: dnd-kit, optimistic UI, modal de fechamento | concluída |
 | 5A | Atividades comerciais e próxima ação na ficha e no card | concluída |
-| 5 | Agenda: CRUD de eventos, visão semana/dia | pendente |
+| 5B | Agenda: eventos, compromissos do dia, status → timeline | concluída |
 | 6 | Dashboard: KPIs sobre dados reais | pendente |
 | 7 | Relatórios: performance por closer, conversão, export CSV | pendente |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |

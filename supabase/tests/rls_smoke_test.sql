@@ -30,6 +30,7 @@ declare
   v_cliente_b uuid;
   v_negoc_a   uuid;
   v_negoc_b   uuid;
+  v_evento    uuid;
 
   v_total     integer;
   v_papel     public.user_role;
@@ -157,10 +158,10 @@ begin
 
   -- 12. Com o fechamento preenchido, fechar funciona.
   insert into public.fechamentos (
-    negociacao_id, valor_vendido, contrato_enviado, contrato_assinado,
-    status_pagamento, status_onboarding, fechado_por
+    negociacao_id, valor_vendido, data_fechamento, contrato_enviado,
+    contrato_assinado, status_pagamento, status_onboarding, fechado_por
   )
-  values (v_negoc_a, 9500.00, true, true, 'pendente', 'nao_iniciado', v_closer_a);
+  values (v_negoc_a, 9500.00, current_date, true, true, 'pendente', 'nao_iniciado', v_closer_a);
 
   update public.negociacoes set etapa = 'fechado' where id = v_negoc_a;
   get diagnostics v_total = row_count;
@@ -182,7 +183,7 @@ begin
 
   -- 14. Não consegue pendurar um evento no cliente do closer A.
   begin
-    insert into public.eventos (titulo, inicio, fim, cliente_id, owner_id)
+    insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
     values ('Reunião indevida', now(), now() + interval '1 hour', v_cliente_a, v_closer_b);
     assert false, 'evento em cliente alheio deveria ser barrado';
   exception when insufficient_privilege or check_violation then
@@ -341,6 +342,47 @@ begin
   exception
     when insufficient_privilege then
       raise notice 'ok  26   closer não registra atividade em cliente alheio';
+  end;
+
+  -- ===================================================================
+  -- Agenda (Fase 5B)
+  -- ===================================================================
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+
+  -- 27. Marcar como realizado registra a atividade na timeline.
+  insert into public.eventos (titulo, tipo, inicio, fim, cliente_id)
+  values ('Apresentação da proposta', 'apresentacao',
+          now() - interval '2 hours', now() - interval '1 hour', v_cliente_a)
+  returning id into v_evento;
+
+  perform public.alterar_status_evento(v_evento, 'realizado');
+
+  select count(*) into v_total
+  from public.eventos
+  where id = v_evento and status = 'realizado';
+  assert v_total = 1, 'o status do evento deveria ser realizado';
+
+  select count(*) into v_total
+  from public.atividades
+  where cliente_id = v_cliente_a
+    and tipo = 'reuniao'
+    and descricao like 'Realizado: Apresentação da proposta%';
+  assert v_total = 1, 'marcar realizado deveria registrar a atividade na timeline';
+  raise notice 'ok  27   evento realizado vira atividade na timeline';
+
+  -- 28. Closer B não vê nem altera o evento do A.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_b, 'role', 'authenticated')::text, true);
+  select count(*) into v_total from public.eventos;
+  assert v_total = 0, format('closer B não deveria ver eventos, viu %s', v_total);
+
+  begin
+    perform public.alterar_status_evento(v_evento, 'cancelado');
+    raise exception 'closer B alterou o status de evento do closer A';
+  exception
+    when no_data_found then
+      raise notice 'ok  28   closer não vê nem altera evento alheio';
   end;
 
   reset role;

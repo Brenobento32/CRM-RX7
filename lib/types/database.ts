@@ -181,46 +181,52 @@ export type Database = {
       }
       eventos: {
         Row: {
-          cliente_id: string | null
+          cliente_id: string
           created_at: string
+          descricao: string | null
           fim: string
+          google_event_id: string | null
           id: string
           inicio: string
           negociacao_id: string | null
-          notas: string | null
-          owner_id: string
+          sincronizado_em: string | null
           status: Database["public"]["Enums"]["status_evento"]
           tipo: Database["public"]["Enums"]["tipo_evento"]
           titulo: string
           updated_at: string
+          usuario_id: string
         }
         Insert: {
-          cliente_id?: string | null
+          cliente_id: string
           created_at?: string
+          descricao?: string | null
           fim: string
+          google_event_id?: string | null
           id?: string
           inicio: string
           negociacao_id?: string | null
-          notas?: string | null
-          owner_id?: string
+          sincronizado_em?: string | null
           status?: Database["public"]["Enums"]["status_evento"]
           tipo?: Database["public"]["Enums"]["tipo_evento"]
           titulo: string
           updated_at?: string
+          usuario_id?: string
         }
         Update: {
-          cliente_id?: string | null
+          cliente_id?: string
           created_at?: string
+          descricao?: string | null
           fim?: string
+          google_event_id?: string | null
           id?: string
           inicio?: string
           negociacao_id?: string | null
-          notas?: string | null
-          owner_id?: string
+          sincronizado_em?: string | null
           status?: Database["public"]["Enums"]["status_evento"]
           tipo?: Database["public"]["Enums"]["tipo_evento"]
           titulo?: string
           updated_at?: string
+          usuario_id?: string
         }
         Relationships: [
           {
@@ -253,7 +259,7 @@ export type Database = {
           },
           {
             foreignKeyName: "eventos_owner_id_fkey"
-            columns: ["owner_id"]
+            columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -557,6 +563,13 @@ export type Database = {
       }
     }
     Functions: {
+      alterar_status_evento: {
+        Args: {
+          p_evento_id: string
+          p_status: Database["public"]["Enums"]["status_evento"]
+        }
+        Returns: undefined
+      }
       cliente_owner: { Args: { p_cliente_id: string }; Returns: string }
       criar_cliente: {
         Args: {
@@ -607,7 +620,7 @@ export type Database = {
         | "negociacao"
         | "fechado"
         | "perdido"
-      status_evento: "agendado" | "realizado" | "no_show" | "cancelado"
+      status_evento: "agendado" | "realizado" | "nao_compareceu" | "cancelado"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento:
         | "pendente"
@@ -618,7 +631,7 @@ export type Database = {
       temperatura_negociacao: "quente" | "morno" | "frio"
       tipo_atividade: "nota" | "ligacao" | "email" | "whatsapp" | "reuniao"
       tipo_cliente: "pessoa_fisica" | "empresa"
-      tipo_evento: "reuniao" | "call" | "followup"
+      tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao"
       user_role: "gerente" | "closer"
     }
     CompositeTypes: {
@@ -758,7 +771,7 @@ export const Constants = {
         "fechado",
         "perdido",
       ],
-      status_evento: ["agendado", "realizado", "no_show", "cancelado"],
+      status_evento: ["agendado", "realizado", "nao_compareceu", "cancelado"],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
       status_pagamento: [
         "pendente",
@@ -770,7 +783,7 @@ export const Constants = {
       temperatura_negociacao: ["quente", "morno", "frio"],
       tipo_atividade: ["nota", "ligacao", "email", "whatsapp", "reuniao"],
       tipo_cliente: ["pessoa_fisica", "empresa"],
-      tipo_evento: ["reuniao", "call", "followup"],
+      tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao"],
       user_role: ["gerente", "closer"],
     },
   },
