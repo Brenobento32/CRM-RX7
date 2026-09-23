@@ -148,6 +148,7 @@ tipo_evento       reuniao | call | followup
 status_evento     agendado | realizado | no_show | cancelado
 tipo_atividade    nota | ligacao | email | whatsapp | reuniao
 tipo_cliente      pessoa_fisica | empresa
+temperatura_negociacao  quente | morno | frio
 ```
 
 ### Regras que moram no banco, não no formulário

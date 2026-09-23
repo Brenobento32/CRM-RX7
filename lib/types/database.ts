@@ -294,11 +294,17 @@ export type Database = {
           cliente_id: string
           created_at: string
           data_entrada_etapa: string
+          data_primeira_reuniao: string | null
+          data_proposta: string | null
           etapa: Database["public"]["Enums"]["etapa_funil"]
           id: string
           motivo_perda: string | null
+          objecao_principal: string | null
           owner_id: string
           posicao: number
+          temperatura:
+            | Database["public"]["Enums"]["temperatura_negociacao"]
+            | null
           titulo: string | null
           updated_at: string
           valor_estimado: number | null
@@ -307,11 +313,17 @@ export type Database = {
           cliente_id: string
           created_at?: string
           data_entrada_etapa?: string
+          data_primeira_reuniao?: string | null
+          data_proposta?: string | null
           etapa?: Database["public"]["Enums"]["etapa_funil"]
           id?: string
           motivo_perda?: string | null
+          objecao_principal?: string | null
           owner_id: string
           posicao?: number
+          temperatura?:
+            | Database["public"]["Enums"]["temperatura_negociacao"]
+            | null
           titulo?: string | null
           updated_at?: string
           valor_estimado?: number | null
@@ -320,11 +332,17 @@ export type Database = {
           cliente_id?: string
           created_at?: string
           data_entrada_etapa?: string
+          data_primeira_reuniao?: string | null
+          data_proposta?: string | null
           etapa?: Database["public"]["Enums"]["etapa_funil"]
           id?: string
           motivo_perda?: string | null
+          objecao_principal?: string | null
           owner_id?: string
           posicao?: number
+          temperatura?:
+            | Database["public"]["Enums"]["temperatura_negociacao"]
+            | null
           titulo?: string | null
           updated_at?: string
           valor_estimado?: number | null
@@ -413,6 +431,7 @@ export type Database = {
       status_evento: "agendado" | "realizado" | "no_show" | "cancelado"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento: "pendente" | "parcial" | "pago" | "atrasado"
+      temperatura_negociacao: "quente" | "morno" | "frio"
       tipo_atividade: "nota" | "ligacao" | "email" | "whatsapp" | "reuniao"
       tipo_cliente: "pessoa_fisica" | "empresa"
       tipo_evento: "reuniao" | "call" | "followup"
@@ -558,6 +577,7 @@ export const Constants = {
       status_evento: ["agendado", "realizado", "no_show", "cancelado"],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
       status_pagamento: ["pendente", "parcial", "pago", "atrasado"],
+      temperatura_negociacao: ["quente", "morno", "frio"],
       tipo_atividade: ["nota", "ligacao", "email", "whatsapp", "reuniao"],
       tipo_cliente: ["pessoa_fisica", "empresa"],
       tipo_evento: ["reuniao", "call", "followup"],
