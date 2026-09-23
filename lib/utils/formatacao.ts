@@ -107,3 +107,12 @@ export function formatarPercentual(fracao: number): string {
 export function formatarMes(mes: string): string {
   return formatInTimeZone(meioDiaUtc(mes), 'UTC', 'MMM/yy', { locale: ptBR })
 }
+
+/** Duração em segundos → "menos de 1 h", "5 h", "3,2 dias". */
+export function formatarDuracao(segundos: number): string {
+  const horas = segundos / 3600
+  if (horas < 1) return 'menos de 1 h'
+  if (horas < 24) return `${Math.round(horas)} h`
+  const dias = horas / 24
+  return `${dias.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${dias < 1.05 ? 'dia' : 'dias'}`
+}

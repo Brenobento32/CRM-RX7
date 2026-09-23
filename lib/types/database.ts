@@ -787,6 +787,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      funil_metricas: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: {
+          alcancaram: number
+          cor: Database["public"]["Enums"]["cor_etapa"]
+          etapa_id: string
+          nome: string
+          ordem: number
+          parados_7_dias: number
+          parados_medio_segundos: number
+          permanencias: number
+          quantidade: number
+          tempo_medio_segundos: number
+          tipo: Database["public"]["Enums"]["tipo_etapa"]
+          valor: number
+        }[]
+      }
       is_gerente: { Args: never; Returns: boolean }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
       nomes_de_usuarios: {

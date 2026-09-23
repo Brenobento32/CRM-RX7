@@ -97,6 +97,12 @@ export function CardConteudo({
         </div>
       </div>
 
+      {card.parado && (
+        <p className="mt-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          <span aria-hidden>⏱</span> Parado há {card.diasNaEtapa} dias
+        </p>
+      )}
+
       <p className="mt-2 font-semibold tabular-nums">
         {card.valorEstimado !== null ? (
           formatarMoeda(card.valorEstimado)

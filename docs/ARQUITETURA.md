@@ -216,6 +216,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 7 | Relatórios: performance por closer, conversão, export CSV | pendente |
 | 8A | UX: sidebar recolhível, "Mover para" no Kanban | concluída |
 | 8B | Funil dinâmico: etapas em tabela, configuráveis pelo gerente | concluída |
+| 9A | Métricas do funil: conversão por etapa, tempo na etapa, cards parados (`funil_metricas`) | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer

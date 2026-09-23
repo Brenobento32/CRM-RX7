@@ -533,6 +533,31 @@ begin
     raise notice 'ok  38   etapa perdida exige motivo';
   end;
 
+  -- ===================================================================
+  -- Métricas do funil (Fase 9A)
+  -- ===================================================================
+
+  -- 39. Closer B (sem carteira) recebe métricas zeradas; closer A vê as suas.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_b, 'role', 'authenticated')::text, true);
+  select coalesce(sum(quantidade + alcancaram + parados_7_dias), 0) into v_total
+  from public.funil_metricas(current_date - 30, current_date);
+  assert v_total = 0, format('closer B deveria ter métricas zeradas, somou %s', v_total);
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  select coalesce(sum(quantidade), 0) into v_total
+  from public.funil_metricas(current_date - 30, current_date);
+  assert v_total = (select count(*) from public.negociacoes n
+                    join public.etapas_funil e on e.id = n.etapa_id
+                    where e.tipo = 'aberta')
+                 + (select count(*) from public.fechamentos f
+                    join public.negociacoes n on n.id = f.negociacao_id
+                    join public.etapas_funil e on e.id = n.etapa_id
+                    where e.tipo = 'ganha' and f.data_fechamento between current_date - 30 and current_date),
+    format('métricas do closer A não batem com as negociações dele (%s)', v_total);
+  raise notice 'ok  39   métricas do funil respeitam a carteira';
+
   reset role;
   raise notice '';
   raise notice 'TODAS AS ASSERÇÕES PASSARAM.';

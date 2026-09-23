@@ -2,8 +2,11 @@ import Link from 'next/link'
 
 import { PERIODOS, ROTULO_PERIODO, type ChavePeriodo } from '@/lib/utils/periodo'
 
-/** Links, não estado de cliente: o período fica na URL e o servidor recalcula. */
-export function SeletorPeriodo({ atual }: { atual: ChavePeriodo }) {
+/**
+ * Links, não estado de cliente: o período fica na URL e o servidor recalcula.
+ * `caminho` é a página que recebe o `?periodo=` (dashboard, funil).
+ */
+export function SeletorPeriodo({ atual, caminho = '/' }: { atual: ChavePeriodo; caminho?: string }) {
   return (
     <nav
       aria-label="Período"
@@ -12,7 +15,7 @@ export function SeletorPeriodo({ atual }: { atual: ChavePeriodo }) {
       {PERIODOS.map((p) => (
         <Link
           key={p}
-          href={p === 'mes' ? '/' : `/?periodo=${p}`}
+          href={p === 'mes' ? caminho : `${caminho}?periodo=${p}`}
           aria-current={p === atual ? 'page' : undefined}
           className={
             p === atual

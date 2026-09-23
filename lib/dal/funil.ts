@@ -6,7 +6,7 @@ import { subDays } from 'date-fns'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { tipoExigeModal } from '@/lib/utils/etapas'
+import { DIAS_PARADO, tipoExigeModal } from '@/lib/utils/etapas'
 import type { FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 
 type Enums = Database['public']['Enums']
@@ -24,6 +24,10 @@ export type CardFunil = {
   valorEstimado: number | null
   temperatura: Enums['temperatura_negociacao'] | null
   responsavel: string | null
+  /** Dias inteiros na etapa atual, calculados no servidor (sem divergir na hidratação). */
+  diasNaEtapa: number
+  /** Etapa aberta e há mais de DIAS_PARADO dias nela — mesma regra de `funil_metricas`. */
+  parado: boolean
   /** `data` é AAAA-MM-DD (dia, sem hora). */
   proximaAcao: { titulo: string; data: string } | null
   ultimaAtividade: { tipo: Enums['tipo_atividade']; data: string; descricao: string } | null
@@ -41,7 +45,8 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
-  const corte = subDays(new Date(), DIAS_VISIVEIS_ENCERRADOS).toISOString()
+  const agora = Date.now()
+  const corte = subDays(agora, DIAS_VISIVEIS_ENCERRADOS).toISOString()
 
   const { data, error } = await supabase
     .from('funil_cards')
@@ -59,7 +64,7 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
   // Colunas de view vêm todas como anuláveis nos tipos gerados; as que são
   // NOT NULL nas tabelas de origem nunca chegam nulas.
   return data.flatMap((r) =>
-    r.id && r.etapa_id && r.cliente_id && r.cliente_nome && r.posicao !== null
+    r.id && r.etapa_id && r.cliente_id && r.cliente_nome && r.posicao !== null && r.data_entrada_etapa
       ? [
           {
             id: r.id,
@@ -71,6 +76,10 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
             valorEstimado: r.valor_estimado,
             temperatura: r.temperatura,
             responsavel: r.responsavel_nome,
+            diasNaEtapa: Math.floor((agora - new Date(r.data_entrada_etapa).getTime()) / 86_400_000),
+            parado:
+              r.etapa_tipo === 'aberta' &&
+              agora - new Date(r.data_entrada_etapa).getTime() > DIAS_PARADO * 86_400_000,
             proximaAcao:
               r.proxima_acao_titulo && r.proxima_acao_data
                 ? { titulo: r.proxima_acao_titulo, data: r.proxima_acao_data }

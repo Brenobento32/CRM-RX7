@@ -41,3 +41,9 @@ export const ROTULO_TIPO_ETAPA: Record<TipoEtapa, string> = {
 export function tipoExigeModal(tipo: TipoEtapa): tipo is 'ganha' | 'perdida' {
   return tipo === 'ganha' || tipo === 'perdida'
 }
+
+/**
+ * A partir de quantos dias na mesma etapa aberta um card conta como parado.
+ * Precisa bater com o `interval '7 days'` de `public.funil_metricas`.
+ */
+export const DIAS_PARADO = 7
