@@ -54,6 +54,7 @@ RLS, o Postgres devolve apenas as linhas permitidas mesmo num `select *`.
 | Editar clientes | Qualquer um | Apenas os seus |
 | Mover negociações no funil | Qualquer uma | Apenas as suas |
 | Relatórios por closer | Sim | Apenas os próprios números |
+| Metas | Cria, edita e remove (empresa e por closer) | Vê apenas a própria |
 
 ### Como isso é aplicado
 
@@ -140,11 +141,12 @@ o histórico de conversão se corrompe a cada reentrada.
 | `profiles` | Espelho de `auth.users`: `role` (gerente / closer), `ativo`, `telefone`, `foto_url`. Nunca excluído — desativar bloqueia o login. Sempre há ao menos um gerente ativo (trigger) |
 | `clientes` | Dados cadastrais, `owner_id`, soft delete via `deleted_at` |
 | `negociacoes` | O card do Kanban: etapa, valor estimado, posição, owner |
-| `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding |
+| `fechamentos` | 1:1 com a negociação: valor vendido, contrato enviado/assinado, status de pagamento, onboarding. `responsavel_id` (dono no fechamento, para metas) e `fechado_por` (quem executou, auditoria) |
 | `etapas_funil` | Colunas do Kanban (Fase 8B). As 6 de sistema (`chave` preenchida) só mudam de cor; personalizadas mudam nome, cor e posição, sempre antes de Negociação. Excluir só o que nunca foi usado; o resto é desativado |
 | `historico_etapas` | Append-only, escrito por trigger a cada mudança de etapa. Alimenta "últimas movimentações" e será a base do relatório de conversão e ciclo de venda |
 | `eventos` | Agenda: reunião, ligação, follow-up, apresentação. Dono em `usuario_id`; `google_event_id` / `sincronizado_em` reservados para o Google Calendar |
 | `atividades` | Timeline da ficha do cliente: `tipo`, `descricao`, `data`, autor em `usuario_id` |
+| `metas` | Meta mensal de venda (Fase 10): `usuario_id` nulo = empresa, preenchido = closer. `periodo_mes` é o dia 1 do mês; uma meta por alvo por mês (`unique nulls not distinct`). Editar muda só o valor |
 | `proximas_acoes` | Follow-up combinado (`titulo`, `data`, `observacao`); pendente enquanto `concluida_em` for nulo |
 
 ### Enums
@@ -195,6 +197,31 @@ para o hex em `lib/utils/etapas.ts`.
 Validar isso apenas no modal do Kanban significa que qualquer import, correção
 manual ou action futura fura a regra.
 
+### Metas: o realizado segue o responsável no fechamento
+
+O realizado de cada pessoa soma `fechamentos.valor_vendido` por
+`responsavel_id`: o dono da negociação **no momento do fechamento**, gravado
+por trigger (`fechamentos_define_responsavel`).
+
+- Não é quem clicou: gerente que fecha a venda de um closer credita o closer.
+  Quem executou continua em `fechado_por`, só para auditoria.
+- Não é o dono atual: transferir a carteira depois não reescreve metas
+  passadas. O responsável só é recalculado num novo fechamento
+  (`fechar_negociacao` renova `fechado_em`).
+- Fechamentos anteriores à Fase 10 receberam o dono atual da negociação, a
+  melhor estimativa disponível (não há histórico de dono).
+
+O filtro é o mesmo do dashboard (negociação na etapa `ganha`,
+`data_fechamento` no mês), então o realizado da empresa bate com o "Vendido"
+do dashboard no mesmo mês; por pessoa os dois podem divergir depois de uma
+transferência, porque o dashboard atribui ao dono atual.
+
+`metas_progresso` é SECURITY DEFINER com a autorização no próprio WHERE
+(closer recebe só a sua linha). Como INVOKER ela não funcionaria: a RLS de
+`fechamentos` segue o dono atual, e o responsável deixaria de enxergar a venda
+depois da transferência. A função devolve apenas somas, nunca linhas de
+fechamento.
+
 ### Dinheiro e datas
 
 Valores em `numeric(14,2)` — nunca `float8`, que gera divergência de centavos
@@ -217,6 +244,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 8A | UX: sidebar recolhível, "Mover para" no Kanban | concluída |
 | 8B | Funil dinâmico: etapas em tabela, configuráveis pelo gerente | concluída |
 | 9A | Métricas do funil: conversão por etapa, tempo na etapa, cards parados (`funil_metricas`) | concluída |
+| 10 | Metas comerciais: meta mensal da empresa e por closer, realizado pelo responsável no fechamento (`metas_progresso`) | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer

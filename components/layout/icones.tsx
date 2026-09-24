@@ -89,3 +89,11 @@ export const IconeExpandir = (p: Props) => (
     <path d="M9 3v18M13 9l3 3-3 3" />
   </Svg>
 )
+
+export const IconeMetas = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </Svg>
+)

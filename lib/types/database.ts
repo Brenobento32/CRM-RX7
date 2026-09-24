@@ -328,6 +328,7 @@ export type Database = {
           fechado_por: string
           link_contrato: string | null
           negociacao_id: string
+          responsavel_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
           updated_at: string
@@ -344,6 +345,7 @@ export type Database = {
           fechado_por?: string
           link_contrato?: string | null
           negociacao_id: string
+          responsavel_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
           updated_at?: string
@@ -360,6 +362,7 @@ export type Database = {
           fechado_por?: string
           link_contrato?: string | null
           negociacao_id?: string
+          responsavel_id?: string
           status_onboarding?: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento?: Database["public"]["Enums"]["status_pagamento"]
           updated_at?: string
@@ -385,6 +388,13 @@ export type Database = {
             columns: ["negociacao_id"]
             isOneToOne: true
             referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fechamentos_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -445,6 +455,51 @@ export type Database = {
           },
           {
             foreignKeyName: "historico_etapas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas: {
+        Row: {
+          created_at: string
+          criado_por: string
+          id: string
+          periodo_mes: string
+          updated_at: string
+          usuario_id: string | null
+          valor_meta: number
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string
+          id?: string
+          periodo_mes: string
+          updated_at?: string
+          usuario_id?: string | null
+          valor_meta: number
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          id?: string
+          periodo_mes?: string
+          updated_at?: string
+          usuario_id?: string | null
+          valor_meta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -805,6 +860,18 @@ export type Database = {
         }[]
       }
       is_gerente: { Args: never; Returns: boolean }
+      metas_progresso: {
+        Args: { p_mes: string }
+        Returns: {
+          ativo: boolean
+          meta_id: string
+          nome: string
+          realizado: number
+          role: Database["public"]["Enums"]["user_role"]
+          usuario_id: string
+          valor_meta: number
+        }[]
+      }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
       nomes_de_usuarios: {
         Args: { p_ids: string[] }

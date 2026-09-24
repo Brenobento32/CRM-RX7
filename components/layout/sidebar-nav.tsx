@@ -9,6 +9,7 @@ import {
   IconeConfiguracoes,
   IconeFunil,
   IconeInicio,
+  IconeMetas,
   IconeRelatorios,
 } from './icones'
 
@@ -17,6 +18,7 @@ const MENU = [
   { href: '/agenda', rotulo: 'Agenda', Icone: IconeAgenda },
   { href: '/funil', rotulo: 'Funil', Icone: IconeFunil },
   { href: '/clientes', rotulo: 'Clientes', Icone: IconeClientes },
+  { href: '/metas', rotulo: 'Metas', Icone: IconeMetas },
   { href: '/relatorios', rotulo: 'Relatórios', Icone: IconeRelatorios },
   { href: '/configuracoes', rotulo: 'Configurações', Icone: IconeConfiguracoes },
 ] as const

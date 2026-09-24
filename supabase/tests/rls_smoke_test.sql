@@ -36,6 +36,9 @@ declare
   v_total     integer;
   v_papel     public.user_role;
   v_erro      text;
+  v_meta      uuid;
+  v_valor     numeric;
+  v_valor2    numeric;
 begin
   -- -------------------------------------------------------------------
   -- Massa de teste (criada como postgres, que ignora a RLS).
@@ -557,6 +560,140 @@ begin
                     where e.tipo = 'ganha' and f.data_fechamento between current_date - 30 and current_date),
     format('métricas do closer A não batem com as negociações dele (%s)', v_total);
   raise notice 'ok  39   métricas do funil respeitam a carteira';
+
+  -- ===================================================================
+  -- Metas (Fase 10)
+  -- ===================================================================
+
+  -- 40. Gerente cria meta da empresa e metas individuais.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  insert into public.metas (usuario_id, periodo_mes, valor_meta)
+  values (null,       date_trunc('month', current_date)::date, 100000),
+         (v_closer_a, date_trunc('month', current_date)::date, 40000),
+         (v_closer_b, date_trunc('month', current_date)::date, 30000);
+  select id into v_meta from public.metas
+  where usuario_id = v_closer_a and periodo_mes = date_trunc('month', current_date)::date;
+  raise notice 'ok  40   gerente cria meta da empresa e por closer';
+
+  -- 41. Uma meta por alvo por mês — inclusive a da empresa (usuario_id nulo).
+  begin
+    insert into public.metas (usuario_id, periodo_mes, valor_meta)
+    values (null, date_trunc('month', current_date)::date, 1);
+    raise exception 'aceitou duas metas da empresa no mesmo mês';
+  exception when unique_violation then
+    raise notice 'ok  41   meta duplicada no mês é recusada';
+  end;
+
+  -- 42. Meta individual só para closer; mês só como dia 1; só o valor muda.
+  begin
+    insert into public.metas (usuario_id, periodo_mes, valor_meta)
+    values (v_gerente, date_trunc('month', current_date)::date, 1);
+    raise exception 'aceitou meta individual para gerente';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.metas (usuario_id, periodo_mes, valor_meta)
+    values (null, date_trunc('month', current_date)::date + 1, 1);
+    raise exception 'aceitou periodo_mes fora do dia 1';
+  exception when check_violation then null;
+  end;
+  begin
+    update public.metas set periodo_mes = periodo_mes - interval '1 month' where id = v_meta;
+    raise exception 'permitiu mudar o mês de uma meta';
+  exception when check_violation then null;
+  end;
+  raise notice 'ok  42   regras de meta: só closer, dia 1, só o valor muda';
+
+  -- 43. Closer vê só a própria meta e não escreve em nenhuma.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  select count(*) into v_total from public.metas;
+  assert v_total = 1, format('closer A deveria ver 1 meta (a sua), viu %s', v_total);
+  begin
+    insert into public.metas (usuario_id, periodo_mes, valor_meta)
+    values (v_closer_a, (date_trunc('month', current_date) - interval '1 month')::date, 1);
+    raise exception 'closer criou meta';
+  exception when insufficient_privilege then null;
+  end;
+  update public.metas set valor_meta = 1 where id = v_meta;
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'closer alterou a própria meta';
+  delete from public.metas where id = v_meta;
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'closer removeu a própria meta';
+  raise notice 'ok  43   closer lê só a própria meta e não escreve';
+
+  -- 44. metas_progresso: closer recebe só a própria linha, sem a da empresa.
+  select count(*) into v_total from public.metas_progresso(current_date);
+  assert v_total = 1, format('closer A deveria receber 1 linha de progresso, recebeu %s', v_total);
+  select count(*) into v_total from public.metas_progresso(current_date) where usuario_id = v_closer_a;
+  assert v_total = 1, 'a linha de progresso do closer A deveria ser a dele';
+  raise notice 'ok  44   progresso do closer traz só a própria linha';
+
+  -- 45. Gerente fecha a venda de um closer: fechado_por = gerente (auditoria),
+  --     responsavel_id = closer, e a meta do closer recebe o valor.
+  --     Depois, transferir a carteira não tira a venda de quem era o dono.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  select realizado into v_valor from public.metas_progresso(current_date) where usuario_id = v_closer_a;
+  select coalesce(sum(realizado), 0) into v_valor2 from public.metas_progresso(current_date)
+  where usuario_id = v_gerente;
+
+  insert into public.clientes (nome, empresa, owner_id)
+  values ('Cliente Meta', 'Empresa Meta', v_closer_a)
+  returning id into v_cliente_a;
+  insert into public.negociacoes (cliente_id, owner_id, titulo, valor_estimado)
+  values (v_cliente_a, v_closer_a, 'Venda da meta', 777)
+  returning id into v_negoc_a;
+  perform public.fechar_negociacao(
+    p_negociacao_id => v_negoc_a, p_posicao => 1000, p_valor_vendido => 777,
+    p_data_fechamento => current_date, p_contrato_enviado => true,
+    p_contrato_assinado => true, p_status_pagamento => 'pago',
+    p_status_onboarding => 'nao_iniciado');
+
+  select count(*) into v_total from public.fechamentos
+  where negociacao_id = v_negoc_a and fechado_por = v_gerente and responsavel_id = v_closer_a;
+  assert v_total = 1, 'fechamento deveria ter fechado_por = gerente e responsavel_id = closer A';
+
+  assert (select realizado from public.metas_progresso(current_date) where usuario_id = v_closer_a) = v_valor + 777,
+    'a venda fechada pelo gerente deveria entrar na meta do closer A';
+  assert (select coalesce(sum(realizado), 0) from public.metas_progresso(current_date)
+          where usuario_id = v_gerente) = v_valor2,
+    'a venda do closer A não pode entrar na linha do gerente que clicou';
+
+  -- Editar o fechamento (sem refechar) não troca o responsável, nem forjando.
+  update public.fechamentos set responsavel_id = v_gerente, status_onboarding = 'em_andamento'
+  where negociacao_id = v_negoc_a;
+  select count(*) into v_total from public.fechamentos
+  where negociacao_id = v_negoc_a and responsavel_id = v_closer_a;
+  assert v_total = 1, 'responsavel_id não pode ser alterado pela aplicação';
+
+  -- Transferência de carteira.
+  select realizado into v_valor from public.metas_progresso(current_date) where usuario_id = v_closer_b;
+  update public.clientes set owner_id = v_closer_b where id = v_cliente_a;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  select realizado into v_valor2 from public.metas_progresso(current_date) where usuario_id = v_closer_a;
+  assert v_valor2 >= 777, 'transferir a carteira tirou a venda da meta do responsável';
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_b, 'role', 'authenticated')::text, true);
+  select realizado into v_valor2 from public.metas_progresso(current_date) where usuario_id = v_closer_b;
+  assert v_valor2 = v_valor, 'a venda transferida não pode entrar na meta do novo dono';
+  raise notice 'ok  45   meta segue o responsável no fechamento, não quem clicou nem o dono atual';
+
+  -- 46. Gerente: realizado da empresa = soma das linhas por pessoa.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  select
+    sum(realizado) filter (where usuario_id is null),
+    sum(realizado) filter (where usuario_id is not null)
+  into v_valor, v_valor2
+  from public.metas_progresso(current_date);
+  assert v_valor = v_valor2, format('empresa (%s) diferente da soma das pessoas (%s)', v_valor, v_valor2);
+  raise notice 'ok  46   realizado da empresa bate com a soma da equipe';
 
   reset role;
   raise notice '';
