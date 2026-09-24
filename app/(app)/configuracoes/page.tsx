@@ -7,42 +7,59 @@ export const metadata: Metadata = {
   title: 'Configurações',
 }
 
+type Item = { href: string; titulo: string; descricao: string }
+
+const ITENS_GERENTE: Item[] = [
+  {
+    href: '/configuracoes/usuarios',
+    titulo: 'Usuários',
+    descricao: 'Criar, editar e desativar gerentes e closers.',
+  },
+  {
+    href: '/configuracoes/etapas',
+    titulo: 'Etapas do funil',
+    descricao: 'Criar etapas personalizadas, mudar cores e a ordem das colunas.',
+  },
+  {
+    href: '/configuracoes/servicos',
+    titulo: 'Serviços',
+    descricao: 'Catálogo de serviços das negociações. Criar, categorizar e desativar.',
+  },
+]
+
+const ITENS_CLOSER: Item[] = [
+  {
+    href: '/configuracoes/servicos',
+    titulo: 'Serviços',
+    descricao: 'Catálogo de serviços disponíveis (consulta).',
+  },
+]
+
 export default async function ConfiguracoesPage() {
   const usuario = await getUsuarioAtual()
+  const itens = usuario.role === 'gerente' ? ITENS_GERENTE : ITENS_CLOSER
 
   return (
     <div className="max-w-3xl space-y-6">
       <h1 className="text-2xl font-semibold">Configurações</h1>
 
-      {usuario.role === 'gerente' ? (
-        <ul className="grid gap-4 sm:grid-cols-2">
-          <li>
+      <ul className="grid gap-4 sm:grid-cols-2">
+        {itens.map((item) => (
+          <li key={item.href}>
             <Link
-              href="/configuracoes/usuarios"
+              href={item.href}
               className="block rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
             >
-              <p className="font-medium">Usuários</p>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Criar, editar e desativar gerentes e closers.
-              </p>
+              <p className="font-medium">{item.titulo}</p>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{item.descricao}</p>
             </Link>
           </li>
-          <li>
-            <Link
-              href="/configuracoes/etapas"
-              className="block rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
-            >
-              <p className="font-medium">Etapas do funil</p>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Criar etapas personalizadas, mudar cores e a ordem das colunas.
-              </p>
-            </Link>
-          </li>
-        </ul>
-      ) : (
+        ))}
+      </ul>
+
+      {usuario.role !== 'gerente' && (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Nenhuma configuração disponível para o seu perfil. Para alterar seus dados de acesso,
-          fale com o gerente.
+          Para alterar seus dados de acesso, fale com o gerente.
         </p>
       )}
     </div>

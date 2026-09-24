@@ -55,6 +55,7 @@ RLS, o Postgres devolve apenas as linhas permitidas mesmo num `select *`.
 | Mover negociações no funil | Qualquer uma | Apenas as suas |
 | Relatórios por closer | Sim | Apenas os próprios números |
 | Metas | Cria, edita e remove (empresa e por closer) | Vê apenas a própria |
+| Catálogo de serviços | Cria, edita, desativa e exclui (se nunca usado) | Consulta os ativos |
 
 ### Como isso é aplicado
 
@@ -147,6 +148,8 @@ o histórico de conversão se corrompe a cada reentrada.
 | `eventos` | Agenda: reunião, ligação, follow-up, apresentação. Dono em `usuario_id`; `google_event_id` / `sincronizado_em` reservados para o Google Calendar |
 | `atividades` | Timeline da ficha do cliente: `tipo`, `descricao`, `data`, autor em `usuario_id` |
 | `metas` | Meta mensal de venda (Fase 10): `usuario_id` nulo = empresa, preenchido = closer. `periodo_mes` é o dia 1 do mês; uma meta por alvo por mês (`unique nulls not distinct`). Editar muda só o valor |
+| `servicos` | Catálogo de serviços vendidos (Fase 11A), sem preço. `categoria` opcional. Todos leem; gerente escreve. Usado em negociação não é excluído, é desativado — e continua nas negociações antigas |
+| `negociacao_servicos` | Serviços de cada negociação. RLS herdada da negociação. Serviço desativado não entra em vínculo novo (trigger) |
 | `proximas_acoes` | Follow-up combinado (`titulo`, `data`, `observacao`); pendente enquanto `concluida_em` for nulo |
 
 ### Enums
@@ -245,6 +248,8 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 8B | Funil dinâmico: etapas em tabela, configuráveis pelo gerente | concluída |
 | 9A | Métricas do funil: conversão por etapa, tempo na etapa, cards parados (`funil_metricas`) | concluída |
 | 10 | Metas comerciais: meta mensal da empresa e por closer, realizado pelo responsável no fechamento (`metas_progresso`) | concluída |
+| 11A | Serviços e proposta: `servicos`, `negociacao_servicos`, `valor_proposta`, `forma_pagamento`, `salvar_negociacao` | concluída |
+| 11B | Configurações › Serviços: CRUD do gerente, consulta do closer (só ativos) | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer
