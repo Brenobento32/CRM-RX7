@@ -414,7 +414,13 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
-# Gestão de usuários (única função com a chave service_role). O gateway só
-# deixa passar chamadas com JWT válido; a função ainda confere is_gerente().
+# Gestão de usuários (usa a chave service_role). O gateway só deixa passar
+# chamadas com JWT válido; a função ainda confere is_gerente().
 [functions.admin-usuarios]
 verify_jwt = true
+
+# Agenda Google (usa a chave service_role). verify_jwt desligado porque o
+# /callback do OAuth chega do Google sem JWT; as rotas POST verificam o JWT e
+# is_gerente() dentro da função, e o /callback exige um state de uso único.
+[functions.agenda-google]
+verify_jwt = false

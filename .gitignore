@@ -38,6 +38,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# temporário do npm run db:types (trocado por rename; só sobra se o processo morrer)
+/lib/types/*.tmp
 next-env.d.ts
 
 # permitir o template de variáveis de ambiente

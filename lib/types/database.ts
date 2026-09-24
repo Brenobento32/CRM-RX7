@@ -39,6 +39,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      agenda_google_conexao: {
+        Row: {
+          calendar_id: string
+          conectado_em: string
+          conectado_por: string | null
+          conta_email: string
+          escopos: string[]
+          id: boolean
+          ultimo_erro: string | null
+          ultimo_erro_em: string | null
+          updated_at: string
+          vault_secret_id: string
+        }
+        Insert: {
+          calendar_id: string
+          conectado_em?: string
+          conectado_por?: string | null
+          conta_email: string
+          escopos: string[]
+          id?: boolean
+          ultimo_erro?: string | null
+          ultimo_erro_em?: string | null
+          updated_at?: string
+          vault_secret_id: string
+        }
+        Update: {
+          calendar_id?: string
+          conectado_em?: string
+          conectado_por?: string | null
+          conta_email?: string
+          escopos?: string[]
+          id?: boolean
+          ultimo_erro?: string | null
+          ultimo_erro_em?: string | null
+          updated_at?: string
+          vault_secret_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_google_conexao_conectado_por_fkey"
+            columns: ["conectado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agenda_google_oauth_estados: {
+        Row: {
+          created_at: string
+          expira_em: string
+          nonce: string
+          retorno: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          expira_em?: string
+          nonce: string
+          retorno: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          expira_em?: string
+          nonce?: string
+          retorno?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_google_oauth_estados_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atividades: {
         Row: {
           cliente_id: string
@@ -233,12 +312,17 @@ export type Database = {
         Row: {
           cliente_id: string
           created_at: string
+          criado_por: string | null
           descricao: string | null
           fim: string
+          google_etag: string | null
           google_event_id: string | null
           id: string
           inicio: string
           negociacao_id: string | null
+          ocorrencia_original: string | null
+          origem: Database["public"]["Enums"]["origem_evento"]
+          serie_id: string | null
           sincronizado_em: string | null
           status: Database["public"]["Enums"]["status_evento"]
           tipo: Database["public"]["Enums"]["tipo_evento"]
@@ -249,12 +333,17 @@ export type Database = {
         Insert: {
           cliente_id: string
           created_at?: string
+          criado_por?: string | null
           descricao?: string | null
           fim: string
+          google_etag?: string | null
           google_event_id?: string | null
           id?: string
           inicio: string
           negociacao_id?: string | null
+          ocorrencia_original?: string | null
+          origem?: Database["public"]["Enums"]["origem_evento"]
+          serie_id?: string | null
           sincronizado_em?: string | null
           status?: Database["public"]["Enums"]["status_evento"]
           tipo?: Database["public"]["Enums"]["tipo_evento"]
@@ -265,12 +354,17 @@ export type Database = {
         Update: {
           cliente_id?: string
           created_at?: string
+          criado_por?: string | null
           descricao?: string | null
           fim?: string
+          google_etag?: string | null
           google_event_id?: string | null
           id?: string
           inicio?: string
           negociacao_id?: string | null
+          ocorrencia_original?: string | null
+          origem?: Database["public"]["Enums"]["origem_evento"]
+          serie_id?: string | null
           sincronizado_em?: string | null
           status?: Database["public"]["Enums"]["status_evento"]
           tipo?: Database["public"]["Enums"]["tipo_evento"]
@@ -294,6 +388,13 @@ export type Database = {
             referencedColumns: ["cliente_id"]
           },
           {
+            foreignKeyName: "eventos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "eventos_negociacao_id_fkey"
             columns: ["negociacao_id"]
             isOneToOne: false
@@ -309,6 +410,125 @@ export type Database = {
           },
           {
             foreignKeyName: "eventos_owner_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_serie_id_fkey"
+            columns: ["serie_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eventos_series: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          criado_por: string | null
+          data_inicio: string
+          descricao: string | null
+          dia_mes: number | null
+          dias_semana: number[] | null
+          duracao: string
+          frequencia: Database["public"]["Enums"]["frequencia_recorrencia"]
+          fuso: string
+          hora_inicio: string
+          id: string
+          intervalo: number
+          negociacao_id: string | null
+          ocorrencias: number | null
+          termina_em: string | null
+          tipo: Database["public"]["Enums"]["tipo_evento"]
+          titulo: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          criado_por?: string | null
+          data_inicio: string
+          descricao?: string | null
+          dia_mes?: number | null
+          dias_semana?: number[] | null
+          duracao: string
+          frequencia: Database["public"]["Enums"]["frequencia_recorrencia"]
+          fuso?: string
+          hora_inicio: string
+          id?: string
+          intervalo?: number
+          negociacao_id?: string | null
+          ocorrencias?: number | null
+          termina_em?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_evento"]
+          titulo: string
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          criado_por?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          dia_mes?: number | null
+          dias_semana?: number[] | null
+          duracao?: string
+          frequencia?: Database["public"]["Enums"]["frequencia_recorrencia"]
+          fuso?: string
+          hora_inicio?: string
+          id?: string
+          intervalo?: number
+          negociacao_id?: string | null
+          ocorrencias?: number | null
+          termina_em?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_evento"]
+          titulo?: string
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_series_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_series_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "eventos_series_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_series_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_series_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_series_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -649,6 +869,7 @@ export type Database = {
       profiles: {
         Row: {
           ativo: boolean
+          cor_agenda: Database["public"]["Enums"]["cor_etapa"] | null
           created_at: string
           email: string
           foto_url: string | null
@@ -660,6 +881,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cor_agenda?: Database["public"]["Enums"]["cor_etapa"] | null
           created_at?: string
           email: string
           foto_url?: string | null
@@ -671,6 +893,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cor_agenda?: Database["public"]["Enums"]["cor_etapa"] | null
           created_at?: string
           email?: string
           foto_url?: string | null
@@ -786,6 +1009,73 @@ export type Database = {
       }
     }
     Views: {
+      agenda_eventos: {
+        Row: {
+          cliente_empresa: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          descricao: string | null
+          fim: string | null
+          google_event_id: string | null
+          id: string | null
+          inicio: string | null
+          negociacao_id: string | null
+          negociacao_titulo: string | null
+          ocorrencia_original: string | null
+          origem: Database["public"]["Enums"]["origem_evento"] | null
+          responsavel_cor: Database["public"]["Enums"]["cor_etapa"] | null
+          responsavel_nome: string | null
+          serie_id: string | null
+          status: Database["public"]["Enums"]["status_evento"] | null
+          tipo: Database["public"]["Enums"]["tipo_evento"] | null
+          titulo: string | null
+          usuario_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+          {
+            foreignKeyName: "eventos_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_owner_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_serie_id_fkey"
+            columns: ["serie_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funil_cards: {
         Row: {
           cliente_empresa: string | null
@@ -831,12 +1121,62 @@ export type Database = {
       }
     }
     Functions: {
+      agenda_alvos: {
+        Args: {
+          p_escopo: string
+          p_evento: Database["public"]["Tables"]["eventos"]["Row"]
+        }
+        Returns: string[]
+      }
+      agenda_google_obter_credencial: {
+        Args: never
+        Returns: {
+          calendar_id: string
+          conta_email: string
+          refresh_token: string
+        }[]
+      }
+      agenda_google_registrar_erro: {
+        Args: { p_erro: string }
+        Returns: undefined
+      }
+      agenda_google_remover_conexao: { Args: never; Returns: undefined }
+      agenda_google_salvar_conexao: {
+        Args: {
+          p_calendar_id: string
+          p_conta_email: string
+          p_escopos: string[]
+          p_refresh_token: string
+          p_usuario_id: string
+        }
+        Returns: undefined
+      }
+      alterar_eventos: {
+        Args: {
+          p_cliente_id: string
+          p_data: string
+          p_descricao: string
+          p_duracao_minutos: number
+          p_escopo: string
+          p_evento_id: string
+          p_hora_inicio: string
+          p_negociacao_id: string
+          p_tipo: Database["public"]["Enums"]["tipo_evento"]
+          p_titulo: string
+          p_usuario_id: string
+        }
+        Returns: number
+      }
       alterar_status_evento: {
         Args: {
           p_evento_id: string
           p_status: Database["public"]["Enums"]["status_evento"]
         }
         Returns: undefined
+      }
+      cancelar_eventos: {
+        Args: { p_escopo: string; p_evento_id: string }
+        Returns: number
       }
       cliente_owner: { Args: { p_cliente_id: string }; Returns: string }
       criar_cliente: {
@@ -853,6 +1193,27 @@ export type Database = {
           p_telefone?: string
           p_tipo_cliente: Database["public"]["Enums"]["tipo_cliente"]
           p_whatsapp?: string
+        }
+        Returns: string
+      }
+      criar_serie_eventos: {
+        Args: {
+          p_cliente_id: string
+          p_data_inicio: string
+          p_descricao: string
+          p_dia_mes: number
+          p_dias_semana: number[]
+          p_duracao_minutos: number
+          p_frequencia: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_hora_inicio: string
+          p_intervalo: number
+          p_negociacao_id: string
+          p_ocorrencias: number
+          p_status: Database["public"]["Enums"]["status_evento"]
+          p_termina_em: string
+          p_tipo: Database["public"]["Enums"]["tipo_evento"]
+          p_titulo: string
+          p_usuario_id: string
         }
         Returns: string
       }
@@ -903,6 +1264,20 @@ export type Database = {
           etapa_id: string
           ja_usada: boolean
           negociacoes_atuais: number
+        }[]
+      }
+      expandir_recorrencia: {
+        Args: {
+          p_data_inicio: string
+          p_dia_mes: number
+          p_dias_semana: number[]
+          p_frequencia: Database["public"]["Enums"]["frequencia_recorrencia"]
+          p_intervalo: number
+          p_ocorrencias: number
+          p_termina_em: string
+        }
+        Returns: {
+          data: string
         }[]
       }
       fechar_negociacao: {
@@ -985,7 +1360,14 @@ export type Database = {
         | "turquesa"
         | "cinza"
       forma_pagamento: "avista" | "boleto_3x" | "cartao_12x"
-      status_evento: "agendado" | "realizado" | "nao_compareceu" | "cancelado"
+      frequencia_recorrencia: "diaria" | "semanal" | "mensal"
+      origem_evento: "crm" | "google"
+      status_evento:
+        | "agendado"
+        | "confirmado"
+        | "realizado"
+        | "nao_compareceu"
+        | "cancelado"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento:
         | "pendente"
@@ -997,7 +1379,7 @@ export type Database = {
       tipo_atividade: "nota" | "ligacao" | "email" | "whatsapp" | "reuniao"
       tipo_cliente: "pessoa_fisica" | "empresa"
       tipo_etapa: "aberta" | "ganha" | "perdida"
-      tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao"
+      tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao" | "outro"
       user_role: "gerente" | "closer"
     }
     CompositeTypes: {
@@ -1142,7 +1524,15 @@ export const Constants = {
         "cinza",
       ],
       forma_pagamento: ["avista", "boleto_3x", "cartao_12x"],
-      status_evento: ["agendado", "realizado", "nao_compareceu", "cancelado"],
+      frequencia_recorrencia: ["diaria", "semanal", "mensal"],
+      origem_evento: ["crm", "google"],
+      status_evento: [
+        "agendado",
+        "confirmado",
+        "realizado",
+        "nao_compareceu",
+        "cancelado",
+      ],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
       status_pagamento: [
         "pendente",
@@ -1155,7 +1545,7 @@ export const Constants = {
       tipo_atividade: ["nota", "ligacao", "email", "whatsapp", "reuniao"],
       tipo_cliente: ["pessoa_fisica", "empresa"],
       tipo_etapa: ["aberta", "ganha", "perdida"],
-      tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao"],
+      tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao", "outro"],
       user_role: ["gerente", "closer"],
     },
   },

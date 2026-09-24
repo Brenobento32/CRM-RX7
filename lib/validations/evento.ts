@@ -16,13 +16,22 @@ export const ROTULO_TIPO_EVENTO: Record<TipoEvento, string> = {
   ligacao: 'Ligação',
   followup: 'Follow-up',
   apresentacao: 'Apresentação',
+  outro: 'Outro',
 }
 
 export const ROTULO_STATUS_EVENTO: Record<StatusEvento, string> = {
   agendado: 'Agendado',
+  confirmado: 'Confirmado',
   realizado: 'Realizado',
   nao_compareceu: 'Não compareceu',
   cancelado: 'Cancelado',
+}
+
+/** Compromisso ainda por acontecer: aparece em "próximos" e "aguardando status". */
+export const STATUS_EM_ABERTO = ['agendado', 'confirmado'] as const satisfies readonly StatusEvento[]
+
+export function statusEmAberto(status: StatusEvento): boolean {
+  return (STATUS_EM_ABERTO as readonly StatusEvento[]).includes(status)
 }
 
 const hora = (mensagem: string) =>

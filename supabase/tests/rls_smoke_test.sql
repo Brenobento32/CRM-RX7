@@ -42,6 +42,12 @@ declare
   v_servico   uuid;
   v_servico2  uuid;
   v_negoc_s   uuid;
+  v_serie     uuid;
+  v_ev1       uuid;
+  v_ev2       uuid;
+  v_ev3       uuid;
+  v_ev4       uuid;
+  v_datas     date[];
 begin
   -- -------------------------------------------------------------------
   -- Massa de teste (criada como postgres, que ignora a RLS).
@@ -953,6 +959,262 @@ begin
   get diagnostics v_total = row_count;
   assert v_total = 1, 'gerente deveria conseguir excluir negociação encerrada';
   raise notice 'ok  57   excluir negociação encerrada leva os serviços em cascata';
+
+  -- ===================================================================
+  -- Agenda Google — conexão OAuth (Agenda 2.0, Fase A)
+  -- ===================================================================
+
+  -- 58. Conexão: closer não lê; gerente lê mas não escreve.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  select count(*) into v_total from public.agenda_google_conexao;
+  assert v_total = 0, 'closer não pode ler a conexão com o Google';
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  perform count(*) from public.agenda_google_conexao;
+  begin
+    insert into public.agenda_google_conexao (conta_email, calendar_id, escopos, vault_secret_id)
+    values ('x@teste.local', 'x@teste.local', '{}', gen_random_uuid());
+    raise exception 'gerente gravou a conexão direto (só a Edge Function grava)';
+  exception when insufficient_privilege then null;
+  end;
+  raise notice 'ok  58   conexão Google: closer não lê; ninguém grava pela API';
+
+  -- 59. Token: nenhuma função do Vault é executável por usuário logado.
+  begin
+    perform * from public.agenda_google_obter_credencial();
+    raise exception 'gerente leu o refresh token';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.agenda_google_salvar_conexao('x@teste.local', 'x', '{}', 'token', v_gerente);
+    raise exception 'gerente gravou token pela função';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.agenda_google_remover_conexao();
+    raise exception 'gerente removeu a conexão pela função';
+  exception when insufficient_privilege then null;
+  end;
+  raise notice 'ok  59   refresh token inacessível para usuários (só service_role)';
+
+  -- 60. Estados do OAuth: fora do alcance de qualquer usuário.
+  begin
+    perform count(*) from public.agenda_google_oauth_estados;
+    raise exception 'gerente leu os estados do OAuth';
+  exception when insufficient_privilege then null;
+  end;
+  raise notice 'ok  60   estados do OAuth só para a Edge Function';
+
+  -- ===================================================================
+  -- Agenda nativa (Agenda 2.0, N1)
+  -- ===================================================================
+
+  -- 61. Responsável precisa ter acesso ao cliente.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+  values ('Evento do A', now() + interval '30 days', now() + interval '30 days 1 hour', v_cliente_a, v_closer_a)
+  returning id into v_evento;
+  begin
+    insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+    values ('Para o B', now() + interval '30 days', now() + interval '30 days 1 hour', v_cliente_a, v_closer_b);
+    raise exception 'closer A criou evento com outro responsável';
+  exception when insufficient_privilege or check_violation then null;
+  end;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  begin
+    insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+    values ('B sem acesso', now() + interval '30 days', now() + interval '30 days 1 hour', v_cliente_a, v_closer_b);
+    raise exception 'gerente pôs como responsável um closer sem acesso ao cliente';
+  exception when check_violation then null;
+  end;
+  insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+  values ('Gerente responsável', now() + interval '30 days', now() + interval '30 days 1 hour', v_cliente_a, v_gerente);
+  raise notice 'ok  61   responsável precisa ter acesso ao cliente';
+
+  -- 62. 'confirmado' conta como compromisso em aberto (funil e dashboard).
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  insert into public.negociacoes (cliente_id, owner_id, titulo)
+  values (v_cliente_a, v_closer_a, 'Negociação agenda')
+  returning id into v_negoc_a;
+  insert into public.eventos (titulo, status, inicio, fim, cliente_id, negociacao_id, usuario_id)
+  values ('Reunião confirmada 62', 'confirmado', now() + interval '2 days',
+          now() + interval '2 days 1 hour', v_cliente_a, v_negoc_a, v_closer_a)
+  returning id into v_ev1;
+  assert (select proxima_acao_titulo from public.funil_cards where id = v_negoc_a) = 'Reunião confirmada 62',
+    'evento confirmado deveria ser a próxima ação no card do funil';
+  assert (select reunioes_proximas from public.dashboard_por_usuario(current_date, current_date)
+          where usuario_id = v_closer_a)
+       = (select count(*) from public.eventos
+          where usuario_id = v_closer_a and tipo in ('reuniao', 'apresentacao')
+            and status in ('agendado', 'confirmado')
+            and inicio >= now() and inicio < now() + interval '7 days'),
+    'reuniões próximas do dashboard deveriam incluir as confirmadas';
+  raise notice 'ok  62   confirmado aparece no funil e no dashboard';
+
+  -- 63. Excluir só sem histórico; cancelar só em aberto.
+  delete from public.eventos where id = v_ev1;
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'evento confirmado deveria poder ser excluído';
+
+  insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+  values ('Vai ser realizado', now() - interval '2 hours', now() - interval '1 hour', v_cliente_a, v_closer_a)
+  returning id into v_ev1;
+  perform public.alterar_status_evento(v_ev1, 'realizado');
+  delete from public.eventos where id = v_ev1;
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'evento realizado não pode ser excluído';
+  begin
+    perform public.cancelar_eventos(v_ev1, 'este');
+    raise exception 'cancelou evento realizado';
+  exception when check_violation then null;
+  end;
+
+  perform public.cancelar_eventos(v_evento, 'este');
+  delete from public.eventos where id = v_evento;
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'evento cancelado não pode ser excluído';
+  raise notice 'ok  63   excluir só sem histórico; realizado e cancelado permanecem';
+
+  -- 64. Cor da agenda: só o gerente altera.
+  begin
+    update public.profiles set cor_agenda = 'rosa' where id = v_closer_a;
+    raise exception 'closer alterou a própria cor da agenda';
+  exception when insufficient_privilege then null;
+  end;
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  update public.profiles set cor_agenda = 'azul' where id = v_closer_a;
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'gerente deveria definir a cor da agenda';
+  assert (select responsavel_cor from public.agenda_eventos
+          where usuario_id = v_closer_a limit 1) = 'azul',
+    'agenda_eventos deveria trazer a cor do responsável';
+  raise notice 'ok  64   cor da agenda: só gerente altera; aparece na agenda';
+
+  -- 65. Série semanal (terça e quinta, 4 ocorrências, 10:00, 45 min).
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  v_ev1 := public.criar_serie_eventos(
+    p_titulo => 'Série 65', p_tipo => 'reuniao', p_status => 'agendado',
+    p_cliente_id => v_cliente_a, p_negociacao_id => null, p_usuario_id => v_closer_a,
+    p_descricao => null, p_data_inicio => date '2099-01-05', p_hora_inicio => time '10:00',
+    p_duracao_minutos => 45, p_frequencia => 'semanal', p_intervalo => 1,
+    p_dias_semana => array[2, 4]::smallint[], p_dia_mes => null,
+    p_termina_em => null, p_ocorrencias => 4);
+  select serie_id into v_serie from public.eventos where id = v_ev1;
+  select count(*) into v_total from public.eventos
+  where serie_id = v_serie
+    and extract(isodow from inicio at time zone 'America/Sao_Paulo') in (2, 4)
+    and to_char(inicio at time zone 'America/Sao_Paulo', 'HH24:MI') = '10:00'
+    and fim - inicio = interval '45 minutes'
+    and (inicio at time zone 'America/Sao_Paulo')::date >= date '2099-01-05';
+  assert v_total = 4, format('série semanal deveria ter 4 ocorrências ter/qui às 10:00, tem %s', v_total);
+  raise notice 'ok  65   série semanal gera as ocorrências no horário de São Paulo';
+
+  -- 66. Término obrigatório e limites (12 meses / 200).
+  begin
+    insert into public.eventos_series (titulo, cliente_id, usuario_id, data_inicio, hora_inicio,
+                                       duracao, frequencia)
+    values ('Sem fim', v_cliente_a, v_closer_a, date '2099-01-05', time '10:00', interval '30 minutes', 'diaria');
+    raise exception 'aceitou série sem término';
+  exception when check_violation then null;
+  end;
+  begin
+    perform public.criar_serie_eventos('Longa', 'reuniao', 'agendado', v_cliente_a, null, v_closer_a, null,
+      date '2099-01-05', time '10:00', 30, 'diaria', 1, null, null, date '2100-02-01', null);
+    raise exception 'aceitou término além de 12 meses';
+  exception when check_violation then null;
+  end;
+  begin
+    perform public.criar_serie_eventos('Muitas', 'reuniao', 'agendado', v_cliente_a, null, v_closer_a, null,
+      date '2099-01-05', time '10:00', 30, 'diaria', 1, null, null, null, 201);
+    raise exception 'aceitou mais de 200 ocorrências';
+  exception when check_violation then null;
+  end;
+  begin
+    perform public.criar_serie_eventos('Semanal vazia', 'reuniao', 'agendado', v_cliente_a, null, v_closer_a, null,
+      date '2099-01-05', time '10:00', 30, 'semanal', 1, null, null, null, 3);
+    raise exception 'aceitou série semanal sem dias';
+  exception when check_violation then null;
+  end;
+  raise notice 'ok  66   término obrigatório, até 12 meses ou 200 ocorrências';
+
+  -- 67. Mensal no dia 31 cai no último dia dos meses curtos.
+  v_ev2 := public.criar_serie_eventos('Mensal 31', 'followup', 'agendado', v_cliente_a, null, v_closer_a, null,
+    date '2099-01-31', time '09:00', 30, 'mensal', 1, null, 31::smallint, null, 3);
+  select array_agg((inicio at time zone 'America/Sao_Paulo')::date order by inicio) into v_datas
+  from public.eventos where serie_id = (select serie_id from public.eventos where id = v_ev2);
+  assert v_datas = array[date '2099-01-31', date '2099-02-28', date '2099-03-31'],
+    format('mensal dia 31 gerou %s', v_datas);
+  raise notice 'ok  67   mensal no dia 31 respeita meses curtos';
+
+  -- 68. Editar série: 'seguintes' e 'todos' não reescrevem histórico.
+  select id into v_ev1 from public.eventos where serie_id = v_serie order by ocorrencia_original offset 0 limit 1;
+  select id into v_ev2 from public.eventos where serie_id = v_serie order by ocorrencia_original offset 1 limit 1;
+  select id into v_ev3 from public.eventos where serie_id = v_serie order by ocorrencia_original offset 2 limit 1;
+  select id into v_ev4 from public.eventos where serie_id = v_serie order by ocorrencia_original offset 3 limit 1;
+  perform public.alterar_status_evento(v_ev1, 'realizado');
+
+  v_total := public.alterar_eventos(v_ev2, 'seguintes', 'Série editada', 'reuniao', v_cliente_a, null,
+    v_closer_a, null, date '2000-01-01', time '14:00', 60);
+  assert v_total = 3, format('seguintes deveria alterar 3 ocorrências, alterou %s', v_total);
+  assert (select titulo from public.eventos where id = v_ev1) = 'Série 65',
+    'ocorrência realizada não pode mudar';
+  select count(*) into v_total from public.eventos
+  where id in (v_ev2, v_ev3, v_ev4) and titulo = 'Série editada'
+    and to_char(inicio at time zone 'America/Sao_Paulo', 'HH24:MI') = '14:00'
+    and fim - inicio = interval '1 hour'
+    and extract(isodow from inicio at time zone 'America/Sao_Paulo') in (2, 4);
+  assert v_total = 3, 'seguintes deveria mudar horário e manter a data de cada ocorrência';
+
+  v_total := public.alterar_eventos(v_ev3, 'todos', 'Série toda', 'reuniao', v_cliente_a, null,
+    v_closer_a, null, date '2000-01-01', time '09:00', 30);
+  assert v_total = 3, format('todos deveria alterar só as 3 em aberto, alterou %s', v_total);
+  assert (select titulo from public.eventos where id = v_ev1) = 'Série 65',
+    'todos não pode reescrever ocorrência realizada';
+  assert (select titulo from public.eventos_series where id = v_serie) = 'Série toda',
+    'todos deveria atualizar o modelo da série';
+  raise notice 'ok  68   editar série (seguintes/todos) preserva o histórico';
+
+  -- 69. Cancelar série com escopo.
+  v_total := public.cancelar_eventos(v_ev4, 'seguintes');
+  assert v_total = 1, format('cancelar seguintes a partir da última deveria cancelar 1, cancelou %s', v_total);
+  v_total := public.cancelar_eventos(v_ev2, 'todos');
+  assert v_total = 2, format('cancelar todos deveria pegar as 2 ainda em aberto, pegou %s', v_total);
+  assert (select status from public.eventos where id = v_ev1) = 'realizado',
+    'cancelar todos não pode mexer na realizada';
+  raise notice 'ok  69   cancelar série respeita escopo e histórico';
+
+  -- 70. Transferir carteira leva só os compromissos futuros em aberto.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  insert into public.clientes (nome, empresa, owner_id)
+  values ('Cliente Transferência', 'Empresa T', v_closer_a)
+  returning id into v_cliente_b;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+  values ('Futuro', now() + interval '10 days', now() + interval '10 days 1 hour', v_cliente_b, v_closer_a)
+  returning id into v_ev1;
+  insert into public.eventos (titulo, inicio, fim, cliente_id, usuario_id)
+  values ('Passado', now() - interval '10 days', now() - interval '10 days' + interval '1 hour', v_cliente_b, v_closer_a)
+  returning id into v_ev2;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  update public.clientes set owner_id = v_closer_b where id = v_cliente_b;
+  assert (select usuario_id from public.eventos where id = v_ev1) = v_closer_b,
+    'compromisso futuro deveria ir para o novo dono';
+  assert (select usuario_id from public.eventos where id = v_ev2) = v_closer_a,
+    'compromisso passado deveria ficar com quem o tinha';
+  raise notice 'ok  70   transferência leva só os compromissos futuros em aberto';
 
   reset role;
   raise notice '';

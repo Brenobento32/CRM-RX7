@@ -9,11 +9,12 @@ import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
 import type { EtapaVisual } from '@/lib/utils/etapas'
 import { hojeSaoPaulo, instanteSaoPaulo, somarDias } from '@/lib/utils/formatacao'
-import type {
-  CampoEvento,
-  EventoInput,
-  StatusEvento,
-  TipoEvento,
+import {
+  STATUS_EM_ABERTO,
+  type CampoEvento,
+  type EventoInput,
+  type StatusEvento,
+  type TipoEvento,
 } from '@/lib/validations/evento'
 
 export type Evento = {
@@ -115,13 +116,13 @@ export async function listarEventosDoDia(dia: string, usuarioId?: string): Promi
   return mapear(data)
 }
 
-/** Eventos agendados a partir de amanhã. */
+/** Eventos em aberto (agendados ou confirmados) a partir de amanhã. */
 export async function listarProximosEventos(usuarioId?: string): Promise<Evento[]> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data, error } = await consultaBase(supabase, usuarioId)
-    .eq('status', 'agendado')
+    .in('status', STATUS_EM_ABERTO)
     .gte('inicio', instanteSaoPaulo(somarDias(hojeSaoPaulo(), 1)).toISOString())
     .order('inicio')
     .limit(LIMITE_LISTA)
@@ -131,7 +132,8 @@ export async function listarProximosEventos(usuarioId?: string): Promise<Evento[
 }
 
 /**
- * Eventos que já terminaram e continuam "agendado": ninguém marcou se
+ * Eventos que já terminaram e continuam em aberto (agendado ou confirmado):
+ * ninguém marcou se
  * aconteceram. Ficam em destaque até receberem um status.
  */
 export async function listarAguardandoStatus(usuarioId?: string): Promise<Evento[]> {
@@ -140,7 +142,7 @@ export async function listarAguardandoStatus(usuarioId?: string): Promise<Evento
 
   const agora = new Date()
   const { data, error } = await consultaBase(supabase, usuarioId)
-    .eq('status', 'agendado')
+    .in('status', STATUS_EM_ABERTO)
     .lt('fim', agora.toISOString())
     .gte('inicio', subDays(agora, DIAS_AGUARDANDO_STATUS).toISOString())
     .order('inicio')
@@ -157,7 +159,7 @@ export async function listarEventosDoCliente(clienteId: string): Promise<Evento[
 
   const { data, error } = await consultaBase(supabase)
     .eq('cliente_id', clienteId)
-    .eq('status', 'agendado')
+    .in('status', STATUS_EM_ABERTO)
     .gte('inicio', new Date().toISOString())
     .order('inicio')
     .limit(10)

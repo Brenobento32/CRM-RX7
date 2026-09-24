@@ -6,11 +6,13 @@ import { diaEmSaoPaulo, formatarDia, formatarHora } from '@/lib/utils/formatacao
 import {
   ROTULO_STATUS_EVENTO,
   ROTULO_TIPO_EVENTO,
+  statusEmAberto,
   type StatusEvento,
 } from '@/lib/validations/evento'
 
 const COR_STATUS: Record<StatusEvento, string> = {
   agendado: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  confirmado: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300',
   realizado: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
   nao_compareceu: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   cancelado: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
@@ -82,8 +84,15 @@ export function EventoItem({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-        {evento.status === 'agendado' ? (
+        {statusEmAberto(evento.status) ? (
           <>
+            {evento.status === 'agendado' && (
+              <form action={acao('confirmado')}>
+                <button type="submit" className={botaoStatus}>
+                  Confirmar
+                </button>
+              </form>
+            )}
             <form action={acao('realizado')}>
               <button type="submit" className={botaoStatus}>
                 Realizado

@@ -65,7 +65,15 @@ RLS, o Postgres devolve apenas as linhas permitidas mesmo num `select *`.
    requisição, então o Postgres sabe quem está perguntando. A `service_role`
    ignora a RLS e não deve existir no caminho de nenhum request do Next.
 
-   **Única exceção:** a Edge Function `admin-usuarios`
+   **Exceções:** as Edge Functions `admin-usuarios` e `agenda-google`.
+
+   `agenda-google` (Agenda 2.0) faz o OAuth com o Google Calendar da empresa
+   e guarda o refresh token no Supabase Vault; o client secret do Google fica
+   nos secrets das Edge Functions. Deploy com `--no-verify-jwt` (o retorno do
+   OAuth chega sem JWT); as rotas POST conferem JWT e `is_gerente()` dentro da
+   função. Configuração: `docs/AGENDA-GOOGLE.md`.
+
+   A Edge Function `admin-usuarios`
    (`supabase/functions/admin-usuarios`). Criar usuário e bloquear o login no
    Auth exigem a API de admin, que só funciona com a `service_role`. A chave
    fica no ambiente das Edge Functions (injetada pelo Supabase), nunca no
@@ -258,6 +266,7 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 11C+ | Propostas (`/propostas/abertas` e `/fechadas`), métricas do funil em `/funil/metricas`, sidebar com submenus (painel flutuante quando recolhida) | concluída |
 | 11D | Kanban: setas ‹ › rolam uma coluna por vez (somem quando tudo cabe na tela) | concluída |
 | 11E | Períodos rápidos: últimos 7 e 15 dias (dashboard, métricas do funil, propostas fechadas) | concluída |
+| Agenda A | Conexão OAuth com o Google Calendar (somente leitura, token no Vault) e diagnóstico das cores | em andamento |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer

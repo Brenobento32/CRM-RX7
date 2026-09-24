@@ -66,6 +66,7 @@ const MENU: (ItemSimples | Grupo)[] = [
       { href: '/configuracoes/usuarios', rotulo: 'Usuários', somenteGerente: true },
       { href: '/configuracoes/etapas', rotulo: 'Etapas', somenteGerente: true },
       { href: '/configuracoes/servicos', rotulo: 'Serviços' },
+      { href: '/configuracoes/agenda', rotulo: 'Agenda Google', somenteGerente: true },
     ],
   },
 ]
