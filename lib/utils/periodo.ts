@@ -1,11 +1,13 @@
 import { hojeSaoPaulo, somarDias } from '@/lib/utils/formatacao'
 
 /** Períodos do dashboard. Datas AAAA-MM-DD no calendário de São Paulo, inclusivas. */
-export const PERIODOS = ['mes', 'mes_anterior', '90d', 'ano'] as const
+export const PERIODOS = ['7d', '15d', 'mes', 'mes_anterior', '90d', 'ano'] as const
 
 export type ChavePeriodo = (typeof PERIODOS)[number]
 
 export const ROTULO_PERIODO: Record<ChavePeriodo, string> = {
+  '7d': 'Últimos 7 dias',
+  '15d': 'Últimos 15 dias',
   mes: 'Este mês',
   mes_anterior: 'Mês anterior',
   '90d': 'Últimos 90 dias',
@@ -29,6 +31,10 @@ export function resolverPeriodo(chave: ChavePeriodo, hoje = hojeSaoPaulo()): Per
       const fim = somarDias(inicioDoMes, -1)
       return { chave, inicio: `${fim.slice(0, 7)}-01`, fim }
     }
+    case '7d':
+      return { chave, inicio: somarDias(hoje, -6), fim: hoje }
+    case '15d':
+      return { chave, inicio: somarDias(hoje, -14), fim: hoje }
     case '90d':
       return { chave, inicio: somarDias(hoje, -89), fim: hoje }
     case 'ano':

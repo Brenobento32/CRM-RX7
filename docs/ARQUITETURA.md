@@ -256,6 +256,8 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 11B | Configurações › Serviços: CRUD do gerente, consulta do closer (só ativos) | concluída |
 | 11C | Edição da negociação (`/negociacoes/[id]/editar`): qualificação, proposta e serviços via `salvar_negociacao`. Etapa, dono e motivo de perda só pelo funil. Encerrada (ganha/perdida) é somente leitura | concluída |
 | 11C+ | Propostas (`/propostas/abertas` e `/fechadas`), métricas do funil em `/funil/metricas`, sidebar com submenus (painel flutuante quando recolhida) | concluída |
+| 11D | Kanban: setas ‹ › rolam uma coluna por vez (somem quando tudo cabe na tela) | concluída |
+| 11E | Períodos rápidos: últimos 7 e 15 dias (dashboard, métricas do funil, propostas fechadas) | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer

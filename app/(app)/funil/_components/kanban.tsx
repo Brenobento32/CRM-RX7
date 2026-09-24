@@ -23,6 +23,7 @@ import {
 } from '@dnd-kit/sortable'
 import { useId, useRef, useState, useTransition } from 'react'
 
+import { IconeSeta } from '@/components/layout/icones'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { moverNegociacaoAction } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
@@ -32,6 +33,7 @@ import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
 import { CardArrastavel, CardConteudo } from './card-negociacao'
 import { ModalFechamento } from './modal-fechamento'
 import { ModalPerda } from './modal-perda'
+import { useRolagemHorizontal } from './rolagem-horizontal'
 
 /** Cards por id de etapa. */
 type Colunas = Record<string, CardFunil[]>
@@ -105,6 +107,9 @@ function renumerar(coluna: CardFunil[]): CardFunil[] {
 
 export function Kanban({ cards, etapas }: { cards: CardFunil[]; etapas: EtapaKanban[] }) {
   const dndId = useId()
+  const quadroId = useId()
+  const quadroRef = useRef<HTMLDivElement>(null)
+  const rolagem = useRolagemHorizontal(quadroRef)
   const [colunas, setColunas] = useState(() => agrupar(cards, etapas))
 
   // Quando o servidor manda dados novos (após uma action), o quadro é
@@ -275,12 +280,31 @@ export function Kanban({ cards, etapas }: { cards: CardFunil[]; etapas: EtapaKan
 
   return (
     <>
-      <div className="mb-3 flex min-h-6 items-center gap-3 text-sm" aria-live="polite">
-        {salvando && <span className="text-zinc-500">Salvando…</span>}
-        {erro && (
-          <span role="alert" className="text-red-600 dark:text-red-400">
-            {erro}
-          </span>
+      <div className="mb-3 flex min-h-8 items-center gap-3 text-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-3" aria-live="polite">
+          {salvando && <span className="text-zinc-500">Salvando…</span>}
+          {erro && (
+            <span role="alert" className="text-red-600 dark:text-red-400">
+              {erro}
+            </span>
+          )}
+        </div>
+        {rolagem.temRolagem && (
+          <div className="flex shrink-0 gap-1">
+            <BotaoRolagem
+              rotulo="Colunas anteriores"
+              controla={quadroId}
+              desabilitado={!rolagem.podeVoltar}
+              onClick={() => rolagem.rolar(-1)}
+              esquerda
+            />
+            <BotaoRolagem
+              rotulo="Próximas colunas"
+              controla={quadroId}
+              desabilitado={!rolagem.podeAvancar}
+              onClick={() => rolagem.rolar(1)}
+            />
+          </div>
         )}
       </div>
 
@@ -293,7 +317,7 @@ export function Kanban({ cards, etapas }: { cards: CardFunil[]; etapas: EtapaKan
         onDragEnd={aoSoltar}
         onDragCancel={aoCancelarArraste}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div ref={quadroRef} id={quadroId} className="flex gap-4 overflow-x-auto pb-4">
           {etapas.map((etapa) => (
             <Coluna
               key={etapa.id}
@@ -374,5 +398,34 @@ function Coluna({
         </ul>
       </SortableContext>
     </section>
+  )
+}
+
+/** Botão nativo: Tab chega nele, Enter/Espaço acionam. */
+function BotaoRolagem({
+  rotulo,
+  controla,
+  desabilitado,
+  onClick,
+  esquerda = false,
+}: {
+  rotulo: string
+  controla: string
+  desabilitado: boolean
+  onClick: () => void
+  esquerda?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={desabilitado}
+      aria-label={rotulo}
+      aria-controls={controla}
+      title={rotulo}
+      className="rounded-md border border-zinc-300 p-1.5 text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+    >
+      <IconeSeta className={`size-4 ${esquerda ? 'rotate-180' : ''}`} />
+    </button>
   )
 }
