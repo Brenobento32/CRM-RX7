@@ -507,6 +507,46 @@ export type Database = {
           },
         ]
       }
+      negociacao_servicos: {
+        Row: {
+          created_at: string
+          negociacao_id: string
+          servico_id: string
+        }
+        Insert: {
+          created_at?: string
+          negociacao_id: string
+          servico_id: string
+        }
+        Update: {
+          created_at?: string
+          negociacao_id?: string
+          servico_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negociacao_servicos_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "negociacao_servicos_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "negociacao_servicos_servico_id_fkey"
+            columns: ["servico_id"]
+            isOneToOne: false
+            referencedRelation: "servicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       negociacoes: {
         Row: {
           cliente_id: string
@@ -515,6 +555,7 @@ export type Database = {
           data_primeira_reuniao: string | null
           data_proposta: string | null
           etapa_id: string
+          forma_pagamento: Database["public"]["Enums"]["forma_pagamento"] | null
           id: string
           motivo_perda: string | null
           objecao_principal: string | null
@@ -526,6 +567,7 @@ export type Database = {
           titulo: string | null
           updated_at: string
           valor_estimado: number | null
+          valor_proposta: number | null
         }
         Insert: {
           cliente_id: string
@@ -534,6 +576,9 @@ export type Database = {
           data_primeira_reuniao?: string | null
           data_proposta?: string | null
           etapa_id?: string
+          forma_pagamento?:
+            | Database["public"]["Enums"]["forma_pagamento"]
+            | null
           id?: string
           motivo_perda?: string | null
           objecao_principal?: string | null
@@ -545,6 +590,7 @@ export type Database = {
           titulo?: string | null
           updated_at?: string
           valor_estimado?: number | null
+          valor_proposta?: number | null
         }
         Update: {
           cliente_id?: string
@@ -553,6 +599,9 @@ export type Database = {
           data_primeira_reuniao?: string | null
           data_proposta?: string | null
           etapa_id?: string
+          forma_pagamento?:
+            | Database["public"]["Enums"]["forma_pagamento"]
+            | null
           id?: string
           motivo_perda?: string | null
           objecao_principal?: string | null
@@ -564,6 +613,7 @@ export type Database = {
           titulo?: string | null
           updated_at?: string
           valor_estimado?: number | null
+          valor_proposta?: number | null
         }
         Relationships: [
           {
@@ -706,6 +756,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      servicos: {
+        Row: {
+          ativo: boolean
+          categoria: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -880,6 +957,20 @@ export type Database = {
           nome: string
         }[]
       }
+      salvar_negociacao: {
+        Args: {
+          p_data_primeira_reuniao: string
+          p_data_proposta: string
+          p_forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
+          p_negociacao_id: string
+          p_objecao_principal: string
+          p_servico_ids: string[]
+          p_temperatura: Database["public"]["Enums"]["temperatura_negociacao"]
+          p_valor_estimado: number
+          p_valor_proposta: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       cor_etapa:
@@ -893,6 +984,7 @@ export type Database = {
         | "rosa"
         | "turquesa"
         | "cinza"
+      forma_pagamento: "avista" | "boleto_3x" | "cartao_12x"
       status_evento: "agendado" | "realizado" | "nao_compareceu" | "cancelado"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento:
@@ -1049,6 +1141,7 @@ export const Constants = {
         "turquesa",
         "cinza",
       ],
+      forma_pagamento: ["avista", "boleto_3x", "cartao_12x"],
       status_evento: ["agendado", "realizado", "nao_compareceu", "cancelado"],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
       status_pagamento: [

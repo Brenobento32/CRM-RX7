@@ -39,6 +39,9 @@ declare
   v_meta      uuid;
   v_valor     numeric;
   v_valor2    numeric;
+  v_servico   uuid;
+  v_servico2  uuid;
+  v_negoc_s   uuid;
 begin
   -- -------------------------------------------------------------------
   -- Massa de teste (criada como postgres, que ignora a RLS).
@@ -565,21 +568,23 @@ begin
   -- Metas (Fase 10)
   -- ===================================================================
 
+  -- Mês fictício: o banco real pode já ter metas no mês corrente.
+
   -- 40. Gerente cria meta da empresa e metas individuais.
   perform set_config('request.jwt.claims',
     json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
   insert into public.metas (usuario_id, periodo_mes, valor_meta)
-  values (null,       date_trunc('month', current_date)::date, 100000),
-         (v_closer_a, date_trunc('month', current_date)::date, 40000),
-         (v_closer_b, date_trunc('month', current_date)::date, 30000);
+  values (null,       date '2099-01-01', 100000),
+         (v_closer_a, date '2099-01-01', 40000),
+         (v_closer_b, date '2099-01-01', 30000);
   select id into v_meta from public.metas
-  where usuario_id = v_closer_a and periodo_mes = date_trunc('month', current_date)::date;
+  where usuario_id = v_closer_a and periodo_mes = date '2099-01-01';
   raise notice 'ok  40   gerente cria meta da empresa e por closer';
 
   -- 41. Uma meta por alvo por mês — inclusive a da empresa (usuario_id nulo).
   begin
     insert into public.metas (usuario_id, periodo_mes, valor_meta)
-    values (null, date_trunc('month', current_date)::date, 1);
+    values (null, date '2099-01-01', 1);
     raise exception 'aceitou duas metas da empresa no mesmo mês';
   exception when unique_violation then
     raise notice 'ok  41   meta duplicada no mês é recusada';
@@ -588,13 +593,13 @@ begin
   -- 42. Meta individual só para closer; mês só como dia 1; só o valor muda.
   begin
     insert into public.metas (usuario_id, periodo_mes, valor_meta)
-    values (v_gerente, date_trunc('month', current_date)::date, 1);
+    values (v_gerente, date '2099-01-01', 1);
     raise exception 'aceitou meta individual para gerente';
   exception when check_violation then null;
   end;
   begin
     insert into public.metas (usuario_id, periodo_mes, valor_meta)
-    values (null, date_trunc('month', current_date)::date + 1, 1);
+    values (null, date '2099-01-01' + 1, 1);
     raise exception 'aceitou periodo_mes fora do dia 1';
   exception when check_violation then null;
   end;
@@ -612,7 +617,7 @@ begin
   assert v_total = 1, format('closer A deveria ver 1 meta (a sua), viu %s', v_total);
   begin
     insert into public.metas (usuario_id, periodo_mes, valor_meta)
-    values (v_closer_a, (date_trunc('month', current_date) - interval '1 month')::date, 1);
+    values (v_closer_a, date '2098-12-01', 1);
     raise exception 'closer criou meta';
   exception when insufficient_privilege then null;
   end;
@@ -694,6 +699,165 @@ begin
   from public.metas_progresso(current_date);
   assert v_valor = v_valor2, format('empresa (%s) diferente da soma das pessoas (%s)', v_valor, v_valor2);
   raise notice 'ok  46   realizado da empresa bate com a soma da equipe';
+
+  -- ===================================================================
+  -- Serviços e propostas (Fase 11A)
+  -- ===================================================================
+
+  -- 47. Os 7 serviços iniciais existem e o closer enxerga o catálogo.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  select count(*) into v_total from public.servicos
+  where nome in ('Assessoria Comercial 1 mês', 'Assessoria Comercial 3 meses',
+                 'Assessoria Comercial 6 meses', 'Treinamento e configuração de CRM',
+                 'Landing Page', 'CRM + IA', 'Social Mídia');
+  assert v_total = 7, format('closer deveria ver os 7 serviços iniciais, viu %s', v_total);
+  raise notice 'ok  47   serviços iniciais visíveis para o closer';
+
+  -- 48. Closer não cria, não altera e não exclui serviço.
+  begin
+    insert into public.servicos (nome) values ('Serviço do closer');
+    raise exception 'closer criou serviço';
+  exception when insufficient_privilege then null;
+  end;
+  update public.servicos set nome = 'Hackeado' where nome = 'Landing Page';
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'closer alterou serviço';
+  delete from public.servicos where nome = 'Landing Page';
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'closer excluiu serviço';
+  raise notice 'ok  48   closer só lê o catálogo de serviços';
+
+  -- 49. Gerente cria serviço com categoria; nome único sem diferenciar
+  --     maiúsculas/espaços; categoria em branco é recusada.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  insert into public.servicos (nome, categoria) values ('Serviço Teste', 'Testes')
+  returning id into v_servico;
+  insert into public.servicos (nome) values ('Serviço Teste 2')
+  returning id into v_servico2;
+  begin
+    insert into public.servicos (nome) values ('  serviço teste ');
+    raise exception 'aceitou serviço com nome duplicado';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into public.servicos (nome, categoria) values ('Serviço Categoria Vazia', '   ');
+    raise exception 'aceitou categoria em branco';
+  exception when check_violation then null;
+  end;
+  raise notice 'ok  49   gerente cria serviço; nome único; categoria válida';
+
+  -- 50. Closer salva a própria negociação: qualificação, proposta e serviços.
+  insert into public.clientes (nome, empresa, owner_id)
+  values ('Cliente Serviços', 'Empresa Serviços', v_closer_a)
+  returning id into v_cliente_a;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  insert into public.negociacoes (cliente_id, owner_id, titulo)
+  values (v_cliente_a, v_closer_a, 'Negociação com serviços')
+  returning id into v_negoc_s;
+  perform public.salvar_negociacao(
+    p_negociacao_id => v_negoc_s, p_valor_estimado => 10000, p_temperatura => 'quente',
+    p_data_primeira_reuniao => current_date - 10, p_data_proposta => current_date - 3,
+    p_objecao_principal => 'Preço', p_valor_proposta => 12000,
+    p_forma_pagamento => 'boleto_3x', p_servico_ids => array[v_servico, v_servico2]);
+  select count(*) into v_total from public.negociacoes
+  where id = v_negoc_s and valor_proposta = 12000 and forma_pagamento = 'boleto_3x'
+    and temperatura = 'quente' and valor_estimado = 10000;
+  assert v_total = 1, 'salvar_negociacao não gravou os campos';
+  select count(*) into v_total from public.negociacao_servicos where negociacao_id = v_negoc_s;
+  assert v_total = 2, format('esperava 2 serviços vinculados, vieram %s', v_total);
+  begin
+    perform public.salvar_negociacao(
+      p_negociacao_id => v_negoc_s, p_valor_estimado => 10000, p_temperatura => null,
+      p_data_primeira_reuniao => current_date, p_data_proposta => current_date - 1,
+      p_objecao_principal => null, p_valor_proposta => null,
+      p_forma_pagamento => null, p_servico_ids => array[]::uuid[]);
+    raise exception 'aceitou proposta anterior à primeira reunião';
+  exception when check_violation then null;
+  end;
+  select count(*) into v_total from public.negociacao_servicos where negociacao_id = v_negoc_s;
+  assert v_total = 2, 'salvamento recusado não pode ter mexido nos serviços';
+  raise notice 'ok  50   closer salva a própria negociação em uma transação';
+
+  -- 51. Closer B não salva, não vê e não vincula serviço na negociação do A.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_b, 'role', 'authenticated')::text, true);
+  begin
+    perform public.salvar_negociacao(
+      p_negociacao_id => v_negoc_s, p_valor_estimado => 1, p_temperatura => null,
+      p_data_primeira_reuniao => null, p_data_proposta => null,
+      p_objecao_principal => null, p_valor_proposta => null,
+      p_forma_pagamento => null, p_servico_ids => array[]::uuid[]);
+    raise exception 'closer B salvou negociação do closer A';
+  exception when no_data_found then null;
+  end;
+  select count(*) into v_total from public.negociacao_servicos where negociacao_id = v_negoc_s;
+  assert v_total = 0, 'closer B enxergou serviços da negociação do closer A';
+  begin
+    insert into public.negociacao_servicos (negociacao_id, servico_id) values (v_negoc_s, v_servico);
+    raise exception 'closer B vinculou serviço na negociação do closer A';
+  exception when insufficient_privilege or unique_violation then null;
+  end;
+  delete from public.negociacao_servicos where negociacao_id = v_negoc_s;
+  get diagnostics v_total = row_count;
+  assert v_total = 0, 'closer B removeu serviços da negociação do closer A';
+  raise notice 'ok  51   serviços da negociação seguem a RLS da negociação';
+
+  -- 52. Serviço desativado: continua onde já estava, não entra em outra.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  update public.servicos set ativo = false where id = v_servico2;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  perform public.salvar_negociacao(
+    p_negociacao_id => v_negoc_s, p_valor_estimado => 10000, p_temperatura => 'morno',
+    p_data_primeira_reuniao => null, p_data_proposta => null,
+    p_objecao_principal => null, p_valor_proposta => null,
+    p_forma_pagamento => null, p_servico_ids => array[v_servico, v_servico2]);
+  select count(*) into v_total from public.negociacao_servicos where negociacao_id = v_negoc_s;
+  assert v_total = 2, 'serviço desativado já vinculado deveria continuar na negociação';
+
+  insert into public.negociacoes (cliente_id, owner_id, titulo)
+  values (v_cliente_a, v_closer_a, 'Outra negociação')
+  returning id into v_negoc_a;
+  begin
+    perform public.salvar_negociacao(
+      p_negociacao_id => v_negoc_a, p_valor_estimado => null, p_temperatura => null,
+      p_data_primeira_reuniao => null, p_data_proposta => null,
+      p_objecao_principal => null, p_valor_proposta => null,
+      p_forma_pagamento => null, p_servico_ids => array[v_servico2]);
+    raise exception 'vinculou serviço desativado a uma negociação nova';
+  exception when check_violation then null;
+  end;
+  raise notice 'ok  52   serviço desativado fica no histórico e não entra em negociação nova';
+
+  -- 53. O array é o conjunto final: o serviço que sai dele é desvinculado.
+  perform public.salvar_negociacao(
+    p_negociacao_id => v_negoc_s, p_valor_estimado => 10000, p_temperatura => null,
+    p_data_primeira_reuniao => null, p_data_proposta => null,
+    p_objecao_principal => null, p_valor_proposta => null,
+    p_forma_pagamento => null, p_servico_ids => array[v_servico]);
+  select count(*) into v_total from public.negociacao_servicos where negociacao_id = v_negoc_s;
+  assert v_total = 1, 'deveria restar só o serviço mantido';
+  raise notice 'ok  53   o array de serviços é o conjunto final';
+
+  -- 54. Serviço usado não é excluído (desativa); nunca usado é excluído.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  begin
+    delete from public.servicos where id = v_servico;
+    raise exception 'excluiu serviço em uso';
+  exception when foreign_key_violation then null;
+  end;
+  insert into public.servicos (nome) values ('Nunca usado') returning id into v_servico2;
+  delete from public.servicos where id = v_servico2;
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'serviço nunca usado deveria ser excluído';
+  raise notice 'ok  54   serviço usado não é excluído; nunca usado é';
 
   reset role;
   raise notice '';
