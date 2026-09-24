@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import { editarUsuarioAction } from '@/lib/actions/usuarios'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { obterUsuario } from '@/lib/dal/usuarios'
+import { coresEmUso, obterUsuario } from '@/lib/dal/usuarios'
 import { formatarTelefone } from '@/lib/utils/documentos'
 
 import { UsuarioForm } from '../../_components/usuario-form'
@@ -22,7 +22,7 @@ export default async function EditarUsuarioPage({
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
 
-  const usuario = await obterUsuario(id)
+  const [usuario, cores] = await Promise.all([obterUsuario(id), coresEmUso(id)])
   if (!usuario) notFound()
 
   return (
@@ -34,11 +34,13 @@ export default async function EditarUsuarioPage({
         action={editarUsuarioAction.bind(null, usuario.id)}
         fotoAtual={usuario.fotoUrl}
         proprioUsuario={usuario.id === eu.id}
+        coresEmUso={cores}
         valoresIniciais={{
           nome: usuario.nome,
           email: usuario.email,
           telefone: usuario.telefone ? formatarTelefone(usuario.telefone) : '',
           role: usuario.role,
+          cor_agenda: usuario.corAgenda ?? '',
           ativo: usuario.ativo ? 'sim' : 'nao',
         }}
       />

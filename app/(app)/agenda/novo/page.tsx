@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 
 import { criarEventoAction } from '@/lib/actions/eventos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { listarResponsaveis } from '@/lib/dal/clientes'
-import { listarOpcoesClientes } from '@/lib/dal/eventos'
+import { listarOpcoesClientes, listarResponsaveisAgenda } from '@/lib/dal/eventos'
+import { responsaveisElegiveis } from '@/lib/utils/agenda'
 import { diaValido, hojeSaoPaulo } from '@/lib/utils/formatacao'
 
 import { EventoForm } from '../_components/evento-form'
@@ -12,40 +12,59 @@ export const metadata: Metadata = {
   title: 'Novo evento',
 }
 
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/**
+ * Pode chegar com ?cliente= (ficha do cliente), ?dia= e ?hora= (um horário
+ * da agenda) e ?responsavel= (agenda filtrada por pessoa).
+ */
 export default async function NovoEventoPage({ searchParams }: PageProps<'/agenda/novo'>) {
   const usuario = await getUsuarioAtual()
   const params = await searchParams
 
-  const [clientes, responsaveis] = await Promise.all([
-    listarOpcoesClientes(),
-    listarResponsaveis(),
-  ])
+  const [clientes, responsaveis] = await Promise.all([listarOpcoesClientes(), listarResponsaveisAgenda()])
 
-  // Vindo da ficha do cliente (?cliente=) ou de um dia da agenda (?dia=).
-  const clienteId =
-    typeof params.cliente === 'string' && clientes.some((c) => c.id === params.cliente)
-      ? params.cliente
-      : ''
+  const cliente = typeof params.cliente === 'string' ? clientes.find((c) => c.id === params.cliente) : undefined
   const dia = diaValido(params.dia) && params.dia >= hojeSaoPaulo() ? params.dia : hojeSaoPaulo()
+  const hora = typeof params.hora === 'string' && HORA.test(params.hora) ? params.hora : '09:00'
+
+  // Responsável inicial: o pedido na URL (se puder), o dono do cliente ou eu.
+  const gerente = usuario.role === 'gerente'
+  const elegiveis = cliente ? responsaveisElegiveis(responsaveis, cliente.ownerId) : []
+  const pedido = typeof params.responsavel === 'string' ? params.responsavel : ''
+  const responsavel = !gerente
+    ? usuario.id
+    : (elegiveis.find((r) => r.id === pedido) ?? elegiveis.find((r) => r.id === cliente?.ownerId))?.id ?? usuario.id
+
+  const eu = responsaveis.find((r) => r.id === usuario.id) ?? {
+    id: usuario.id,
+    nome: usuario.nome,
+    role: usuario.role,
+    cor: null,
+  }
 
   return (
     <div className="max-w-3xl space-y-6">
       <h1 className="text-2xl font-semibold">Novo evento</h1>
 
       <EventoForm
+        modo="criar"
         action={criarEventoAction}
         valoresIniciais={{
-          cliente_id: clienteId,
-          usuario_id: usuario.id,
+          cliente_id: cliente?.id ?? '',
+          usuario_id: responsavel,
           tipo: 'reuniao',
+          status: 'agendado',
           data: dia,
-          hora_inicio: '09:00',
-          hora_fim: '10:00',
+          hora_inicio: hora,
+          duracao: '60',
+          recorrencia: 'nenhuma',
         }}
         clientes={clientes}
         responsaveis={responsaveis}
+        eu={{ ...eu, gerente }}
         rotuloEnviar="Agendar"
-        cancelarHref={clienteId ? `/clientes/${clienteId}` : `/agenda?dia=${dia}`}
+        cancelarHref={cliente ? `/clientes/${cliente.id}` : `/agenda?dia=${dia}`}
       />
     </div>
   )

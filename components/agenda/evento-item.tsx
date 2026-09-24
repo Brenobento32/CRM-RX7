@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { alterarStatusEventoAction } from '@/lib/actions/eventos'
 import type { Evento } from '@/lib/dal/eventos'
 import { diaEmSaoPaulo, formatarDia, formatarHora } from '@/lib/utils/formatacao'
@@ -52,9 +53,20 @@ export function EventoItem({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
+          {evento.usuarioCor && (
+            <span title={evento.usuario ? `Responsável: ${evento.usuario}` : undefined}>
+              <PontoEtapa cor={evento.usuarioCor} />
+            </span>
+          )}
           <span className={`font-medium ${cancelado ? 'text-zinc-400 line-through' : ''}`}>
             {evento.titulo}
           </span>
+          {evento.serieId && (
+            <span title="Compromisso que se repete" className="text-xs text-zinc-500">
+              <span aria-hidden>↻</span>
+              <span className="sr-only">Repete</span>
+            </span>
+          )}
           <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
             {ROTULO_TIPO_EVENTO[evento.tipo]}
           </span>

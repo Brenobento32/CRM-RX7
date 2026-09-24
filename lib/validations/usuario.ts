@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { Constants, type Database } from '@/lib/types/database'
 import { somenteDigitos } from '@/lib/utils/documentos'
+import { CORES_ETAPA } from '@/lib/utils/etapas'
 
 export type Papel = Database['public']['Enums']['user_role']
 
@@ -28,6 +29,13 @@ const telefone = z
 
 const papel = z.enum(PAPEIS, 'Selecione o perfil.')
 
+/** Cor na agenda (mesma paleta das etapas). Vazio = sem cor. */
+const corAgenda = z
+  .string()
+  .default('')
+  .transform((v) => (v === '' ? null : v))
+  .pipe(z.enum(CORES_ETAPA, 'Escolha uma cor da paleta.').nullable())
+
 export const criarUsuarioSchema = z.object({
   nome,
   email: z.string().trim().toLowerCase().pipe(z.email('E-mail inválido.')),
@@ -38,6 +46,7 @@ export const criarUsuarioSchema = z.object({
     .max(72, 'Máximo de 72 caracteres.'),
   telefone,
   role: papel,
+  cor_agenda: corAgenda,
 })
 
 export type CriarUsuarioInput = z.output<typeof criarUsuarioSchema>
@@ -46,6 +55,7 @@ export const editarUsuarioSchema = z.object({
   nome,
   telefone,
   role: papel,
+  cor_agenda: corAgenda,
   ativo: z.enum(['sim', 'nao'], 'Informe o status.').transform((v) => v === 'sim'),
   remover_foto: z
     .string()
@@ -71,6 +81,7 @@ export const CAMPOS_USUARIO = [
   'senha',
   'telefone',
   'role',
+  'cor_agenda',
   'ativo',
   'foto',
   'remover_foto',

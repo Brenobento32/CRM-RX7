@@ -4,6 +4,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
+import type { CorEtapa } from '@/lib/utils/etapas'
 import type {
   CampoUsuario,
   CriarUsuarioInput,
@@ -48,6 +49,7 @@ export type Usuario = {
   fotoUrl: string | null
   role: Papel
   ativo: boolean
+  corAgenda: CorEtapa | null
 }
 
 export type ResultadoUsuario =
@@ -75,7 +77,7 @@ export async function listarUsuarios(): Promise<Usuario[]> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nome, email, telefone, foto_url, role, ativo')
+    .select('id, nome, email, telefone, foto_url, role, ativo, cor_agenda')
     .order('ativo', { ascending: false })
     .order('nome')
 
@@ -89,7 +91,7 @@ export async function obterUsuario(id: string): Promise<Usuario | null> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nome, email, telefone, foto_url, role, ativo')
+    .select('id, nome, email, telefone, foto_url, role, ativo, cor_agenda')
     .eq('id', id)
     .maybeSingle()
 
@@ -105,6 +107,7 @@ function paraUsuario(p: {
   foto_url: string | null
   role: Papel
   ativo: boolean
+  cor_agenda: CorEtapa | null
 }): Usuario {
   return {
     id: p.id,
@@ -114,7 +117,32 @@ function paraUsuario(p: {
     fotoUrl: p.foto_url,
     role: p.role,
     ativo: p.ativo,
+    corAgenda: p.cor_agenda,
   }
+}
+
+/**
+ * Quem já usa cada cor na agenda, entre os usuários ativos — para o aviso de
+ * cor repetida no formulário (não bloqueia). `exceto` tira o próprio usuário.
+ */
+export async function coresEmUso(exceto?: string): Promise<Partial<Record<CorEtapa, string[]>>> {
+  await exigirGerente()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, nome, cor_agenda')
+    .eq('ativo', true)
+    .not('cor_agenda', 'is', null)
+
+  if (error) throw new Error('Não foi possível carregar as cores da agenda.', { cause: error })
+
+  const uso: Partial<Record<CorEtapa, string[]>> = {}
+  for (const p of data) {
+    if (!p.cor_agenda || p.id === exceto) continue
+    ;(uso[p.cor_agenda] ??= []).push(p.nome)
+  }
+  return uso
 }
 
 type RespostaFuncao = { ok: boolean; codigo?: string; mensagem?: string; usuario_id?: string }
@@ -154,7 +182,12 @@ export async function criarUsuario(
     }
   }
 
-  // O usuário já existe; se só a foto falhar, a criação não é desfeita.
+  // O usuário já existe; se só a cor ou a foto falharem, a criação não é desfeita.
+  if (input.cor_agenda) {
+    const supabase = await createClient()
+    const { error } = await supabase.from('profiles').update({ cor_agenda: input.cor_agenda }).eq('id', r.usuario_id)
+    if (error) console.error('cor da agenda do novo usuário', error)
+  }
   const erroFoto = foto ? await trocarFoto(r.usuario_id, foto, null) : null
   return erroFoto
     ? { ok: true, id: r.usuario_id, aviso: `Usuário criado, mas a foto não foi salva: ${erroFoto}` }
@@ -180,7 +213,7 @@ export async function editarUsuario(
   const supabase = await createClient()
   const { error } = await supabase
     .from('profiles')
-    .update({ nome: input.nome, telefone: input.telefone, role: input.role })
+    .update({ nome: input.nome, telefone: input.telefone, role: input.role, cor_agenda: input.cor_agenda })
     .eq('id', id)
 
   if (error) {

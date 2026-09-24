@@ -5,8 +5,8 @@ import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { SeletorCor } from '@/components/ui/seletor-cor'
 import type { EstadoFormEtapa } from '@/lib/actions/etapas'
-import { CORES_ETAPA, PALETA_ETAPAS } from '@/lib/utils/etapas'
 
 type Props = {
   action: (estado: EstadoFormEtapa | undefined, formData: FormData) => Promise<EstadoFormEtapa>
@@ -55,32 +55,7 @@ export function EtapaForm({ action, valoresIniciais, nomeTravado = false, rotulo
         <ErroCampo mensagem={erro('nome')} />
       </div>
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">Cor</legend>
-        <div className="flex flex-wrap gap-2">
-          {CORES_ETAPA.map((cor) => (
-            <label
-              key={cor}
-              className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-2.5 py-1.5 text-sm has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:ring-zinc-100"
-            >
-              <input
-                type="radio"
-                name="cor"
-                value={cor}
-                defaultChecked={valores.cor === cor}
-                className="sr-only"
-              />
-              <span
-                aria-hidden
-                className="size-4 rounded-full"
-                style={{ backgroundColor: PALETA_ETAPAS[cor].hex }}
-              />
-              {PALETA_ETAPAS[cor].rotulo}
-            </label>
-          ))}
-        </div>
-        <ErroCampo mensagem={erro('cor')} />
-      </fieldset>
+      <SeletorCor name="cor" legenda="Cor" valorInicial={valores.cor} erro={erro('cor')} />
 
       <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>

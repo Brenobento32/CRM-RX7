@@ -6,7 +6,9 @@ import { useActionState, useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { ErroCampo } from '@/components/ui/erro-campo'
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { SeletorCor } from '@/components/ui/seletor-cor'
 import type { EstadoFormUsuario } from '@/lib/actions/usuarios'
+import type { CorEtapa } from '@/lib/utils/etapas'
 import {
   FOTO_TIPOS,
   PAPEIS,
@@ -24,6 +26,8 @@ type Props = {
   fotoAtual?: string | null
   /** No próprio usuário, perfil e status ficam travados. */
   proprioUsuario?: boolean
+  /** Quem já usa cada cor na agenda (aviso de cor repetida). */
+  coresEmUso?: Partial<Record<CorEtapa, string[]>>
 }
 
 export function UsuarioForm({
@@ -32,6 +36,7 @@ export function UsuarioForm({
   valoresIniciais,
   fotoAtual = null,
   proprioUsuario = false,
+  coresEmUso,
 }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores ?? valoresIniciais
@@ -202,6 +207,16 @@ export function UsuarioForm({
           </div>
         )}
       </div>
+
+      <SeletorCor
+        name="cor_agenda"
+        legenda="Cor na agenda"
+        valorInicial={valores.cor_agenda ?? ''}
+        permitirVazio
+        emUso={coresEmUso}
+        ajuda="Os compromissos desta pessoa aparecem nesta cor na agenda (e no Google, quando a sincronização for ligada)."
+        erro={erro('cor_agenda')}
+      />
 
       {proprioUsuario && (
         <p className="text-xs text-zinc-500">

@@ -4,10 +4,12 @@ import { notFound } from 'next/navigation'
 
 import { Avatar } from '@/components/ui/avatar'
 import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
+import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { definirAcessoAction } from '@/lib/actions/usuarios'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarUsuarios } from '@/lib/dal/usuarios'
 import { formatarTelefone } from '@/lib/utils/documentos'
+import { PALETA_ETAPAS } from '@/lib/utils/etapas'
 import { ROTULO_PAPEL } from '@/lib/validations/usuario'
 
 export const metadata: Metadata = {
@@ -67,7 +69,12 @@ export default async function UsuariosPage({
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-3">
                     <Avatar nome={u.nome} fotoUrl={u.fotoUrl} tamanho="sm" />
-                    <span className="font-medium">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {u.corAgenda && (
+                        <span title={`Cor na agenda: ${PALETA_ETAPAS[u.corAgenda].rotulo}`}>
+                          <PontoEtapa cor={u.corAgenda} />
+                        </span>
+                      )}
                       {u.nome}
                       {u.id === eu.id && <span className="ml-1 text-xs font-normal text-zinc-500">(você)</span>}
                     </span>

@@ -266,7 +266,9 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 11C+ | Propostas (`/propostas/abertas` e `/fechadas`), métricas do funil em `/funil/metricas`, sidebar com submenus (painel flutuante quando recolhida) | concluída |
 | 11D | Kanban: setas ‹ › rolam uma coluna por vez (somem quando tudo cabe na tela) | concluída |
 | 11E | Períodos rápidos: últimos 7 e 15 dias (dashboard, métricas do funil, propostas fechadas) | concluída |
-| Agenda A | Conexão OAuth com o Google Calendar (somente leitura, token no Vault) e diagnóstico das cores | em andamento |
+| Agenda A | Conexão OAuth com o Google Calendar (somente leitura, token no Vault) e diagnóstico das cores | concluída |
+| Agenda N1 | Agenda nativa no banco: `confirmado`/`outro`, cor por usuário, responsável com acesso ao cliente, séries (`eventos_series`, término obrigatório), alterar/cancelar com escopo, excluir só sem histórico | concluída |
+| Agenda N2 | Formulário completo: duração, responsável filtrado pelo cliente, status inicial, repetição com prévia, "aplicar a" em séries, cancelar/excluir; cor na agenda em Usuários | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer

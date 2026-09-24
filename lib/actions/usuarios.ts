@@ -39,7 +39,7 @@ export async function criarUsuarioAction(
   _estado: EstadoFormUsuario | undefined,
   formData: FormData,
 ): Promise<EstadoFormUsuario> {
-  const valores = lerTexto(formData, ['nome', 'email', 'telefone', 'role'])
+  const valores = lerTexto(formData, ['nome', 'email', 'telefone', 'role', 'cor_agenda'])
   const dados = { ...valores, senha: String(formData.get('senha') ?? '') }
 
   const foto = validarFoto(formData.get('foto'))
@@ -75,7 +75,7 @@ export async function editarUsuarioAction(
   _estado: EstadoFormUsuario | undefined,
   formData: FormData,
 ): Promise<EstadoFormUsuario> {
-  const valores = lerTexto(formData, ['nome', 'telefone', 'role', 'ativo', 'remover_foto'])
+  const valores = lerTexto(formData, ['nome', 'telefone', 'role', 'cor_agenda', 'ativo', 'remover_foto'])
   if (!uuid.safeParse(id).success) return { erro: 'Usuário inválido.', valores }
 
   const foto = validarFoto(formData.get('foto'))
