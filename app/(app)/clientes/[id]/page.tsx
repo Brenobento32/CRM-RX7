@@ -12,7 +12,7 @@ import {
 } from '@/lib/actions/atividades'
 import { LIMITE_TIMELINE, listarProximasAcoes, listarTimeline } from '@/lib/dal/atividades'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { obterCliente } from '@/lib/dal/clientes'
+import { obterCliente, type NegociacaoDoCliente } from '@/lib/dal/clientes'
 import { listarEventosDoCliente } from '@/lib/dal/eventos'
 import {
   formatarCnpj,
@@ -23,12 +23,14 @@ import {
 import {
   agoraSaoPauloLocal,
   formatarData,
+  formatarMoeda,
   formatarDataHoraCompleta,
   formatarDia,
   hojeSaoPaulo,
 } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
+import { ROTULO_FORMA_PAGAMENTO, ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
 
@@ -148,12 +150,20 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
         ) : (
           <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
             {cliente.negociacoes.map((n) => (
-              <li key={n.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <span className="flex items-center gap-2">
-                  <PontoEtapa cor={n.etapa.cor} />
-                  {n.etapa.nome}
-                </span>
-                <span className="text-zinc-500">Aberta em {data(n.created_at)}</span>
+              <li key={n.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0 space-y-1.5">
+                  <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="flex items-center gap-2 font-medium">
+                      <PontoEtapa cor={n.etapa.cor} />
+                      {n.etapa.nome}
+                    </span>
+                    <span className="text-zinc-500">Aberta em {data(n.created_at)}</span>
+                  </p>
+                  <ResumoNegociacao negociacao={n} />
+                </div>
+                <Link href={`/negociacoes/${n.id}/editar`} className={botaoSecundarioClass}>
+                  {n.etapa.tipo === 'aberta' ? 'Editar' : 'Ver'}
+                </Link>
               </li>
             ))}
           </ul>
@@ -283,5 +293,41 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
         Cadastrado em {data(cliente.created_at)} · atualizado em {data(cliente.updated_at)}
       </p>
     </div>
+  )
+}
+
+/** Valores, proposta e serviços de uma negociação; some quando não há nada. */
+function ResumoNegociacao({ negociacao: n }: { negociacao: NegociacaoDoCliente }) {
+  const dados = [
+    n.valor_estimado !== null && `Estimado ${formatarMoeda(n.valor_estimado)}`,
+    n.temperatura && ROTULO_TEMPERATURA[n.temperatura],
+    (n.valor_proposta !== null || n.forma_pagamento) &&
+      `Proposta ${[
+        n.valor_proposta !== null && formatarMoeda(n.valor_proposta),
+        n.forma_pagamento && ROTULO_FORMA_PAGAMENTO[n.forma_pagamento],
+      ]
+        .filter(Boolean)
+        .join(' · ')}`,
+  ].filter(Boolean)
+
+  if (dados.length === 0 && n.servicos.length === 0) return null
+
+  return (
+    <>
+      {dados.length > 0 && <p className="text-zinc-600 dark:text-zinc-400">{dados.join(' · ')}</p>}
+      {n.servicos.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Serviços">
+          {n.servicos.map((s) => (
+            <li
+              key={s.nome}
+              className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              {s.nome}
+              {!s.ativo && <span className="text-zinc-500"> (desativado)</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   )
 }

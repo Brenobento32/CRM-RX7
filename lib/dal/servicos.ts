@@ -18,7 +18,7 @@ export type ServicoComUso = Servico & { negociacoes: number }
 const COLUNAS = 'id, nome, categoria, ativo'
 
 /** Por categoria (sem categoria por último), depois por nome. */
-function ordenar<T extends Servico>(servicos: T[]): T[] {
+export function ordenarServicos<T extends Servico>(servicos: T[]): T[] {
   return servicos.sort((a, b) => {
     if (a.categoria !== b.categoria) {
       if (a.categoria === null) return 1
@@ -39,7 +39,7 @@ export async function listarServicosAtivos(): Promise<Servico[]> {
 
   const { data, error } = await supabase.from('servicos').select(COLUNAS).eq('ativo', true)
   if (error) throw new Error('Não foi possível carregar os serviços.', { cause: error })
-  return ordenar(data)
+  return ordenarServicos(data)
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ export async function listarServicosComUso(): Promise<ServicoComUso[]> {
     .select(`${COLUNAS}, uso:negociacao_servicos(count)`)
 
   if (error) throw new Error('Não foi possível carregar os serviços.', { cause: error })
-  return ordenar(
+  return ordenarServicos(
     data.map(({ uso, ...s }) => ({ ...s, negociacoes: Number(uso[0]?.count ?? 0) })),
   )
 }

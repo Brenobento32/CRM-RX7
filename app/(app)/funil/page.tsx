@@ -1,30 +1,22 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
+import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarEtapas } from '@/lib/dal/etapas'
 import { DIAS_VISIVEIS_ENCERRADOS, listarCardsFunil } from '@/lib/dal/funil'
-import { obterMetricasFunil } from '@/lib/dal/funil-metricas'
-import { chavePeriodo, resolverPeriodo } from '@/lib/utils/periodo'
-
-import { SeletorPeriodo } from '../_components/dashboard/seletor-periodo'
 
 import { Kanban } from './_components/kanban'
-import { MetricasFunilPainel } from './_components/metricas-funil'
 
 export const metadata: Metadata = {
   title: 'Funil',
 }
 
-export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
+/** Kanban operacional. As métricas ficam em /funil/metricas. */
+export default async function FunilPage() {
   const usuario = await getUsuarioAtual()
-  const { periodo: param } = await searchParams
-  const periodo = resolverPeriodo(chavePeriodo(param))
 
-  const [cards, etapas, metricas] = await Promise.all([
-    listarCardsFunil(),
-    listarEtapas(),
-    obterMetricasFunil(periodo),
-  ])
+  const [cards, etapas] = await Promise.all([listarCardsFunil(), listarEtapas()])
 
   return (
     <div className="space-y-6">
@@ -32,15 +24,14 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
         <div>
           <h1 className="text-2xl font-semibold">Funil</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Suas negociações.'} O
-            período vale para as métricas; no quadro, fechadas e perdidas aparecem por{' '}
-            {DIAS_VISIVEIS_ENCERRADOS} dias.
+            {usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Suas negociações.'} Fechadas e
+            perdidas aparecem por {DIAS_VISIVEIS_ENCERRADOS} dias.
           </p>
         </div>
-        <SeletorPeriodo atual={periodo.chave} caminho="/funil" />
+        <Link href="/funil/metricas" className={botaoSecundarioClass}>
+          Ver métricas
+        </Link>
       </div>
-
-      <MetricasFunilPainel metricas={metricas} />
 
       <Kanban
         cards={cards}

@@ -6,8 +6,9 @@ import { cache } from 'react'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import type { EtapaVisual } from '@/lib/utils/etapas'
+import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
 import type { CampoCliente, ClienteInput } from '@/lib/validations/cliente'
+import type { FormaPagamento, Temperatura } from '@/lib/validations/negociacao'
 
 type TipoCliente = Database['public']['Enums']['tipo_cliente']
 
@@ -33,7 +34,19 @@ export type ClienteDetalhe = ClienteResumo & {
   observacoes: string | null
   owner_id: string
   updated_at: string
-  negociacoes: { id: string; etapa: EtapaVisual; created_at: string }[]
+  negociacoes: NegociacaoDoCliente[]
+}
+
+export type NegociacaoDoCliente = {
+  id: string
+  etapa: EtapaVisual & { tipo: TipoEtapa }
+  created_at: string
+  valor_estimado: number | null
+  temperatura: Temperatura | null
+  valor_proposta: number | null
+  forma_pagamento: FormaPagamento | null
+  /** Inclui serviços desativados depois do vínculo (histórico). */
+  servicos: { nome: string; ativo: boolean }[]
 }
 
 export type OpcaoResponsavel = { id: string; nome: string; role: string }
@@ -96,7 +109,11 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
       `id, tipo_cliente, nome, empresa, cpf, cnpj, telefone, whatsapp, email,
        responsavel, cargo, observacoes, owner_id, created_at, updated_at,
        dono:profiles!clientes_owner_id_fkey(nome),
-       negociacoes(id, created_at, etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))`,
+       negociacoes(
+         id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento,
+         etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
+         vinculos:negociacao_servicos(servico:servicos(nome, ativo))
+       )`,
     )
     .eq('id', id)
     .is('deleted_at', null)
@@ -108,8 +125,19 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
   }
   if (!data) return null
 
-  const { dono, ...cliente } = data
-  return { ...cliente, dono: dono?.nome ?? null }
+  const { dono, negociacoes, ...cliente } = data
+  return {
+    ...cliente,
+    dono: dono?.nome ?? null,
+    negociacoes: negociacoes.map(({ vinculos, ...n }) => ({
+      ...n,
+      valor_estimado: n.valor_estimado === null ? null : Number(n.valor_estimado),
+      valor_proposta: n.valor_proposta === null ? null : Number(n.valor_proposta),
+      servicos: vinculos
+        .flatMap((v) => (v.servico ? [v.servico] : []))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    })),
+  }
 })
 
 /**

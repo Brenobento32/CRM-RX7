@@ -22,7 +22,7 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
         <BotaoRecolherSidebar />
       </div>
 
-      <SidebarNav />
+      <SidebarNav papel={usuario.role} />
 
       <div className="border-t border-zinc-200 p-4 group-data-[sidebar=recolhida]/shell:px-2 dark:border-zinc-800">
         <div

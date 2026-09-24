@@ -859,6 +859,101 @@ begin
   assert v_total = 1, 'serviço nunca usado deveria ser excluído';
   raise notice 'ok  54   serviço usado não é excluído; nunca usado é';
 
+  -- ===================================================================
+  -- Negociação encerrada é somente leitura (ajuste da Fase 11C)
+  -- ===================================================================
+
+  -- 55. Ganha: salvar, UPDATE direto e mexer em serviços são recusados.
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_closer_a, 'role', 'authenticated')::text, true);
+  insert into public.negociacoes (cliente_id, owner_id, titulo)
+  values (v_cliente_a, v_closer_a, 'Negociação que será encerrada')
+  returning id into v_negoc_s;
+  perform public.salvar_negociacao(
+    p_negociacao_id => v_negoc_s, p_valor_estimado => 5000, p_temperatura => 'quente',
+    p_data_primeira_reuniao => null, p_data_proposta => null,
+    p_objecao_principal => null, p_valor_proposta => 6000,
+    p_forma_pagamento => 'avista', p_servico_ids => array[v_servico]);
+  perform public.fechar_negociacao(
+    p_negociacao_id => v_negoc_s, p_posicao => 1000, p_valor_vendido => 6000,
+    p_data_fechamento => current_date, p_contrato_enviado => true,
+    p_contrato_assinado => true, p_status_pagamento => 'pago',
+    p_status_onboarding => 'nao_iniciado');
+
+  begin
+    perform public.salvar_negociacao(
+      p_negociacao_id => v_negoc_s, p_valor_estimado => 5000, p_temperatura => 'quente',
+      p_data_primeira_reuniao => null, p_data_proposta => null,
+      p_objecao_principal => null, p_valor_proposta => 6000,
+      p_forma_pagamento => 'avista', p_servico_ids => array[v_servico]);
+    raise exception 'salvar_negociacao aceitou negociação ganha (mesmo sem mudanças)';
+  exception when check_violation then null;
+  end;
+  begin
+    update public.negociacoes set valor_proposta = 1 where id = v_negoc_s;
+    raise exception 'UPDATE direto alterou proposta de negociação ganha';
+  exception when check_violation then null;
+  end;
+  begin
+    delete from public.negociacao_servicos where negociacao_id = v_negoc_s;
+    raise exception 'removeu serviço de negociação ganha';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.negociacao_servicos (negociacao_id, servico_id)
+    select v_negoc_s, id from public.servicos where ativo and id <> v_servico limit 1;
+    raise exception 'vinculou serviço a negociação ganha';
+  exception when check_violation then null;
+  end;
+  select count(*) into v_total from public.negociacoes
+  where id = v_negoc_s and valor_proposta = 6000 and forma_pagamento = 'avista';
+  assert v_total = 1, 'a proposta da negociação ganha deveria continuar intacta';
+  raise notice 'ok  55   negociação ganha: dados comerciais somente leitura';
+
+  -- 56. Perdida também é somente leitura; reaberta volta a ser editável.
+  update public.negociacoes
+     set etapa_id = public.etapa_id_por_chave('proposta_enviada')
+   where id = v_negoc_s;
+  update public.negociacoes
+     set etapa_id = public.etapa_id_por_chave('perdido'), motivo_perda = 'Sem orçamento'
+   where id = v_negoc_s;
+  begin
+    update public.negociacoes set temperatura = 'frio' where id = v_negoc_s;
+    raise exception 'UPDATE direto alterou negociação perdida';
+  exception when check_violation then null;
+  end;
+
+  update public.negociacoes
+     set etapa_id = public.etapa_id_por_chave('negociacao')
+   where id = v_negoc_s;
+  perform public.salvar_negociacao(
+    p_negociacao_id => v_negoc_s, p_valor_estimado => 5500, p_temperatura => 'morno',
+    p_data_primeira_reuniao => null, p_data_proposta => null,
+    p_objecao_principal => null, p_valor_proposta => 7000,
+    p_forma_pagamento => 'cartao_12x', p_servico_ids => array[]::uuid[]);
+  select count(*) into v_total from public.negociacoes
+  where id = v_negoc_s and valor_proposta = 7000 and forma_pagamento = 'cartao_12x';
+  assert v_total = 1, 'negociação reaberta deveria voltar a ser editável';
+  raise notice 'ok  56   perdida somente leitura; reaberta volta a ser editável';
+
+  -- 57. Excluir negociação encerrada com serviços não é barrado pela regra
+  --     (os vínculos saem em cascata).
+  perform public.salvar_negociacao(
+    p_negociacao_id => v_negoc_s, p_valor_estimado => 5500, p_temperatura => 'morno',
+    p_data_primeira_reuniao => null, p_data_proposta => null,
+    p_objecao_principal => null, p_valor_proposta => 7000,
+    p_forma_pagamento => 'cartao_12x', p_servico_ids => array[v_servico]);
+  update public.negociacoes
+     set etapa_id = public.etapa_id_por_chave('perdido'), motivo_perda = 'Desistiu'
+   where id = v_negoc_s;
+
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', v_gerente, 'role', 'authenticated')::text, true);
+  delete from public.negociacoes where id = v_negoc_s;
+  get diagnostics v_total = row_count;
+  assert v_total = 1, 'gerente deveria conseguir excluir negociação encerrada';
+  raise notice 'ok  57   excluir negociação encerrada leva os serviços em cascata';
+
   reset role;
   raise notice '';
   raise notice 'TODAS AS ASSERÇÕES PASSARAM.';

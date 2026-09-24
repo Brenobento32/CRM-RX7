@@ -11,6 +11,9 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
  */
 const EM_BREVE: Record<string, string> = {
   relatorios: 'Relatórios',
+  'relatorios/vendas': 'Relatórios · Vendas',
+  'relatorios/conversao': 'Relatórios · Conversão',
+  'relatorios/exportacao': 'Relatórios · Exportação',
 }
 
 export default async function EmBrevePage({
@@ -19,7 +22,7 @@ export default async function EmBrevePage({
   await getUsuarioAtual()
 
   const { secao } = await params
-  const titulo = secao.length === 1 ? EM_BREVE[secao[0]] : undefined
+  const titulo = EM_BREVE[secao.join('/')]
 
   if (!titulo) notFound()
 

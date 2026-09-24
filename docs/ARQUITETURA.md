@@ -190,6 +190,10 @@ para o hex em `lib/utils/etapas.ts`.
   `fechamentos` (valor vendido, contrato enviado, contrato assinado, status de
   pagamento, onboarding). Garantido por trigger.
 - Passar para a etapa `perdida` (Perdido) exige `motivo_perda`. Trigger.
+- Negociação em etapa `ganha` ou `perdida` tem os dados comerciais (qualificação,
+  proposta, serviços) somente leitura. Triggers em `negociacoes` e
+  `negociacao_servicos`, além de `salvar_negociacao`. Reabrir pelo Kanban
+  (voltar a uma etapa aberta) libera a edição.
 - Nenhuma negociação entra numa etapa desativada. Trigger.
 - `atividades` não tem policy de `UPDATE`: uma entrada da timeline não se
   edita, para não apagar o rastro de quem falou o quê e quando.
@@ -250,6 +254,8 @@ para `America/Sao_Paulo` na agenda e nos cortes de fim de mês.
 | 10 | Metas comerciais: meta mensal da empresa e por closer, realizado pelo responsável no fechamento (`metas_progresso`) | concluída |
 | 11A | Serviços e proposta: `servicos`, `negociacao_servicos`, `valor_proposta`, `forma_pagamento`, `salvar_negociacao` | concluída |
 | 11B | Configurações › Serviços: CRUD do gerente, consulta do closer (só ativos) | concluída |
+| 11C | Edição da negociação (`/negociacoes/[id]/editar`): qualificação, proposta e serviços via `salvar_negociacao`. Etapa, dono e motivo de perda só pelo funil. Encerrada (ganha/perdida) é somente leitura | concluída |
+| 11C+ | Propostas (`/propostas/abertas` e `/fechadas`), métricas do funil em `/funil/metricas`, sidebar com submenus (painel flutuante quando recolhida) | concluída |
 | 8 | Acabamento: Realtime, estados vazios, responsivo, auditoria de policies | pendente |
 
 A ordem não é negociável em dois pontos: **banco e RLS antes de qualquer
