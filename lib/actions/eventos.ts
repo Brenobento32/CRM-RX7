@@ -10,13 +10,17 @@ import {
   cancelarEventos,
   criarEvento,
   excluirEvento,
+  obterEvento,
   type ResultadoEvento,
 } from '@/lib/dal/eventos'
+import { duracaoDoFormulario } from '@/lib/utils/agenda'
+import { minutosParaHora } from '@/lib/utils/calendario'
 import { diaValido } from '@/lib/utils/formatacao'
 import {
   CAMPOS_EVENTO,
   ESCOPOS,
   eventoFormSchema,
+  statusEmAberto,
   statusEventoSchema,
   type CampoEvento,
   type ValoresEvento,
@@ -141,4 +145,60 @@ export async function alterarStatusEventoAction(
   if (!resultado.ok) console.warn('Alterar status do evento:', resultado.mensagem)
 
   revalidar(uuid.safeParse(clienteId).success ? clienteId : undefined)
+}
+
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/**
+ * Reagendar por arraste na grade (Agenda 2.0 N3.1): só data e hora mudam,
+ * cliente, negociação, responsável, duração e status ficam como estavam.
+ * Sempre "somente este" — nunca move uma série inteira por um arraste sem
+ * confirmação — e passa pela mesma `alterarEventos` do formulário de edição,
+ * então a proteção de evento realizado/não compareceu/cancelado (que
+ * `alterar_eventos` nunca reescreve) e a RLS valem igual. Sem redirect: quem
+ * chama já está na agenda, só espera revalidar.
+ */
+export async function reagendarEventoAction(
+  id: string,
+  novaData: string,
+  novaHoraInicio: string,
+): Promise<{ ok: boolean; mensagem?: string }> {
+  if (!uuid.safeParse(id).success) return { ok: false, mensagem: 'Evento inválido.' }
+  if (!diaValido(novaData) || !HORA.test(novaHoraInicio)) {
+    return { ok: false, mensagem: 'Data ou hora inválida.' }
+  }
+
+  const evento = await obterEvento(id)
+  if (!evento) return { ok: false, mensagem: 'Evento não encontrado.' }
+  if (!statusEmAberto(evento.status)) {
+    return { ok: false, mensagem: 'Só é possível reagendar compromissos agendados ou confirmados.' }
+  }
+
+  const duracaoMinutos = Math.round((Date.parse(evento.fim) - Date.parse(evento.inicio)) / 60_000)
+  const duracao = duracaoDoFormulario(duracaoMinutos)
+  const [h, m] = novaHoraInicio.split(':').map(Number)
+
+  const parsed = eventoFormSchema.safeParse({
+    cliente_id: evento.clienteId,
+    negociacao_id: evento.negociacaoId ?? '',
+    usuario_id: evento.usuarioId,
+    tipo: evento.tipo,
+    tipo_original: evento.tipo,
+    titulo: evento.titulo,
+    descricao: evento.descricao ?? '',
+    status: evento.status,
+    data: novaData,
+    hora_inicio: novaHoraInicio,
+    duracao,
+    hora_fim: duracao === 'personalizado' ? minutosParaHora(h * 60 + m + duracaoMinutos) : '',
+    recorrencia: 'nenhuma',
+    escopo: 'este',
+  })
+  if (!parsed.success) return { ok: false, mensagem: 'Não foi possível calcular o novo horário.' }
+
+  const r = await alterarEventos(id, parsed.data)
+  if (!r.ok) return { ok: false, mensagem: r.mensagem }
+
+  revalidar(evento.clienteId)
+  return { ok: true }
 }

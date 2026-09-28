@@ -8,7 +8,7 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
 import type { CorEtapa, EtapaVisual } from '@/lib/utils/etapas'
-import { hojeSaoPaulo, instanteSaoPaulo, somarDias } from '@/lib/utils/formatacao'
+import { diaEmSaoPaulo, hojeSaoPaulo, instanteSaoPaulo, somarDias } from '@/lib/utils/formatacao'
 import type { Database } from '@/lib/types/database'
 import type { RegraRecorrencia } from '@/lib/utils/recorrencia'
 import {
@@ -53,6 +53,8 @@ export type OpcaoCliente = {
 /** Quantos dias para trás a lista "aguardando status" olha. */
 export const DIAS_AGUARDANDO_STATUS = 30
 const LIMITE_LISTA = 50
+/** Teto de eventos de uma janela da Agenda 2.0 (dia/semana/mês). */
+const LIMITE_PERIODO = 500
 
 const COLUNAS = `id, titulo, descricao, tipo, status, inicio, fim, cliente_id,
   negociacao_id, usuario_id, serie_id,
@@ -103,43 +105,97 @@ async function coresDeUsuarios(ids: string[]): Promise<Map<string, CorEtapa | nu
 async function mapear(linhas: Linha[]): Promise<Evento[]> {
   const ids = linhas.map((l) => l.usuario_id)
   const [nomes, cores] = await Promise.all([nomesDeUsuarios(ids), coresDeUsuarios(ids)])
-  return linhas.map((l) => ({
-    id: l.id,
-    titulo: l.titulo,
-    descricao: l.descricao,
-    tipo: l.tipo,
-    status: l.status,
-    inicio: l.inicio,
-    fim: l.fim,
-    clienteId: l.cliente_id,
-    // Nulo se o cliente saiu da carteira de quem vê o evento.
-    clienteNome: l.cliente?.nome ?? null,
-    clienteEmpresa: l.cliente?.empresa ?? null,
-    negociacaoId: l.negociacao_id,
-    etapa: l.negociacao?.etapa ?? null,
-    usuarioId: l.usuario_id,
-    usuario: nomes.get(l.usuario_id) ?? null,
-    usuarioCor: cores.get(l.usuario_id) ?? null,
-    serieId: l.serie_id,
-  }))
+
+  return linhas.map((l) => {
+    // `nomes` vem de `nomes_de_usuarios`, SECURITY DEFINER — ignora a RLS de
+    // propósito. `cores` lê `profiles` direto, sujeita à RLS. Se a linha do
+    // responsável não voltou (chave ausente do Map, não apenas nula), a causa
+    // provável é RLS bloqueando esse leitor para esse perfil — vale investigar
+    // antes de assumir que a cor simplesmente não foi configurada.
+    if (!cores.has(l.usuario_id)) {
+      console.warn(
+        `Evento ${l.id}: profiles.cor_agenda de ${l.usuario_id} não voltou na consulta ` +
+          '(RLS bloqueando este leitor para esse perfil?). Nome resolveu normalmente via RPC.',
+      )
+    }
+
+    return {
+      id: l.id,
+      titulo: l.titulo,
+      descricao: l.descricao,
+      tipo: l.tipo,
+      status: l.status,
+      inicio: l.inicio,
+      fim: l.fim,
+      clienteId: l.cliente_id,
+      // Nulo se o cliente saiu da carteira de quem vê o evento.
+      clienteNome: l.cliente?.nome ?? null,
+      clienteEmpresa: l.cliente?.empresa ?? null,
+      negociacaoId: l.negociacao_id,
+      etapa: l.negociacao?.etapa ?? null,
+      usuarioId: l.usuario_id,
+      usuario: nomes.get(l.usuario_id) ?? null,
+      usuarioCor: cores.get(l.usuario_id) ?? null,
+      serieId: l.serie_id,
+    }
+  })
 }
 
 function falha(error: PostgrestError): never {
   throw new Error('Não foi possível carregar a agenda.', { cause: error })
 }
 
-/** Todos os eventos do dia (AAAA-MM-DD, em São Paulo), qualquer status. */
-export async function listarEventosDoDia(dia: string, usuarioId?: string): Promise<Evento[]> {
+/**
+ * Eventos entre `inicioDia` e `fimDia` (ambos AAAA-MM-DD, em São Paulo,
+ * `fimDia` incluído), qualquer status. Base das visões da Agenda 2.0 — cada
+ * uma só pede a própria janela (1/7/14/~42 dias).
+ */
+export async function listarEventosNoPeriodo(
+  inicioDia: string,
+  fimDia: string,
+  usuarioId?: string,
+): Promise<Evento[]> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data, error } = await consultaBase(supabase, usuarioId)
-    .gte('inicio', instanteSaoPaulo(dia).toISOString())
-    .lt('inicio', instanteSaoPaulo(somarDias(dia, 1)).toISOString())
+    .gte('inicio', instanteSaoPaulo(inicioDia).toISOString())
+    .lt('inicio', instanteSaoPaulo(somarDias(fimDia, 1)).toISOString())
     .order('inicio')
+    .limit(LIMITE_PERIODO)
 
   if (error) falha(error)
   return mapear(data)
+}
+
+/** Todos os eventos do dia (AAAA-MM-DD, em São Paulo), qualquer status. */
+export async function listarEventosDoDia(dia: string, usuarioId?: string): Promise<Evento[]> {
+  return listarEventosNoPeriodo(dia, dia, usuarioId)
+}
+
+/**
+ * Em que dias (AAAA-MM-DD, em São Paulo) há pelo menos um evento, dentro do
+ * período — usado pelo mini calendário para marcar os dias com compromisso
+ * sem carregar os eventos inteiros.
+ */
+export async function contarEventosPorDia(
+  inicioDia: string,
+  fimDia: string,
+  usuarioId?: string,
+): Promise<Set<string>> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('eventos')
+    .select('inicio')
+    .gte('inicio', instanteSaoPaulo(inicioDia).toISOString())
+    .lt('inicio', instanteSaoPaulo(somarDias(fimDia, 1)).toISOString())
+  if (usuarioId) query = query.eq('usuario_id', usuarioId)
+
+  const { data, error } = await query
+  if (error) falha(error)
+  return new Set(data.map((r) => diaEmSaoPaulo(r.inicio)))
 }
 
 /** Eventos em aberto (agendados ou confirmados) a partir de amanhã. */

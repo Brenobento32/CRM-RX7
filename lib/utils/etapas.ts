@@ -31,6 +31,39 @@ export const PALETA_ETAPAS: Record<CorEtapa, { hex: string; rotulo: string }> = 
   cinza: { hex: '#71717a', rotulo: 'Cinza' },
 }
 
+/**
+ * Texto claro (branco) ou escuro sobre o fundo cheio de cada cor da paleta —
+ * luminância relativa (WCAG) calculada uma vez para as 10 cores fixas: cada
+ * uma usa o texto com mais contraste contra o próprio tom. Usado onde a cor
+ * vira fundo do elemento inteiro (bloco de evento na agenda), não só marcador.
+ */
+export const TEXTO_SOBRE_COR: Record<CorEtapa, 'claro' | 'escuro'> = {
+  azul: 'claro',
+  violeta: 'claro',
+  amarelo: 'escuro',
+  laranja: 'escuro',
+  verde: 'escuro',
+  vermelho: 'claro',
+  ciano: 'escuro',
+  rosa: 'claro',
+  turquesa: 'escuro',
+  cinza: 'claro',
+}
+
+/** Sem cor definida (`cor_agenda` nulo): mesmo neutro zinc-500 do resto do app, texto claro. */
+export const COR_AGENDA_PADRAO = '#71717a'
+
+/** Cor de fundo do bloco/chip de um responsável na agenda — a dele, ou o neutro padrão. */
+export function corDeFundoAgenda(cor: CorEtapa | null): string {
+  return cor ? PALETA_ETAPAS[cor].hex : COR_AGENDA_PADRAO
+}
+
+/** Classe de texto com mais contraste contra `corDeFundoAgenda(cor)`. */
+export function classeTextoAgenda(cor: CorEtapa | null): string {
+  const contraste = cor ? TEXTO_SOBRE_COR[cor] : 'claro'
+  return contraste === 'escuro' ? 'text-zinc-900' : 'text-white'
+}
+
 export const ROTULO_TIPO_ETAPA: Record<TipoEtapa, string> = {
   aberta: 'Aberta',
   ganha: 'Ganha (fechamento)',
