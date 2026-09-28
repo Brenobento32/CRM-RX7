@@ -1,29 +1,16 @@
-import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
-import { criarEtapaAction } from '@/lib/actions/etapas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { listarFunis } from '@/lib/dal/funis'
 
-import { EtapaForm } from '../_components/etapa-form'
-
-export const metadata: Metadata = {
-  title: 'Nova etapa',
-}
-
-export default async function NovaEtapaPage() {
+/** Rota antiga (funil único). Redireciona para a nova etapa do Funil Principal. */
+export default async function NovaEtapaPageRedirect() {
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') notFound()
 
-  return (
-    <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Nova etapa</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Entra logo antes de Negociação. Depois é possível mudar a posição na lista de etapas.
-        </p>
-      </div>
+  const funis = await listarFunis()
+  const principal = funis.find((f) => f.padrao)
+  if (!principal) notFound()
 
-      <EtapaForm action={criarEtapaAction} valoresIniciais={{ cor: 'ciano' }} rotuloEnviar="Criar etapa" />
-    </div>
-  )
+  redirect(`/configuracoes/funis/${principal.id}/etapas/nova`)
 }

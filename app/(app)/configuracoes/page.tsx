@@ -16,9 +16,9 @@ const ITENS_GERENTE: Item[] = [
     descricao: 'Criar, editar e desativar gerentes e closers.',
   },
   {
-    href: '/configuracoes/etapas',
-    titulo: 'Etapas do funil',
-    descricao: 'Criar etapas personalizadas, mudar cores e a ordem das colunas.',
+    href: '/configuracoes/funis',
+    titulo: 'Funis',
+    descricao: 'Criar funis, configurar etapas, cores e a ordem das colunas.',
   },
   {
     href: '/configuracoes/servicos',

@@ -14,9 +14,10 @@ type Props = {
   /** Etapa de sistema: o nome aparece, mas não é editável. */
   nomeTravado?: boolean
   rotuloEnviar: string
+  cancelarHref: string
 }
 
-export function EtapaForm({ action, valoresIniciais, nomeTravado = false, rotuloEnviar }: Props) {
+export function EtapaForm({ action, valoresIniciais, nomeTravado = false, rotuloEnviar, cancelarHref }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores ?? valoresIniciais
   const erro = (campo: 'nome' | 'cor') => estado?.campos?.[campo]?.[0]
@@ -62,7 +63,7 @@ export function EtapaForm({ action, valoresIniciais, nomeTravado = false, rotulo
           {pendente ? 'Salvando…' : rotuloEnviar}
         </button>
         <Link
-          href="/configuracoes/etapas"
+          href={cancelarHref}
           className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
           Cancelar

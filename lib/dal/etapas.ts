@@ -9,6 +9,7 @@ import type { CorEtapa, EtapaKanban, TipoEtapa } from '@/lib/utils/etapas'
 import type { CriarEtapaInput, Direcao, EditarEtapaInput } from '@/lib/validations/etapa'
 
 export type Etapa = EtapaKanban & {
+  funilId: string
   ordem: number
   sistema: boolean
   chave: string | null
@@ -20,10 +21,11 @@ export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean 
 /** Distância padrão entre etapas quando não há vizinho de um dos lados. */
 const PASSO = 1000
 
-const COLUNAS = 'id, nome, cor, tipo, ordem, sistema, chave, ativo'
+const COLUNAS = 'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo'
 
 function paraEtapa(e: {
   id: string
+  funil_id: string
   nome: string
   cor: CorEtapa
   tipo: TipoEtapa
@@ -32,20 +34,31 @@ function paraEtapa(e: {
   chave: string | null
   ativo: boolean
 }): Etapa {
-  return { ...e, ordem: Number(e.ordem) }
+  return {
+    id: e.id,
+    funilId: e.funil_id,
+    nome: e.nome,
+    cor: e.cor,
+    tipo: e.tipo,
+    ordem: Number(e.ordem),
+    sistema: e.sistema,
+    chave: e.chave,
+    ativo: e.ativo,
+  }
 }
 
 /**
- * Etapas ativas, na ordem das colunas. Todo usuário logado lê (RLS). Em
- * `cache` porque layout, Kanban e formulários pedem a mesma lista.
+ * Etapas ativas de um funil, na ordem das colunas. Todo usuário logado lê
+ * (RLS). Em `cache` porque layout, Kanban e formulários pedem a mesma lista.
  */
-export const listarEtapas = cache(async (): Promise<Etapa[]> => {
+export const listarEtapas = cache(async (funilId: string): Promise<Etapa[]> => {
   await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('etapas_funil')
     .select(COLUNAS)
+    .eq('funil_id', funilId)
     .eq('ativo', true)
     .order('ordem')
 
@@ -63,13 +76,13 @@ async function exigirGerente() {
   if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram o funil.')
 }
 
-/** Todas as etapas (ativas e desativadas) com o uso de cada uma. */
-export async function listarEtapasComUso(): Promise<EtapaComUso[]> {
+/** Todas as etapas (ativas e desativadas) de um funil, com o uso de cada uma. */
+export async function listarEtapasComUso(funilId: string): Promise<EtapaComUso[]> {
   await exigirGerente()
   const supabase = await createClient()
 
   const [etapas, uso] = await Promise.all([
-    supabase.from('etapas_funil').select(COLUNAS).order('ordem'),
+    supabase.from('etapas_funil').select(COLUNAS).eq('funil_id', funilId).order('ordem'),
     supabase.rpc('etapas_funil_uso'),
   ])
   if (etapas.error) throw new Error('Não foi possível carregar as etapas.', { cause: etapas.error })
@@ -94,33 +107,49 @@ export async function obterEtapa(id: string): Promise<Etapa | null> {
 export type ResultadoEtapa = { ok: true } | { ok: false; mensagem: string; campo?: 'nome' | 'cor' }
 
 /**
- * As abertas que podem trocar de lugar com uma personalizada: tudo o que
- * está antes de Negociação. Negociação é o limite (fica fora da lista).
+ * Limite de posição das etapas abertas de um funil: antes da etapa de chave
+ * `'negociacao'` quando ela existe (só o Funil Principal tem — mesmo
+ * comportamento de sempre); nos demais funis, antes das etapas de
+ * fechamento (ganha/perdida) do próprio funil. Mesma regra de
+ * `etapas_funil_regras()` no banco — se um dia divergir, vale o banco.
+ * Exportada porque a tela de configuração usa a mesma conta pra saber quais
+ * etapas podem subir/descer.
  */
-function abertasAntesDeNegociacao(etapas: Etapa[]) {
+export function limiteDeOrdem(etapas: Etapa[]): number {
   const negociacao = etapas.find((e) => e.chave === 'negociacao')
-  if (!negociacao) throw new Error('Etapa Negociação não encontrada.')
-  return {
-    limite: negociacao.ordem,
-    lista: etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.ordem < negociacao.ordem),
+  if (negociacao) return negociacao.ordem
+
+  const fechamento = etapas.filter((e) => e.tipo === 'ganha' || e.tipo === 'perdida')
+  if (fechamento.length === 0) {
+    throw new Error('Funil sem etapa de fechamento (ganha/perdida) — configuração inconsistente.')
   }
+  return Math.min(...fechamento.map((e) => e.ordem))
 }
 
-/** Nova personalizada entra logo antes de Negociação. */
-export async function criarEtapa(input: CriarEtapaInput): Promise<ResultadoEtapa> {
+/** As abertas que podem trocar de lugar com uma personalizada, no funil. */
+function abertasAntesDoFechamento(etapas: Etapa[]) {
+  const limite = limiteDeOrdem(etapas)
+  return { limite, lista: etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.ordem < limite) }
+}
+
+/** Nova personalizada entra logo antes do fechamento do funil. */
+export async function criarEtapa(funilId: string, input: CriarEtapaInput): Promise<ResultadoEtapa> {
   await exigirGerente()
   const supabase = await createClient()
 
-  const { data: todas, error: erroLista } = await supabase.from('etapas_funil').select(COLUNAS)
+  const { data: todas, error: erroLista } = await supabase
+    .from('etapas_funil')
+    .select(COLUNAS)
+    .eq('funil_id', funilId)
   if (erroLista) return traduzirErro(erroLista)
 
-  const { limite, lista } = abertasAntesDeNegociacao(todas.map(paraEtapa))
+  const { limite, lista } = abertasAntesDoFechamento(todas.map(paraEtapa))
   const ultima = lista.at(-1)
   const ordem = ultima ? (ultima.ordem + limite) / 2 : limite - PASSO
 
   const { error } = await supabase
     .from('etapas_funil')
-    .insert({ nome: input.nome, cor: input.cor, ordem, tipo: 'aberta' })
+    .insert({ funil_id: funilId, nome: input.nome, cor: input.cor, ordem, tipo: 'aberta' })
 
   return error ? traduzirErro(error) : { ok: true }
 }
@@ -139,19 +168,22 @@ export async function editarEtapa(id: string, input: EditarEtapaInput): Promise<
 }
 
 /**
- * Sobe ou desce uma personalizada uma posição entre as abertas antes de
- * Negociação. Grava só a etapa movida: a nova ordem é o ponto médio entre os
- * vizinhos do lugar de destino.
+ * Sobe ou desce uma personalizada uma posição entre as abertas do funil,
+ * antes do fechamento. Grava só a etapa movida: a nova ordem é o ponto médio
+ * entre os vizinhos do lugar de destino.
  */
-export async function moverEtapa(id: string, direcao: Direcao): Promise<ResultadoEtapa> {
+export async function moverEtapa(funilId: string, id: string, direcao: Direcao): Promise<ResultadoEtapa> {
   await exigirGerente()
   const supabase = await createClient()
 
-  const { data: todas, error: erroLista } = await supabase.from('etapas_funil').select(COLUNAS)
+  const { data: todas, error: erroLista } = await supabase
+    .from('etapas_funil')
+    .select(COLUNAS)
+    .eq('funil_id', funilId)
   if (erroLista) return traduzirErro(erroLista)
 
   const etapas = todas.map(paraEtapa).sort((a, b) => a.ordem - b.ordem)
-  const { limite, lista } = abertasAntesDeNegociacao(etapas)
+  const { limite, lista } = abertasAntesDoFechamento(etapas)
   const i = lista.findIndex((e) => e.id === id)
   const etapa = lista[i]
 
@@ -166,13 +198,13 @@ export async function moverEtapa(id: string, direcao: Direcao): Promise<Resultad
     ordem = (antesDoVizinho + lista[i - 1].ordem) / 2
   } else {
     if (i === lista.length - 1) {
-      return { ok: false, mensagem: 'Etapas personalizadas ficam antes de Negociação.' }
+      return { ok: false, mensagem: 'Etapas abertas ficam antes do fechamento do funil.' }
     }
     const depoisDoVizinho = lista[i + 2]?.ordem ?? limite
     ordem = (lista[i + 1].ordem + depoisDoVizinho) / 2
   }
 
-  // Ordem é única na tabela (inclui desativadas); o ponto médio de valores
+  // Ordem é única por funil (inclui desativadas); o ponto médio de valores
   // distintos praticamente nunca colide, mas se colidir a mensagem é clara.
   const { error } = await supabase.from('etapas_funil').update({ ordem }).eq('id', id)
   return error ? traduzirErro(error) : { ok: true }

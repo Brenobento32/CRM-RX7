@@ -265,6 +265,7 @@ export type Database = {
           cor: Database["public"]["Enums"]["cor_etapa"]
           created_at: string
           criado_por: string | null
+          funil_id: string
           id: string
           nome: string
           ordem: number
@@ -278,6 +279,7 @@ export type Database = {
           cor: Database["public"]["Enums"]["cor_etapa"]
           created_at?: string
           criado_por?: string | null
+          funil_id: string
           id?: string
           nome: string
           ordem: number
@@ -291,6 +293,7 @@ export type Database = {
           cor?: Database["public"]["Enums"]["cor_etapa"]
           created_at?: string
           criado_por?: string | null
+          funil_id?: string
           id?: string
           nome?: string
           ordem?: number
@@ -304,6 +307,13 @@ export type Database = {
             columns: ["criado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etapas_funil_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
             referencedColumns: ["id"]
           },
         ]
@@ -619,6 +629,50 @@ export type Database = {
           },
         ]
       }
+      funis: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number
+          padrao: boolean
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          padrao?: boolean
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          padrao?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funis_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historico_etapas: {
         Row: {
           created_at: string
@@ -776,6 +830,7 @@ export type Database = {
           data_proposta: string | null
           etapa_id: string
           forma_pagamento: Database["public"]["Enums"]["forma_pagamento"] | null
+          funil_id: string
           id: string
           motivo_perda: string | null
           objecao_principal: string | null
@@ -799,6 +854,7 @@ export type Database = {
           forma_pagamento?:
             | Database["public"]["Enums"]["forma_pagamento"]
             | null
+          funil_id: string
           id?: string
           motivo_perda?: string | null
           objecao_principal?: string | null
@@ -822,6 +878,7 @@ export type Database = {
           forma_pagamento?:
             | Database["public"]["Enums"]["forma_pagamento"]
             | null
+          funil_id?: string
           id?: string
           motivo_perda?: string | null
           objecao_principal?: string | null
@@ -855,6 +912,13 @@ export type Database = {
             columns: ["etapa_id"]
             isOneToOne: false
             referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "negociacoes_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
             referencedColumns: ["id"]
           },
           {
@@ -1086,6 +1150,7 @@ export type Database = {
           etapa_id: string | null
           etapa_nome: string | null
           etapa_tipo: Database["public"]["Enums"]["tipo_etapa"] | null
+          funil_id: string | null
           id: string | null
           owner_id: string | null
           posicao: number | null
@@ -1108,6 +1173,13 @@ export type Database = {
             columns: ["etapa_id"]
             isOneToOne: false
             referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "negociacoes_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
             referencedColumns: ["id"]
           },
           {
@@ -1196,6 +1268,26 @@ export type Database = {
         }
         Returns: string
       }
+      criar_funil: {
+        Args: {
+          p_etapa_ganha_cor: Database["public"]["Enums"]["cor_etapa"]
+          p_etapa_ganha_nome: string
+          p_etapa_perdida_cor: Database["public"]["Enums"]["cor_etapa"]
+          p_etapa_perdida_nome: string
+          p_etapas_abertas?: Json
+          p_nome: string
+        }
+        Returns: string
+      }
+      criar_negociacao: {
+        Args: {
+          p_cliente_id: string
+          p_funil_id: string
+          p_temperatura?: Database["public"]["Enums"]["temperatura_negociacao"]
+          p_valor_estimado?: number
+        }
+        Returns: string
+      }
       criar_serie_eventos: {
         Args: {
           p_cliente_id: string
@@ -1253,6 +1345,10 @@ export type Database = {
           valor: number
         }[]
       }
+      duplicar_funil: {
+        Args: { p_funil_id: string; p_novo_nome: string }
+        Returns: string
+      }
       etapa_id_por_chave: { Args: { p_chave: string }; Returns: string }
       etapa_tipo: {
         Args: { p_etapa_id: string }
@@ -1295,7 +1391,7 @@ export type Database = {
         Returns: undefined
       }
       funil_metricas: {
-        Args: { p_fim: string; p_inicio: string }
+        Args: { p_fim: string; p_funil_id: string; p_inicio: string }
         Returns: {
           alcancaram: number
           cor: Database["public"]["Enums"]["cor_etapa"]
@@ -1309,6 +1405,13 @@ export type Database = {
           tempo_medio_segundos: number
           tipo: Database["public"]["Enums"]["tipo_etapa"]
           valor: number
+        }[]
+      }
+      funis_uso: {
+        Args: never
+        Returns: {
+          funil_id: string
+          negociacoes_atuais: number
         }[]
       }
       is_gerente: { Args: never; Returns: boolean }

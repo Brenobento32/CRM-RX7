@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import { DIAS_PARADO, tipoExigeModal } from '@/lib/utils/etapas'
 import type { FechamentoInput, PerdaInput } from '@/lib/validations/funil'
+import type { NovaNegociacaoInput } from '@/lib/validations/funis'
 
 type Enums = Database['public']['Enums']
 
@@ -41,7 +42,7 @@ export type CardFunil = {
  * {@link DIAS_VISIVEIS_ENCERRADOS} dias na etapa — senão essas duas colunas
  * crescem para sempre.
  */
-export async function listarCardsFunil(): Promise<CardFunil[]> {
+export async function listarCardsFunil(funilId: string): Promise<CardFunil[]> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
@@ -51,6 +52,7 @@ export async function listarCardsFunil(): Promise<CardFunil[]> {
   const { data, error } = await supabase
     .from('funil_cards')
     .select('*')
+    .eq('funil_id', funilId)
     .or(`etapa_tipo.eq.aberta,data_entrada_etapa.gte."${corte}"`)
     // `id` desempata: sem ele, cards com a mesma posição trocam de lugar a
     // cada carregamento.
@@ -203,6 +205,39 @@ export async function marcarPerdida(p: PerdaInput): Promise<ResultadoFunil> {
 
   if (error) return traduzirErro(error)
   return data ? { ok: true } : NAO_ENCONTRADA
+}
+
+export type ResultadoCriarNegociacao = { ok: true; id: string } | { ok: false; mensagem: string }
+
+/**
+ * Nova entrada do Kanban: negociação nova pra um cliente já existente
+ * (`criar_negociacao`). Nunca cria cliente; entra na primeira etapa aberta
+ * do funil escolhido; o responsável é sempre o dono do cliente.
+ */
+export async function criarNegociacao(input: NovaNegociacaoInput): Promise<ResultadoCriarNegociacao> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('criar_negociacao', {
+    p_cliente_id: input.cliente_id,
+    p_funil_id: input.funil_id,
+    p_valor_estimado: input.valor_estimado === null ? undefined : Number(input.valor_estimado),
+    p_temperatura: input.temperatura ?? undefined,
+  })
+
+  if (error) return traduzirErroNovaNegociacao(error)
+  return { ok: true, id: data }
+}
+
+function traduzirErroNovaNegociacao(error: PostgrestError): Extract<ResultadoCriarNegociacao, { ok: false }> {
+  if (error.code === 'P0002') return { ok: false, mensagem: error.message }
+  if (error.code === '23514') return { ok: false, mensagem: error.message }
+  if (error.code === '42501') {
+    return { ok: false, mensagem: 'Você não tem permissão para criar uma negociação para esse cliente.' }
+  }
+
+  console.error('Erro ao criar negociação', error)
+  return { ok: false, mensagem: 'Não foi possível criar a negociação. Tente novamente.' }
 }
 
 function traduzirErro(error: PostgrestError): ResultadoFunil {

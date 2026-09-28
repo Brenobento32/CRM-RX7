@@ -21,7 +21,6 @@ export type EstadoFormEtapa = {
 }
 
 const uuid = z.uuid()
-const LISTA = '/configuracoes/etapas'
 
 /** Nome, cor e ordem das etapas aparecem no funil, no dashboard e nas fichas. */
 function revalidar() {
@@ -33,6 +32,7 @@ function comoEstado(r: Extract<ResultadoEtapa, { ok: false }>, valores: EstadoFo
 }
 
 export async function criarEtapaAction(
+  funilId: string,
   _estado: EstadoFormEtapa | undefined,
   formData: FormData,
 ): Promise<EstadoFormEtapa> {
@@ -40,14 +40,15 @@ export async function criarEtapaAction(
   const parsed = criarEtapaSchema.safeParse(valores)
   if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
 
-  const r = await criarEtapa(parsed.data)
+  const r = await criarEtapa(funilId, parsed.data)
   if (!r.ok) return comoEstado(r, valores)
 
   revalidar()
-  redirect(LISTA)
+  redirect(`/configuracoes/funis/${funilId}`)
 }
 
 export async function editarEtapaAction(
+  funilId: string,
   id: string,
   _estado: EstadoFormEtapa | undefined,
   formData: FormData,
@@ -66,30 +67,31 @@ export async function editarEtapaAction(
   if (!r.ok) return comoEstado(r, valores)
 
   revalidar()
-  redirect(LISTA)
+  redirect(`/configuracoes/funis/${funilId}`)
 }
 
 /**
  * Ações da lista (subir, descer, ativar, excluir). Falha volta para a lista
- * com a mensagem na URL, para os botões funcionarem sem JavaScript.
+ * do próprio funil com a mensagem na URL, para os botões funcionarem sem
+ * JavaScript.
  */
-async function concluir(r: ResultadoEtapa) {
+async function concluir(funilId: string, r: ResultadoEtapa) {
   revalidar()
-  if (!r.ok) redirect(`${LISTA}?erro=${encodeURIComponent(r.mensagem)}`)
+  if (!r.ok) redirect(`/configuracoes/funis/${funilId}?erro=${encodeURIComponent(r.mensagem)}`)
 }
 
-export async function moverEtapaAction(id: string, direcao: string): Promise<void> {
+export async function moverEtapaAction(funilId: string, id: string, direcao: string): Promise<void> {
   const d = direcaoSchema.safeParse(direcao)
   if (!uuid.safeParse(id).success || !d.success) return
-  await concluir(await moverEtapa(id, d.data))
+  await concluir(funilId, await moverEtapa(funilId, id, d.data))
 }
 
-export async function definirAtivoEtapaAction(id: string, ativo: boolean): Promise<void> {
+export async function definirAtivoEtapaAction(funilId: string, id: string, ativo: boolean): Promise<void> {
   if (!uuid.safeParse(id).success) return
-  await concluir(await definirAtivoEtapa(id, ativo))
+  await concluir(funilId, await definirAtivoEtapa(id, ativo))
 }
 
-export async function excluirEtapaAction(id: string): Promise<void> {
+export async function excluirEtapaAction(funilId: string, id: string): Promise<void> {
   if (!uuid.safeParse(id).success) return
-  await concluir(await excluirEtapa(id))
+  await concluir(funilId, await excluirEtapa(id))
 }

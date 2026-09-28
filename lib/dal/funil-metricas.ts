@@ -52,13 +52,14 @@ export type MetricasFunil = { resumo: ResumoFunil; etapas: MetricaEtapa[] }
  * A conversão para a próxima etapa segue a ordem de `etapas_funil`: as
  * abertas em sequência e, depois da última aberta, a etapa ganha.
  */
-export async function obterMetricasFunil(periodo: Periodo): Promise<MetricasFunil> {
+export async function obterMetricasFunil(periodo: Periodo, funilId: string): Promise<MetricasFunil> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data, error } = await supabase.rpc('funil_metricas', {
     p_inicio: periodo.inicio,
     p_fim: periodo.fim,
+    p_funil_id: funilId,
   })
   if (error) throw new Error('Não foi possível carregar as métricas do funil.', { cause: error })
 

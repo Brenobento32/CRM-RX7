@@ -1,11 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 
+import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMetricasFunil } from '@/lib/dal/funil-metricas'
+import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { chavePeriodo, resolverPeriodo } from '@/lib/utils/periodo'
+import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
 
 import { SeletorPeriodo } from '../../_components/dashboard/seletor-periodo'
+import { SeletorFunil } from '../_components/seletor-funil'
 import { MetricasFunilPainel } from '../_components/metricas-funil'
 
 export const metadata: Metadata = {
@@ -13,10 +18,13 @@ export const metadata: Metadata = {
 }
 
 export default async function MetricasFunilPage({ searchParams }: PageProps<'/funil/metricas'>) {
-  const usuario = await getUsuarioAtual()
-  const { periodo: param } = await searchParams
+  const [usuario, cookieStore] = await Promise.all([getUsuarioAtual(), cookies()])
+  const { periodo: param, funil: funilParam } = await searchParams
   const periodo = resolverPeriodo(chavePeriodo(param))
-  const metricas = await obterMetricasFunil(periodo)
+
+  const funilSelecionado = await resolverFunilSelecionado(funilParam, cookieStore.get(COOKIE_FUNIL)?.value)
+  const funis = await listarFunis()
+  const metricas = await obterMetricasFunil(periodo, funilSelecionado.id)
 
   return (
     <div className="space-y-6">
@@ -31,7 +39,15 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
             tempo por etapa e cards parados.
           </p>
         </div>
-        <SeletorPeriodo atual={periodo.chave} caminho="/funil/metricas" />
+        <div className="flex flex-wrap items-center gap-3">
+          <SeletorFunil funis={funis} funilId={funilSelecionado.id} />
+          {usuario.role === 'gerente' && (
+            <Link href={`/configuracoes/funis/${funilSelecionado.id}`} className={botaoSecundarioClass}>
+              Configurar funil
+            </Link>
+          )}
+          <SeletorPeriodo atual={periodo.chave} caminho="/funil/metricas" />
+        </div>
       </div>
 
       <MetricasFunilPainel metricas={metricas} />
