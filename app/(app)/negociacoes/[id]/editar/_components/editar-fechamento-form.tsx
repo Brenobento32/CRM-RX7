@@ -8,7 +8,6 @@ import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
 import type { EstadoFormFechamento } from '@/lib/actions/negociacoes'
 import type { FechamentoEdicao } from '@/lib/dal/negociacoes'
 import type { Servico } from '@/lib/dal/servicos'
-import { ordenarServicos } from '@/lib/dal/servicos'
 import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import {
   ROTULO_STATUS_ONBOARDING,
@@ -177,7 +176,7 @@ export function EditarFechamentoForm({
           <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
-            {ordenarServicos(servicos).map((s) => (
+            {servicos.map((s) => (
               <label
                 key={s.id}
                 className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-50 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-900"
