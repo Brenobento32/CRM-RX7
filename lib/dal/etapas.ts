@@ -107,18 +107,15 @@ export async function obterEtapa(id: string): Promise<Etapa | null> {
 export type ResultadoEtapa = { ok: true } | { ok: false; mensagem: string; campo?: 'nome' | 'cor' }
 
 /**
- * Limite de posição das etapas abertas de um funil: antes da etapa de chave
- * `'negociacao'` quando ela existe (só o Funil Principal tem — mesmo
- * comportamento de sempre); nos demais funis, antes das etapas de
- * fechamento (ganha/perdida) do próprio funil. Mesma regra de
- * `etapas_funil_regras()` no banco — se um dia divergir, vale o banco.
- * Exportada porque a tela de configuração usa a mesma conta pra saber quais
- * etapas podem subir/descer.
+ * Limite de posição das etapas abertas de um funil: antes das etapas de
+ * fechamento (ganha/perdida) do próprio funil — todas as abertas, inclusive
+ * as de sistema como Negociação, podem trocar de posição livremente entre
+ * si e ocupar a última posição aberta, logo antes do fechamento. Mesma
+ * regra de `etapas_funil_regras()` no banco — se um dia divergir, vale o
+ * banco. Exportada porque a tela de configuração usa a mesma conta pra saber
+ * quais etapas podem subir/descer.
  */
 export function limiteDeOrdem(etapas: Etapa[]): number {
-  const negociacao = etapas.find((e) => e.chave === 'negociacao')
-  if (negociacao) return negociacao.ordem
-
   const fechamento = etapas.filter((e) => e.tipo === 'ganha' || e.tipo === 'perdida')
   if (fechamento.length === 0) {
     throw new Error('Funil sem etapa de fechamento (ganha/perdida) — configuração inconsistente.')
