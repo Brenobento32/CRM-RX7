@@ -141,6 +141,7 @@ export async function criarEtapa(funilId: string, input: CriarEtapaInput): Promi
     .from('etapas_funil')
     .select(COLUNAS)
     .eq('funil_id', funilId)
+    .order('ordem')
   if (erroLista) return traduzirErro(erroLista)
 
   const { limite, lista } = abertasAntesDoFechamento(todas.map(paraEtapa))
