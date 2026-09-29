@@ -184,14 +184,29 @@ export async function fecharNegociacao(f: FechamentoInput): Promise<ResultadoFun
   return { ok: true }
 }
 
-/** Um único UPDATE; o trigger do banco exige o motivo junto com a etapa perdida. */
+/**
+ * Um único UPDATE; o trigger do banco exige o motivo junto com a etapa
+ * perdida. A etapa "perdida" é buscada no MESMO funil da negociação — cada
+ * funil tem a sua própria (`etapas_funil_tipo_final_unico` garante uma só
+ * por funil); sem esse filtro, `.single()` encontra mais de uma linha assim
+ * que existe mais de um funil no sistema, e a chamada falha.
+ */
 export async function marcarPerdida(p: PerdaInput): Promise<ResultadoFunil> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
+  const { data: negociacao, error: erroNegociacao } = await supabase
+    .from('negociacoes')
+    .select('funil_id')
+    .eq('id', p.negociacao_id)
+    .maybeSingle()
+  if (erroNegociacao) return traduzirErro(erroNegociacao)
+  if (!negociacao) return NAO_ENCONTRADA
+
   const { data: perdida, error: erroEtapa } = await supabase
     .from('etapas_funil')
     .select('id')
+    .eq('funil_id', negociacao.funil_id)
     .eq('tipo', 'perdida')
     .single()
   if (erroEtapa) return traduzirErro(erroEtapa)
