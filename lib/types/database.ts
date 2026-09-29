@@ -269,6 +269,7 @@ export type Database = {
           id: string
           nome: string
           ordem: number
+          pos_fechamento: boolean
           sistema: boolean
           tipo: Database["public"]["Enums"]["tipo_etapa"]
           updated_at: string
@@ -283,6 +284,7 @@ export type Database = {
           id?: string
           nome: string
           ordem: number
+          pos_fechamento?: boolean
           sistema?: boolean
           tipo?: Database["public"]["Enums"]["tipo_etapa"]
           updated_at?: string
@@ -297,6 +299,7 @@ export type Database = {
           id?: string
           nome?: string
           ordem?: number
+          pos_fechamento?: boolean
           sistema?: boolean
           tipo?: Database["public"]["Enums"]["tipo_etapa"]
           updated_at?: string
@@ -1326,6 +1329,8 @@ export type Database = {
         Returns: {
           abertas: number
           atividades: number
+          em_recuperacao_qtd: number
+          em_recuperacao_valor: number
           ganhos: number
           nome: string
           perdidos: number

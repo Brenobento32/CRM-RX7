@@ -13,6 +13,7 @@ export function TabelaPerformance({ pessoas }: { pessoas: PerformanceUsuario[] }
     'Vendido',
     'Ganhos',
     'Perdidos',
+    'Em recuperação',
     'Conversão',
     'Reuniões feitas',
     'Próx. reuniões',
@@ -46,6 +47,16 @@ export function TabelaPerformance({ pessoas }: { pessoas: PerformanceUsuario[] }
               </td>
               <td className="px-4 py-3 text-right">{p.ganhos}</td>
               <td className="px-4 py-3 text-right">{p.perdidos}</td>
+              <td className="px-4 py-3 text-right whitespace-nowrap">
+                {p.emRecuperacaoQtd > 0 ? (
+                  <>
+                    {p.emRecuperacaoQtd}{' '}
+                    <span className="text-xs text-zinc-500">({formatarMoeda(p.emRecuperacaoValor)})</span>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </td>
               <td className="px-4 py-3 text-right">
                 {p.conversao === null ? '—' : formatarPercentual(p.conversao)}
               </td>

@@ -10,7 +10,18 @@ const nome = z
 
 const cor = z.enum(CORES_ETAPA, 'Escolha uma cor da paleta.')
 
-export const criarEtapaSchema = z.object({ nome, cor })
+/**
+ * Zona da etapa nova. "Fluxo comercial" (padrão) entra antes do fechamento;
+ * "Recuperação pós-perda" entra depois — sem conversão entre zonas nesta fase.
+ */
+export const criarEtapaSchema = z.object({
+  nome,
+  cor,
+  posFechamento: z
+    .enum(['pipeline', 'recuperacao'])
+    .default('pipeline')
+    .transform((v) => v === 'recuperacao'),
+})
 
 /** Em etapa de sistema o nome é ignorado no servidor (só a cor muda). */
 export const editarEtapaSchema = z.object({

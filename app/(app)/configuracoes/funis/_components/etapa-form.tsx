@@ -10,17 +10,26 @@ import type { EstadoFormEtapa } from '@/lib/actions/etapas'
 
 type Props = {
   action: (estado: EstadoFormEtapa | undefined, formData: FormData) => Promise<EstadoFormEtapa>
-  valoresIniciais: { nome?: string; cor?: string }
+  valoresIniciais: { nome?: string; cor?: string; posFechamento?: string }
   /** Etapa de sistema: o nome aparece, mas não é editável. */
   nomeTravado?: boolean
+  /** Só na criação: zona não pode ser trocada depois nesta fase. */
+  mostrarZona?: boolean
   rotuloEnviar: string
   cancelarHref: string
 }
 
-export function EtapaForm({ action, valoresIniciais, nomeTravado = false, rotuloEnviar, cancelarHref }: Props) {
+export function EtapaForm({
+  action,
+  valoresIniciais,
+  nomeTravado = false,
+  mostrarZona = false,
+  rotuloEnviar,
+  cancelarHref,
+}: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores ?? valoresIniciais
-  const erro = (campo: 'nome' | 'cor') => estado?.campos?.[campo]?.[0]
+  const erro = (campo: 'nome' | 'cor' | 'posFechamento') => estado?.campos?.[campo]?.[0]
 
   return (
     <form action={formAction} noValidate className="space-y-6">
@@ -57,6 +66,43 @@ export function EtapaForm({ action, valoresIniciais, nomeTravado = false, rotulo
       </div>
 
       <SeletorCor name="cor" legenda="Cor" valorInicial={valores.cor} erro={erro('cor')} />
+
+      {mostrarZona && (
+        <fieldset className="max-w-sm">
+          <legend className="mb-1.5 block text-sm font-medium">Zona</legend>
+          <div className="space-y-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="posFechamento"
+                value="pipeline"
+                defaultChecked={(valores.posFechamento ?? 'pipeline') === 'pipeline'}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-medium">Fluxo comercial</span>
+                <span className="block text-xs text-zinc-500">Entra antes de Fechado/Perdido.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="posFechamento"
+                value="recuperacao"
+                defaultChecked={valores.posFechamento === 'recuperacao'}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-medium">Recuperação pós-perda</span>
+                <span className="block text-xs text-zinc-500">
+                  Entra depois de Fechado/Perdido, num fluxo à parte — não conta no funil comercial normal.
+                </span>
+              </span>
+            </label>
+          </div>
+          <ErroCampo mensagem={erro('posFechamento')} />
+        </fieldset>
+      )}
 
       <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>

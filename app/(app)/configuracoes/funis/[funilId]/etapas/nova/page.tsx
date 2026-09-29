@@ -26,13 +26,14 @@ export default async function NovaEtapaPage({ params }: PageProps<'/configuracoe
       <div>
         <h1 className="text-2xl font-semibold">Nova etapa em &ldquo;{funil.nome}&rdquo;</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Entra logo antes do fechamento do funil. Depois é possível mudar a posição na lista de etapas.
+          Etapas comerciais ficam antes do fechamento. Etapas de recuperação ficam depois de Fechado/Perdido.
         </p>
       </div>
 
       <EtapaForm
         action={criarEtapaAction.bind(null, funilId)}
-        valoresIniciais={{ cor: 'ciano' }}
+        valoresIniciais={{ cor: 'ciano', posFechamento: 'pipeline' }}
+        mostrarZona
         rotuloEnviar="Criar etapa"
         cancelarHref={`/configuracoes/funis/${funilId}`}
       />

@@ -14,6 +14,8 @@ export type Etapa = EtapaKanban & {
   sistema: boolean
   chave: string | null
   ativo: boolean
+  /** true = zona de recuperação (depois de ganha/perdida). false = fluxo comercial normal. */
+  posFechamento: boolean
 }
 
 export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean }
@@ -21,7 +23,7 @@ export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean 
 /** Distância padrão entre etapas quando não há vizinho de um dos lados. */
 const PASSO = 1000
 
-const COLUNAS = 'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo'
+const COLUNAS = 'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento'
 
 function paraEtapa(e: {
   id: string
@@ -33,6 +35,7 @@ function paraEtapa(e: {
   sistema: boolean
   chave: string | null
   ativo: boolean
+  pos_fechamento: boolean
 }): Etapa {
   return {
     id: e.id,
@@ -44,6 +47,7 @@ function paraEtapa(e: {
     sistema: e.sistema,
     chave: e.chave,
     ativo: e.ativo,
+    posFechamento: e.pos_fechamento,
   }
 }
 
@@ -107,15 +111,13 @@ export async function obterEtapa(id: string): Promise<Etapa | null> {
 export type ResultadoEtapa = { ok: true } | { ok: false; mensagem: string; campo?: 'nome' | 'cor' }
 
 /**
- * Limite de posição das etapas abertas de um funil: antes das etapas de
- * fechamento (ganha/perdida) do próprio funil — todas as abertas, inclusive
- * as de sistema como Negociação, podem trocar de posição livremente entre
- * si e ocupar a última posição aberta, logo antes do fechamento. Mesma
- * regra de `etapas_funil_regras()` no banco — se um dia divergir, vale o
- * banco. Exportada porque a tela de configuração usa a mesma conta pra saber
- * quais etapas podem subir/descer.
+ * Fronteira da zona normal (pipeline): a menor `ordem` entre ganha/perdida do
+ * funil. Toda aberta normal (`posFechamento = false`) fica antes dela.
+ * Mesma regra de `etapas_funil_regras()` no banco — se um dia divergir, vale
+ * o banco. Exportada porque a tela de configuração usa a mesma conta pra
+ * saber quais etapas podem subir/descer.
  */
-export function limiteDeOrdem(etapas: Etapa[]): number {
+export function limiteDeOrdemPipeline(etapas: Etapa[]): number {
   const fechamento = etapas.filter((e) => e.tipo === 'ganha' || e.tipo === 'perdida')
   if (fechamento.length === 0) {
     throw new Error('Funil sem etapa de fechamento (ganha/perdida) — configuração inconsistente.')
@@ -123,13 +125,42 @@ export function limiteDeOrdem(etapas: Etapa[]): number {
   return Math.min(...fechamento.map((e) => e.ordem))
 }
 
-/** As abertas que podem trocar de lugar com uma personalizada, no funil. */
-function abertasAntesDoFechamento(etapas: Etapa[]) {
-  const limite = limiteDeOrdem(etapas)
-  return { limite, lista: etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.ordem < limite) }
+/**
+ * Fronteira da zona de recuperação: a maior `ordem` entre ganha/perdida do
+ * funil. Toda aberta de recuperação (`posFechamento = true`) fica depois
+ * dela — simétrica a {@link limiteDeOrdemPipeline}.
+ */
+export function limiteDeOrdemRecuperacao(etapas: Etapa[]): number {
+  const fechamento = etapas.filter((e) => e.tipo === 'ganha' || e.tipo === 'perdida')
+  if (fechamento.length === 0) {
+    throw new Error('Funil sem etapa de fechamento (ganha/perdida) — configuração inconsistente.')
+  }
+  return Math.max(...fechamento.map((e) => e.ordem))
 }
 
-/** Nova personalizada entra logo antes do fechamento do funil. */
+/**
+ * As abertas de cada zona que podem trocar de lugar entre si — uma normal
+ * nunca troca de lugar com uma de recuperação, e vice-versa.
+ */
+function abertasPorZona(etapas: Etapa[]) {
+  const limitePipeline = limiteDeOrdemPipeline(etapas)
+  const limiteRecuperacao = limiteDeOrdemRecuperacao(etapas)
+  return {
+    pipeline: {
+      limite: limitePipeline,
+      lista: etapas.filter((e) => e.ativo && e.tipo === 'aberta' && !e.posFechamento && e.ordem < limitePipeline),
+    },
+    recuperacao: {
+      limite: limiteRecuperacao,
+      lista: etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.posFechamento && e.ordem > limiteRecuperacao),
+    },
+  }
+}
+
+/**
+ * Nova personalizada entra na zona escolhida: logo antes do fechamento
+ * (pipeline) ou logo depois dele (recuperação) — última posição da zona.
+ */
 export async function criarEtapa(funilId: string, input: CriarEtapaInput): Promise<ResultadoEtapa> {
   await exigirGerente()
   const supabase = await createClient()
@@ -141,13 +172,23 @@ export async function criarEtapa(funilId: string, input: CriarEtapaInput): Promi
     .order('ordem')
   if (erroLista) return traduzirErro(erroLista)
 
-  const { limite, lista } = abertasAntesDoFechamento(todas.map(paraEtapa))
-  const ultima = lista.at(-1)
-  const ordem = ultima ? (ultima.ordem + limite) / 2 : limite - PASSO
+  const { pipeline, recuperacao } = abertasPorZona(todas.map(paraEtapa))
+  const zona = input.posFechamento ? recuperacao : pipeline
+  const ultima = zona.lista.at(-1)
+  const ordem = ultima
+    ? (ultima.ordem + zona.limite) / 2
+    : input.posFechamento
+      ? zona.limite + PASSO
+      : zona.limite - PASSO
 
-  const { error } = await supabase
-    .from('etapas_funil')
-    .insert({ funil_id: funilId, nome: input.nome, cor: input.cor, ordem, tipo: 'aberta' })
+  const { error } = await supabase.from('etapas_funil').insert({
+    funil_id: funilId,
+    nome: input.nome,
+    cor: input.cor,
+    ordem,
+    tipo: 'aberta',
+    pos_fechamento: input.posFechamento,
+  })
 
   return error ? traduzirErro(error) : { ok: true }
 }
@@ -166,9 +207,10 @@ export async function editarEtapa(id: string, input: EditarEtapaInput): Promise<
 }
 
 /**
- * Sobe ou desce uma personalizada uma posição entre as abertas do funil,
- * antes do fechamento. Grava só a etapa movida: a nova ordem é o ponto médio
- * entre os vizinhos do lugar de destino.
+ * Sobe ou desce uma personalizada uma posição entre as abertas da MESMA
+ * zona do funil (pipeline ou recuperação — nunca cruza de uma pra outra).
+ * Grava só a etapa movida: a nova ordem é o ponto médio entre os vizinhos
+ * do lugar de destino.
  */
 export async function moverEtapa(funilId: string, id: string, direcao: Direcao): Promise<ResultadoEtapa> {
   await exigirGerente()
@@ -181,24 +223,46 @@ export async function moverEtapa(funilId: string, id: string, direcao: Direcao):
   if (erroLista) return traduzirErro(erroLista)
 
   const etapas = todas.map(paraEtapa).sort((a, b) => a.ordem - b.ordem)
-  const { limite, lista } = abertasAntesDoFechamento(etapas)
-  const i = lista.findIndex((e) => e.id === id)
-  const etapa = lista[i]
-
-  if (!etapa || etapa.sistema) {
+  const alvo = etapas.find((e) => e.id === id)
+  if (!alvo || alvo.sistema) {
     return { ok: false, mensagem: 'Só etapas personalizadas ativas mudam de posição.' }
   }
 
+  const { pipeline, recuperacao } = abertasPorZona(etapas)
+  const { limite, lista } = alvo.posFechamento ? recuperacao : pipeline
+  const i = lista.findIndex((e) => e.id === id)
+  const etapa = lista[i]
+
+  if (!etapa) {
+    return { ok: false, mensagem: 'Só etapas personalizadas ativas mudam de posição.' }
+  }
+
+  // Nas duas zonas a lista está em ordem crescente de `ordem`. Na zona normal
+  // o limite (fechamento) fica DEPOIS do último item — só "descer" precisa
+  // dele. Na zona de recuperação o limite fica ANTES do primeiro item — só
+  // "subir" precisa dele; o lado sem limite usa um passo livre qualquer.
   let ordem: number
   if (direcao === 'cima') {
-    if (i === 0) return { ok: false, mensagem: 'A etapa já é a primeira do funil.' }
-    const antesDoVizinho = lista[i - 2]?.ordem ?? lista[i - 1].ordem - 2 * PASSO
+    if (i === 0) {
+      return {
+        ok: false,
+        mensagem: alvo.posFechamento
+          ? 'Etapa de recuperação já é a primeira depois do fechamento.'
+          : 'A etapa já é a primeira do funil.',
+      }
+    }
+    const antesDoVizinho = lista[i - 2]?.ordem ?? (alvo.posFechamento ? limite : lista[i - 1].ordem - 2 * PASSO)
     ordem = (antesDoVizinho + lista[i - 1].ordem) / 2
   } else {
     if (i === lista.length - 1) {
-      return { ok: false, mensagem: 'Etapas abertas ficam antes do fechamento do funil.' }
+      return {
+        ok: false,
+        mensagem: alvo.posFechamento
+          ? 'Etapa de recuperação já é a última do funil.'
+          : 'Etapas abertas ficam antes do fechamento do funil.',
+      }
     }
-    const depoisDoVizinho = lista[i + 2]?.ordem ?? limite
+    const depoisDoVizinho = lista[i + 2]?.ordem ?? (alvo.posFechamento ? lista[i + 1].ordem + 2 * PASSO : limite)
     ordem = (lista[i + 1].ordem + depoisDoVizinho) / 2
   }
 

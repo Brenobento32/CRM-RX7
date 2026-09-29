@@ -16,8 +16,8 @@ import { criarEtapaSchema, direcaoSchema, editarEtapaSchema } from '@/lib/valida
 
 export type EstadoFormEtapa = {
   erro?: string
-  campos?: { nome?: string[]; cor?: string[] }
-  valores?: { nome?: string; cor?: string }
+  campos?: { nome?: string[]; cor?: string[]; posFechamento?: string[] }
+  valores?: { nome?: string; cor?: string; posFechamento?: string }
 }
 
 const uuid = z.uuid()
@@ -36,7 +36,11 @@ export async function criarEtapaAction(
   _estado: EstadoFormEtapa | undefined,
   formData: FormData,
 ): Promise<EstadoFormEtapa> {
-  const valores = { nome: String(formData.get('nome') ?? ''), cor: String(formData.get('cor') ?? '') }
+  const valores = {
+    nome: String(formData.get('nome') ?? ''),
+    cor: String(formData.get('cor') ?? ''),
+    posFechamento: String(formData.get('posFechamento') ?? 'pipeline'),
+  }
   const parsed = criarEtapaSchema.safeParse(valores)
   if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
 

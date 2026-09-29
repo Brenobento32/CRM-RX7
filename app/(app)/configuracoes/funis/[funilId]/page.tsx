@@ -7,7 +7,7 @@ import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
 import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
 import { definirAtivoFunilAction, excluirFunilAction } from '@/lib/actions/funis'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { limiteDeOrdem, listarEtapasComUso } from '@/lib/dal/etapas'
+import { limiteDeOrdemPipeline, limiteDeOrdemRecuperacao, listarEtapasComUso } from '@/lib/dal/etapas'
 import { listarFunisComUso, obterFunil } from '@/lib/dal/funis'
 
 import { DuplicarFunilForm } from '../_components/duplicar-funil-form'
@@ -38,8 +38,10 @@ export default async function FunilConfigPage({
   if (!funil) notFound()
 
   const negociacoesAtuais = funis.find((f) => f.id === funilId)?.negociacoesAtuais ?? 0
-  const limite = limiteDeOrdem(etapas)
-  const faixa = etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.ordem < limite)
+  const limitePipeline = limiteDeOrdemPipeline(etapas)
+  const limiteRecuperacao = limiteDeOrdemRecuperacao(etapas)
+  const faixaPipeline = etapas.filter((e) => e.ativo && e.tipo === 'aberta' && !e.posFechamento && e.ordem < limitePipeline)
+  const faixaRecuperacao = etapas.filter((e) => e.ativo && e.tipo === 'aberta' && e.posFechamento && e.ordem > limiteRecuperacao)
   const ativas = etapas.filter((e) => e.ativo)
   const inativas = etapas.filter((e) => !e.ativo)
 
@@ -79,9 +81,15 @@ export default async function FunilConfigPage({
           </Link>
         </div>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Na ordem das colunas do Kanban. Etapas abertas ficam sempre antes do fechamento (ganha/perdida).
+          Na ordem das colunas do Kanban. Etapas de fluxo comercial ficam antes do fechamento
+          (ganha/perdida); etapas de recuperação pós-perda ficam depois.
         </p>
-        <TabelaEtapas funilId={funilId} etapas={ativas} faixa={faixa} />
+        <TabelaEtapas
+          funilId={funilId}
+          etapas={ativas}
+          faixaPipeline={faixaPipeline}
+          faixaRecuperacao={faixaRecuperacao}
+        />
 
         {inativas.length > 0 && (
           <div className="space-y-3">
@@ -89,7 +97,12 @@ export default async function FunilConfigPage({
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               Fora do Kanban, mas mantidas no histórico das negociações que passaram por elas.
             </p>
-            <TabelaEtapas funilId={funilId} etapas={inativas} faixa={faixa} />
+            <TabelaEtapas
+              funilId={funilId}
+              etapas={inativas}
+              faixaPipeline={faixaPipeline}
+              faixaRecuperacao={faixaRecuperacao}
+            />
           </div>
         )}
       </section>

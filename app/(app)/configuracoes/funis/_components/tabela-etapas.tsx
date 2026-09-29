@@ -14,18 +14,21 @@ const botaoIcone =
   'rounded-md border border-zinc-300 px-2 py-1 text-xs transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800'
 
 /**
- * Lista de etapas de um funil. `faixa` são as abertas ativas que podem
- * mudar de posição (antes do fechamento do funil) — quem calcula isso é a
- * página, que já sabe onde fica esse limite.
+ * Lista de etapas de um funil. `faixaPipeline`/`faixaRecuperacao` são as
+ * abertas ativas de cada zona que podem trocar de posição entre si (antes ou
+ * depois do fechamento do funil) — quem calcula isso é a página, que já sabe
+ * onde ficam os dois limites.
  */
 export function TabelaEtapas({
   funilId,
   etapas,
-  faixa,
+  faixaPipeline,
+  faixaRecuperacao,
 }: {
   funilId: string
   etapas: EtapaComUso[]
-  faixa: EtapaComUso[]
+  faixaPipeline: EtapaComUso[]
+  faixaRecuperacao: EtapaComUso[]
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
@@ -41,8 +44,13 @@ export function TabelaEtapas({
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {etapas.map((e) => {
+            const faixa = e.posFechamento ? faixaRecuperacao : faixaPipeline
             const i = faixa.findIndex((f) => f.id === e.id)
             const podeMover = !e.sistema && e.ativo && i >= 0
+            const tituloDescer = e.posFechamento
+              ? 'Etapa de recuperação já é a última do funil'
+              : 'Etapas de fluxo comercial ficam antes do fechamento'
+            const tituloSubir = e.posFechamento ? 'Etapa de recuperação já é a primeira depois do fechamento' : undefined
             return (
               <tr key={e.id} className={e.ativo ? undefined : 'text-zinc-400'}>
                 <td className="px-4 py-3">
@@ -52,6 +60,11 @@ export function TabelaEtapas({
                     {e.sistema && (
                       <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-normal text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                         padrão
+                      </span>
+                    )}
+                    {e.posFechamento && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                        recuperação
                       </span>
                     )}
                   </span>
@@ -66,6 +79,7 @@ export function TabelaEtapas({
                           type="submit"
                           disabled={i === 0}
                           aria-label={`Subir ${e.nome}`}
+                          title={i === 0 ? tituloSubir : undefined}
                           className={botaoIcone}
                         >
                           ↑
@@ -76,7 +90,7 @@ export function TabelaEtapas({
                           type="submit"
                           disabled={i === faixa.length - 1}
                           aria-label={`Descer ${e.nome}`}
-                          title={i === faixa.length - 1 ? 'Etapas abertas ficam antes do fechamento do funil' : undefined}
+                          title={i === faixa.length - 1 ? tituloDescer : undefined}
                           className={botaoIcone}
                         >
                           ↓

@@ -30,6 +30,12 @@ export type PerformanceUsuario = Kpis & {
   role: Enums['user_role']
   reunioesRealizadas: number
   atividades: number
+  /**
+   * Visão separada da zona de recuperação (etapas `pos_fechamento`) — nunca
+   * somada a `pipelineValor`/`abertas`, que são só o fluxo comercial normal.
+   */
+  emRecuperacaoQtd: number
+  emRecuperacaoValor: number
 }
 
 export type EtapaResumo = {
@@ -132,6 +138,8 @@ export async function obterDashboard(periodo: Periodo): Promise<Dashboard> {
     vendidoValor: Number(p.vendido_valor),
     ganhos: Number(p.ganhos),
     perdidos: Number(p.perdidos),
+    emRecuperacaoQtd: Number(p.em_recuperacao_qtd),
+    emRecuperacaoValor: Number(p.em_recuperacao_valor),
     reunioesProximas: Number(p.reunioes_proximas),
     reunioesRealizadas: Number(p.reunioes_realizadas),
     atividades: Number(p.atividades),
