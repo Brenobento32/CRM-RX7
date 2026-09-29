@@ -44,8 +44,8 @@ export async function fecharNegociacaoAction(
   _estado: EstadoModalFunil | undefined,
   formData: FormData,
 ): Promise<EstadoModalFunil> {
-  const parsed = fechamentoSchema.safeParse(
-    lerCampos(formData, [
+  const parsed = fechamentoSchema.safeParse({
+    ...lerCampos(formData, [
       'negociacao_id',
       'posicao',
       'valor_vendido',
@@ -55,8 +55,10 @@ export async function fecharNegociacaoAction(
       'link_contrato',
       'status_pagamento',
       'status_onboarding',
+      'observacoes',
     ]),
-  )
+    servico_ids: formData.getAll('servico_ids').map(String),
+  })
 
   if (!parsed.success) {
     return { campos: z.flattenError(parsed.error).fieldErrors }

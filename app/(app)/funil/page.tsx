@@ -7,6 +7,7 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarEtapas } from '@/lib/dal/etapas'
 import { DIAS_VISIVEIS_ENCERRADOS, listarCardsFunil } from '@/lib/dal/funil'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
+import { listarServicosAtivos } from '@/lib/dal/servicos'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
 
 import { BarraFunil } from './_components/barra-funil'
@@ -24,9 +25,10 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
   const funilSelecionado = await resolverFunilSelecionado(funilParam, cookieStore.get(COOKIE_FUNIL)?.value)
   const funis = await listarFunis()
 
-  const [cards, etapas] = await Promise.all([
+  const [cards, etapas, servicos] = await Promise.all([
     listarCardsFunil(funilSelecionado.id),
     listarEtapas(funilSelecionado.id),
+    listarServicosAtivos(),
   ])
 
   const responsaveis = [...new Set(cards.flatMap((c) => (c.responsavel ? [c.responsavel] : [])))].sort(
@@ -63,6 +65,7 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
       <Kanban
         cards={cardsFiltrados}
         etapas={etapas.map(({ id, nome, cor, tipo }) => ({ id, nome, cor, tipo }))}
+        servicos={servicos}
       />
     </div>
   )

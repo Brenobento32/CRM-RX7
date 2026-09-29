@@ -14,6 +14,19 @@ import type {
   Temperatura,
 } from '@/lib/validations/negociacao'
 
+type Enums = Database['public']['Enums']
+
+export type FechamentoEdicao = {
+  valorVendido: number
+  dataFechamento: string
+  contratoEnviado: boolean
+  contratoAssinado: boolean
+  linkContrato: string | null
+  statusPagamento: Enums['status_pagamento']
+  statusOnboarding: Enums['status_onboarding']
+  observacoes: string | null
+}
+
 export type NegociacaoEdicao = {
   id: string
   clienteId: string
@@ -28,6 +41,8 @@ export type NegociacaoEdicao = {
   formaPagamento: FormaPagamento | null
   /** Vinculados, inclusive os desativados depois do vínculo. */
   servicos: Servico[]
+  /** Só não nulo quando `etapa.tipo === 'ganha'`. */
+  fechamento: FechamentoEdicao | null
 }
 
 /**
@@ -46,7 +61,9 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
        objecao_principal, valor_proposta, forma_pagamento,
        etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
        cliente:clientes!negociacoes_cliente_id_fkey(nome, deleted_at),
-       vinculos:negociacao_servicos(servico:servicos(id, nome, categoria, ativo))`,
+       vinculos:negociacao_servicos(servico:servicos(id, nome, categoria, ativo)),
+       fechamento:fechamentos(valor_vendido, data_fechamento, contrato_enviado, contrato_assinado,
+         link_contrato, status_pagamento, status_onboarding, observacoes)`,
     )
     .eq('id', id)
     .maybeSingle()
@@ -67,6 +84,18 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
     valorProposta: data.valor_proposta === null ? null : Number(data.valor_proposta),
     formaPagamento: data.forma_pagamento,
     servicos: data.vinculos.flatMap((v) => (v.servico ? [v.servico] : [])),
+    fechamento: data.fechamento
+      ? {
+          valorVendido: Number(data.fechamento.valor_vendido),
+          dataFechamento: data.fechamento.data_fechamento,
+          contratoEnviado: data.fechamento.contrato_enviado,
+          contratoAssinado: data.fechamento.contrato_assinado,
+          linkContrato: data.fechamento.link_contrato,
+          statusPagamento: data.fechamento.status_pagamento,
+          statusOnboarding: data.fechamento.status_onboarding,
+          observacoes: data.fechamento.observacoes,
+        }
+      : null,
   }
 }
 

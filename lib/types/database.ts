@@ -561,6 +561,7 @@ export type Database = {
           fechado_por: string
           link_contrato: string | null
           negociacao_id: string
+          observacoes: string | null
           responsavel_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
@@ -578,6 +579,7 @@ export type Database = {
           fechado_por?: string
           link_contrato?: string | null
           negociacao_id: string
+          observacoes?: string | null
           responsavel_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
@@ -595,6 +597,7 @@ export type Database = {
           fechado_por?: string
           link_contrato?: string | null
           negociacao_id?: string
+          observacoes?: string | null
           responsavel_id?: string
           status_onboarding?: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento?: Database["public"]["Enums"]["status_pagamento"]
@@ -1160,6 +1163,7 @@ export type Database = {
           proxima_acao_data: string | null
           proxima_acao_titulo: string | null
           responsavel_nome: string | null
+          servico_ids: string[] | null
           temperatura:
             | Database["public"]["Enums"]["temperatura_negociacao"]
             | null
@@ -1169,6 +1173,7 @@ export type Database = {
             | Database["public"]["Enums"]["tipo_atividade"]
             | null
           valor_estimado: number | null
+          valor_vendido: number | null
         }
         Relationships: [
           {
@@ -1246,6 +1251,21 @@ export type Database = {
         Args: {
           p_evento_id: string
           p_status: Database["public"]["Enums"]["status_evento"]
+        }
+        Returns: undefined
+      }
+      atualizar_fechamento: {
+        Args: {
+          p_contrato_assinado: boolean
+          p_contrato_enviado: boolean
+          p_data_fechamento: string
+          p_link_contrato?: string
+          p_negociacao_id: string
+          p_observacoes?: string
+          p_servico_ids?: string[]
+          p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
+          p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          p_valor_vendido: number
         }
         Returns: undefined
       }
@@ -1388,7 +1408,9 @@ export type Database = {
           p_data_fechamento: string
           p_link_contrato?: string
           p_negociacao_id: string
+          p_observacoes?: string
           p_posicao: number
+          p_servico_ids?: string[]
           p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
           p_valor_vendido: number

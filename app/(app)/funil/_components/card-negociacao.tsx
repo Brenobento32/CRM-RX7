@@ -18,6 +18,17 @@ const COR_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> = {
   frio: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
 }
 
+/**
+ * O card inteiro escuta ponteiro e teclado do dnd-kit (mesmo motivo do botão
+ * "Mover para" em menu-mover.tsx): sem isso, um clique no lápis também
+ * tentaria iniciar um arraste, e Enter com o link focado dispararia um
+ * arraste por teclado.
+ */
+const pararArraste = {
+  onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+  onKeyDown: (e: React.KeyboardEvent) => e.stopPropagation(),
+}
+
 export function CardArrastavel({
   card,
   etapas,
@@ -71,19 +82,32 @@ export function CardConteudo({
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-1.5">
           <Link
-            href={`/clientes/${card.clienteId}`}
-            className="block truncate font-medium hover:underline"
-            title={card.clienteNome}
+            href={`/negociacoes/${card.id}/editar`}
+            aria-label={`Editar negociação de ${card.clienteNome}`}
+            title="Editar"
+            className="-mt-0.5 -ml-1 shrink-0 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            {...pararArraste}
           >
-            {card.clienteNome}
+            <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
+              <path d="M16.862 4.487a1.875 1.875 0 1 1 2.652 2.652L7.5 19.153l-4.243 1.06 1.06-4.242 12.545-12.484Z" />
+            </svg>
           </Link>
-          {card.clienteEmpresa && (
-            <p className="truncate text-xs text-zinc-500" title={card.clienteEmpresa}>
-              {card.clienteEmpresa}
-            </p>
-          )}
+          <div className="min-w-0">
+            <Link
+              href={`/clientes/${card.clienteId}`}
+              className="block truncate font-medium hover:underline"
+              title={card.clienteNome}
+            >
+              {card.clienteNome}
+            </Link>
+            {card.clienteEmpresa && (
+              <p className="truncate text-xs text-zinc-500" title={card.clienteEmpresa}>
+                {card.clienteEmpresa}
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex shrink-0 items-start gap-1">
           {card.temperatura && (
@@ -104,11 +128,14 @@ export function CardConteudo({
       )}
 
       <p className="mt-2 font-semibold tabular-nums">
-        {card.valorEstimado !== null ? (
-          formatarMoeda(card.valorEstimado)
-        ) : (
-          <span className="font-normal text-zinc-400">Sem valor estimado</span>
-        )}
+        {(() => {
+          // Fechada: o valor que importa é o vendido, não a estimativa da
+          // qualificação. Aberta/perdida continuam mostrando o estimado.
+          const valor = card.etapaTipo === 'ganha' ? card.valorVendido : card.valorEstimado
+          if (valor !== null) return formatarMoeda(valor)
+          const rotulo = card.etapaTipo === 'ganha' ? 'Sem valor vendido' : 'Sem valor estimado'
+          return <span className="font-normal text-zinc-400">{rotulo}</span>
+        })()}
       </p>
 
       <dl className="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-400">

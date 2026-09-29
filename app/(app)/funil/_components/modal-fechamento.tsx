@@ -4,6 +4,8 @@ import { startTransition, useActionState } from 'react'
 
 import { fecharNegociacaoAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
+import type { Servico } from '@/lib/dal/servicos'
+import { ordenarServicos } from '@/lib/dal/servicos'
 import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import {
   ROTULO_STATUS_ONBOARDING,
@@ -17,11 +19,14 @@ import { BotoesModal, ErroCampo, ErroGeral, inputClass, Modal } from './modal'
 type Props = {
   card: CardFunil
   posicao: number
+  /** Catálogo ativo, pra marcar como "serviço contratado" ao fechar. */
+  servicos: Servico[]
   onCancelar: () => void
   onConcluido: () => void
 }
 
-export function ModalFechamento({ card, posicao, onCancelar, onConcluido }: Props) {
+export function ModalFechamento({ card, posicao, servicos, onCancelar, onConcluido }: Props) {
+  const marcados = new Set(card.servicoIds)
   const [estado, action, pendente] = useActionState(
     async (anterior: EstadoModalFunil | undefined, formData: FormData) => {
       const resultado = await fecharNegociacaoAction(anterior, formData)
@@ -174,6 +179,49 @@ export function ModalFechamento({ card, posicao, onCancelar, onConcluido }: Prop
             </select>
             <ErroCampo id="status_onboarding-erro" mensagem={erro('status_onboarding')} />
           </div>
+        </div>
+
+        <fieldset aria-describedby={erro('servico_ids') ? 'servicos-erro' : undefined}>
+          <legend className="mb-1.5 block text-sm font-medium">Serviços contratados</legend>
+          {servicos.length === 0 ? (
+            <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {ordenarServicos(servicos).map((s) => (
+                <label
+                  key={s.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-50 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-900"
+                >
+                  <input
+                    type="checkbox"
+                    name="servico_ids"
+                    value={s.id}
+                    defaultChecked={marcados.has(s.id)}
+                    className="size-4 accent-zinc-900 dark:accent-zinc-100"
+                  />
+                  <span className="flex-1">{s.nome}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <ErroCampo id="servicos-erro" mensagem={erro('servico_ids')} />
+        </fieldset>
+
+        <div>
+          <label htmlFor="observacoes" className="mb-1.5 block text-sm font-medium">
+            Observações <span className="font-normal text-zinc-500">(opcional)</span>
+          </label>
+          <textarea
+            id="observacoes"
+            name="observacoes"
+            rows={3}
+            maxLength={2000}
+            placeholder="Condições combinadas, ressalvas…"
+            aria-invalid={erro('observacoes') ? true : undefined}
+            aria-describedby="observacoes-erro"
+            className={inputClass}
+          />
+          <ErroCampo id="observacoes-erro" mensagem={erro('observacoes')} />
         </div>
 
         <BotoesModal pendente={pendente} rotulo="Fechar negociação" onCancelar={onCancelar} />

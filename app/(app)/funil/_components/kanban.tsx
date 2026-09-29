@@ -27,6 +27,7 @@ import { IconeSeta } from '@/components/layout/icones'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { moverNegociacaoAction } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
+import type { Servico } from '@/lib/dal/servicos'
 import { tipoExigeModal, type EtapaKanban } from '@/lib/utils/etapas'
 import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
 
@@ -105,7 +106,15 @@ function renumerar(coluna: CardFunil[]): CardFunil[] {
   return coluna.map((c, i) => ({ ...c, posicao: (i + 1) * PASSO }))
 }
 
-export function Kanban({ cards, etapas }: { cards: CardFunil[]; etapas: EtapaKanban[] }) {
+export function Kanban({
+  cards,
+  etapas,
+  servicos,
+}: {
+  cards: CardFunil[]
+  etapas: EtapaKanban[]
+  servicos: Servico[]
+}) {
   const dndId = useId()
   const quadroId = useId()
   const quadroRef = useRef<HTMLDivElement>(null)
@@ -336,6 +345,7 @@ export function Kanban({ cards, etapas }: { cards: CardFunil[]; etapas: EtapaKan
         <ModalFechamento
           card={pendente.card}
           posicao={pendente.posicao}
+          servicos={servicos}
           onCancelar={cancelarModal}
           onConcluido={() => setPendente(null)}
         />

@@ -7,7 +7,7 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import { DIAS_PARADO, tipoExigeModal } from '@/lib/utils/etapas'
-import type { FechamentoInput, PerdaInput } from '@/lib/validations/funil'
+import type { AtualizarFechamentoInput, FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 import type { NovaNegociacaoInput } from '@/lib/validations/funis'
 
 type Enums = Database['public']['Enums']
@@ -18,11 +18,16 @@ export const DIAS_VISIVEIS_ENCERRADOS = 30
 export type CardFunil = {
   id: string
   etapaId: string
+  etapaTipo: Enums['tipo_etapa']
   posicao: number
   clienteId: string
   clienteNome: string
   clienteEmpresa: string | null
   valorEstimado: number | null
+  /** Só não nulo na etapa ganha (vem de `fechamentos.valor_vendido`). */
+  valorVendido: number | null
+  /** Serviços já vinculados (`negociacao_servicos`) — nunca `null`, `[]` quando não há nenhum. */
+  servicoIds: string[]
   temperatura: Enums['temperatura_negociacao'] | null
   responsavel: string | null
   /** Dias inteiros na etapa atual, calculados no servidor (sem divergir na hidratação). */
@@ -66,16 +71,21 @@ export async function listarCardsFunil(funilId: string): Promise<CardFunil[]> {
   // Colunas de view vêm todas como anuláveis nos tipos gerados; as que são
   // NOT NULL nas tabelas de origem nunca chegam nulas.
   return data.flatMap((r) =>
-    r.id && r.etapa_id && r.cliente_id && r.cliente_nome && r.posicao !== null && r.data_entrada_etapa
+    r.id && r.etapa_id && r.etapa_tipo && r.cliente_id && r.cliente_nome && r.posicao !== null && r.data_entrada_etapa
       ? [
           {
             id: r.id,
             etapaId: r.etapa_id,
+            etapaTipo: r.etapa_tipo,
             posicao: r.posicao,
             clienteId: r.cliente_id,
             clienteNome: r.cliente_nome,
             clienteEmpresa: r.cliente_empresa,
             valorEstimado: r.valor_estimado,
+            valorVendido: r.valor_vendido,
+            // Coalesce defensivo: a view já garante array, nunca null, mas o
+            // gerador de tipos marca toda coluna de view como anulável.
+            servicoIds: r.servico_ids ?? [],
             temperatura: r.temperatura,
             responsavel: r.responsavel_nome,
             diasNaEtapa: Math.floor((agora - new Date(r.data_entrada_etapa).getTime()) / 86_400_000),
@@ -178,6 +188,36 @@ export async function fecharNegociacao(f: FechamentoInput): Promise<ResultadoFun
     p_link_contrato: f.link_contrato ?? undefined,
     p_status_pagamento: f.status_pagamento,
     p_status_onboarding: f.status_onboarding,
+    p_servico_ids: f.servico_ids,
+    p_observacoes: f.observacoes ?? undefined,
+  })
+
+  if (error) return traduzirErro(error)
+  return { ok: true }
+}
+
+/**
+ * Edita um fechamento já existente (`public.atualizar_fechamento`) — nunca
+ * toca `negociacoes` (etapa_id, posicao) nem `fechamentos.fechado_em`/
+ * `fechado_por`: preserva histórico e atribuição de meta/comissão. Só
+ * atualiza a linha de `fechamentos` que já existe (sem upsert) e sincroniza
+ * `negociacao_servicos`.
+ */
+export async function atualizarFechamento(f: AtualizarFechamentoInput): Promise<ResultadoFunil> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc('atualizar_fechamento', {
+    p_negociacao_id: f.negociacao_id,
+    p_valor_vendido: Number(f.valor_vendido),
+    p_data_fechamento: f.data_fechamento,
+    p_contrato_enviado: f.contrato_enviado,
+    p_contrato_assinado: f.contrato_assinado,
+    p_link_contrato: f.link_contrato ?? undefined,
+    p_status_pagamento: f.status_pagamento,
+    p_status_onboarding: f.status_onboarding,
+    p_servico_ids: f.servico_ids,
+    p_observacoes: f.observacoes ?? undefined,
   })
 
   if (error) return traduzirErro(error)

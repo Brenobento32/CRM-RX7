@@ -86,6 +86,13 @@ export const fechamentoSchema = z
       ),
     status_pagamento: z.enum(STATUS_PAGAMENTO_FECHAMENTO, 'Selecione o status do pagamento.'),
     status_onboarding: z.enum(STATUS_ONBOARDING, 'Selecione o status do onboarding.'),
+    /** Conjunto final de serviços contratados — sincroniza negociacao_servicos. */
+    servico_ids: z.array(z.uuid()).default([]),
+    observacoes: z
+      .string()
+      .trim()
+      .max(2000, 'Máximo de 2000 caracteres.')
+      .transform((v) => (v === '' ? null : v)),
   })
   .superRefine((f, ctx) => {
     // Espelho da constraint fechamentos_assinatura_exige_envio.
@@ -99,6 +106,55 @@ export const fechamentoSchema = z
   })
 
 export type FechamentoInput = z.output<typeof fechamentoSchema>
+
+/**
+ * Editar um fechamento já existente. Mesmos campos de `fechamentoSchema`
+ * menos `posicao` (a edição nunca mexe na posição do card no Kanban) — o
+ * banco (`atualizar_fechamento`) também nunca toca `negociacoes` nem
+ * `fechado_em`/`fechado_por`.
+ */
+export const atualizarFechamentoSchema = z
+  .object({
+    negociacao_id: z.uuid(),
+    valor_vendido: valorEmReais.pipe(
+      z
+        .string('Informe o valor vendido.')
+        .refine((v) => Number(v) > 0, 'O valor vendido deve ser maior que zero.'),
+    ),
+    data_fechamento: z
+      .iso.date('Informe a data de fechamento.')
+      .refine((d) => d <= hojeSaoPaulo(), 'A data de fechamento não pode estar no futuro.'),
+    contrato_enviado: simNao('Informe se o contrato foi enviado.'),
+    contrato_assinado: simNao('Informe se o contrato foi assinado.'),
+    link_contrato: z
+      .string()
+      .trim()
+      .transform((v) => (v === '' ? null : v))
+      .pipe(
+        z
+          .url({ protocol: /^https?$/, error: 'Link inválido. Use um endereço http:// ou https://.' })
+          .nullable(),
+      ),
+    status_pagamento: z.enum(STATUS_PAGAMENTO_FECHAMENTO, 'Selecione o status do pagamento.'),
+    status_onboarding: z.enum(STATUS_ONBOARDING, 'Selecione o status do onboarding.'),
+    servico_ids: z.array(z.uuid()).default([]),
+    observacoes: z
+      .string()
+      .trim()
+      .max(2000, 'Máximo de 2000 caracteres.')
+      .transform((v) => (v === '' ? null : v)),
+  })
+  .superRefine((f, ctx) => {
+    if (f.contrato_assinado && !f.contrato_enviado) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['contrato_assinado'],
+        message: 'Contrato assinado precisa ter sido enviado.',
+      })
+    }
+  })
+
+export type AtualizarFechamentoInput = z.output<typeof atualizarFechamentoSchema>
 
 export const perdaSchema = z.object({
   negociacao_id: z.uuid(),
