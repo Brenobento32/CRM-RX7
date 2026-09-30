@@ -58,12 +58,17 @@ export type OpcaoResponsavel = { id: string; nome: string; role: string }
  * RLS. Se este código filtrasse, a regra existiria em dois lugares e um dia
  * eles divergiriam.
  */
+export type StatusCliente = 'ativos' | 'arquivados'
+
 export async function listarClientes({
   busca,
   pagina,
+  status = 'ativos',
 }: {
   busca?: string
   pagina: number
+  /** 'ativos' (padrão, `deleted_at is null`) ou 'arquivados' (`deleted_at is not null`). */
+  status?: StatusCliente
 }): Promise<{ clientes: ClienteResumo[]; total: number }> {
   await getUsuarioAtual()
   const supabase = await createClient()
@@ -76,9 +81,10 @@ export async function listarClientes({
       'id, tipo_cliente, nome, empresa, telefone, whatsapp, email, created_at, dono:profiles!clientes_owner_id_fkey(nome)',
       { count: 'exact' },
     )
-    .is('deleted_at', null)
     .order('nome', { ascending: true })
     .range(inicio, inicio + CLIENTES_POR_PAGINA - 1)
+
+  query = status === 'arquivados' ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null)
 
   const filtro = filtroDeBusca(busca)
   if (filtro) query = query.or(filtro)
@@ -273,6 +279,30 @@ export async function arquivarCliente(id: string): Promise<ResultadoArquivar> {
 
   // RLS ou já arquivado por outra aba: 0 linhas afetadas.
   return data ? { ok: true } : { ok: false, mensagem: 'Cliente não encontrado.' }
+}
+
+/** Desfaz o arquivamento (`deleted_at = null`) — só grava se estiver atualmente arquivado. */
+export async function restaurarCliente(id: string): Promise<ResultadoArquivar> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('clientes')
+    .update({ deleted_at: null })
+    .eq('id', id)
+    .not('deleted_at', 'is', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    console.error('Erro ao restaurar cliente', error)
+    return { ok: false, mensagem: 'Não foi possível restaurar o cliente. Tente novamente.' }
+  }
+
+  return data ? { ok: true } : { ok: false, mensagem: 'Cliente não encontrado ou já está ativo.' }
 }
 
 function traduzirErro(error: PostgrestError): ResultadoEscrita {

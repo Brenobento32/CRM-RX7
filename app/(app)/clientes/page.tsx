@@ -1,14 +1,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { restaurarClienteAction } from '@/lib/actions/clientes'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { CLIENTES_POR_PAGINA, listarClientes } from '@/lib/dal/clientes'
+import { CLIENTES_POR_PAGINA, listarClientes, type StatusCliente } from '@/lib/dal/clientes'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
 
 export const metadata: Metadata = {
   title: 'Clientes',
 }
+
+const ABAS: { valor: StatusCliente; rotulo: string }[] = [
+  { valor: 'ativos', rotulo: 'Ativos' },
+  { valor: 'arquivados', rotulo: 'Arquivados' },
+]
 
 export default async function ClientesPage({
   searchParams,
@@ -18,15 +24,26 @@ export default async function ClientesPage({
 
   const busca = typeof params.q === 'string' ? params.q.slice(0, 100) : ''
   const pagina = Math.max(1, Number.parseInt(String(params.pagina ?? '1'), 10) || 1)
+  const aba: StatusCliente = params.aba === 'arquivados' ? 'arquivados' : 'ativos'
 
-  const { clientes, total } = await listarClientes({ busca, pagina })
+  const { clientes, total } = await listarClientes({ busca, pagina, status: aba })
   const totalPaginas = Math.max(1, Math.ceil(total / CLIENTES_POR_PAGINA))
   const gerente = usuario.role === 'gerente'
+  const arquivados = aba === 'arquivados'
 
   const hrefPagina = (p: number) => {
     const qs = new URLSearchParams()
     if (busca) qs.set('q', busca)
+    if (aba !== 'ativos') qs.set('aba', aba)
     if (p > 1) qs.set('pagina', String(p))
+    const s = qs.toString()
+    return s ? `/clientes?${s}` : '/clientes'
+  }
+
+  const hrefAba = (valor: StatusCliente) => {
+    const qs = new URLSearchParams()
+    if (busca) qs.set('q', busca)
+    if (valor !== 'ativos') qs.set('aba', valor)
     const s = qs.toString()
     return s ? `/clientes?${s}` : '/clientes'
   }
@@ -48,7 +65,25 @@ export default async function ClientesPage({
         </Link>
       </div>
 
+      <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Status do cliente">
+        {ABAS.map((a) => (
+          <Link
+            key={a.valor}
+            href={hrefAba(a.valor)}
+            aria-current={aba === a.valor ? 'page' : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${
+              aba === a.valor
+                ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            {a.rotulo}
+          </Link>
+        ))}
+      </nav>
+
       <form action="/clientes" className="flex max-w-md gap-2" role="search">
+        {aba !== 'ativos' && <input type="hidden" name="aba" value={aba} />}
         <input
           type="search"
           name="q"
@@ -74,15 +109,20 @@ export default async function ClientesPage({
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 font-medium">Contato</th>
               {gerente && <th className="px-4 py-3 font-medium">Carteira</th>}
+              {arquivados && <th className="px-4 py-3 font-medium">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {clientes.map((c) => (
               <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900">
                 <td className="px-4 py-3">
-                  <Link href={`/clientes/${c.id}`} className="font-medium hover:underline">
-                    {c.nome}
-                  </Link>
+                  {arquivados ? (
+                    <span className="font-medium">{c.nome}</span>
+                  ) : (
+                    <Link href={`/clientes/${c.id}`} className="font-medium hover:underline">
+                      {c.nome}
+                    </Link>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                   {c.empresa ?? '—'}
@@ -102,17 +142,31 @@ export default async function ClientesPage({
                     {c.dono ?? '—'}
                   </td>
                 )}
+                {arquivados && (
+                  <td className="px-4 py-3">
+                    <form action={restaurarClienteAction.bind(null, c.id)}>
+                      <button
+                        type="submit"
+                        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                      >
+                        Restaurar
+                      </button>
+                    </form>
+                  </td>
+                )}
               </tr>
             ))}
             {clientes.length === 0 && (
               <tr>
                 <td
-                  colSpan={gerente ? 5 : 4}
+                  colSpan={(gerente ? 5 : 4) + (arquivados ? 1 : 0)}
                   className="px-4 py-10 text-center text-zinc-500"
                 >
                   {busca
                     ? `Nenhum cliente encontrado para “${busca}”.`
-                    : 'Nenhum cliente cadastrado ainda.'}
+                    : arquivados
+                      ? 'Nenhum cliente arquivado.'
+                      : 'Nenhum cliente cadastrado ainda.'}
                 </td>
               </tr>
             )}

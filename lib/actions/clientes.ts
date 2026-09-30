@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
-import { arquivarCliente, atualizarCliente, criarCliente } from '@/lib/dal/clientes'
+import { arquivarCliente, atualizarCliente, criarCliente, restaurarCliente } from '@/lib/dal/clientes'
 import {
   CAMPOS_CLIENTE,
   clienteSchema,
@@ -102,4 +102,17 @@ export async function arquivarClienteAction(
   revalidatePath('/clientes')
   revalidatePath(`/clientes/${id}`)
   redirect('/clientes')
+}
+
+/** Usada num botão de formulário na aba Arquivados: sem estado pra ler, só revalida a lista. */
+export async function restaurarClienteAction(id: string): Promise<void> {
+  if (!z.uuid().safeParse(id).success) return
+
+  const resultado = await restaurarCliente(id)
+  if (!resultado.ok) {
+    console.warn('Restaurar cliente:', resultado.mensagem)
+    return
+  }
+
+  revalidatePath('/clientes')
 }
