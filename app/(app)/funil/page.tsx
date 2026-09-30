@@ -47,7 +47,7 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Funil</h1>
+          <h1 className="text-2xl font-semibold">{funilSelecionado.nome}</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Suas negociações.'} Fechadas e
             perdidas aparecem por {DIAS_VISIVEIS_ENCERRADOS} dias.

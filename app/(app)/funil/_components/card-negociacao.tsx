@@ -77,37 +77,38 @@ export function CardConteudo({
 }) {
   return (
     <article
-      className={`cursor-grab touch-none rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950 ${
+      className={`relative cursor-grab touch-none rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950 ${
         flutuando ? 'cursor-grabbing shadow-lg ring-2 ring-zinc-900/10' : 'shadow-xs hover:border-zinc-300 dark:hover:border-zinc-700'
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-1.5">
+      <Link
+        href={`/negociacoes/${card.id}/editar`}
+        aria-label={`Editar negociação de ${card.clienteNome}`}
+        title="Editar"
+        className="absolute top-2 left-2 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        {...pararArraste}
+      >
+        <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
+          <path d="M16.862 4.487a1.875 1.875 0 1 1 2.652 2.652L7.5 19.153l-4.243 1.06 1.06-4.242 12.545-12.484Z" />
+        </svg>
+      </Link>
+
+      <div className="flex items-start justify-between gap-2 pl-6">
+        <div className="min-w-0">
+          {card.clienteEmpresa && (
+            <p className="truncate text-sm font-semibold" title={card.clienteEmpresa}>
+              {card.clienteEmpresa}
+            </p>
+          )}
           <Link
-            href={`/negociacoes/${card.id}/editar`}
-            aria-label={`Editar negociação de ${card.clienteNome}`}
-            title="Editar"
-            className="-mt-0.5 -ml-1 shrink-0 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            {...pararArraste}
+            href={`/clientes/${card.clienteId}`}
+            className={`block truncate hover:underline ${
+              card.clienteEmpresa ? 'text-xs font-normal text-zinc-500' : 'font-medium'
+            }`}
+            title={card.clienteNome}
           >
-            <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
-              <path d="M16.862 4.487a1.875 1.875 0 1 1 2.652 2.652L7.5 19.153l-4.243 1.06 1.06-4.242 12.545-12.484Z" />
-            </svg>
+            {card.clienteNome}
           </Link>
-          <div className="min-w-0">
-            <Link
-              href={`/clientes/${card.clienteId}`}
-              className="block truncate font-medium hover:underline"
-              title={card.clienteNome}
-            >
-              {card.clienteNome}
-            </Link>
-            {card.clienteEmpresa && (
-              <p className="truncate text-xs text-zinc-500" title={card.clienteEmpresa}>
-                {card.clienteEmpresa}
-              </p>
-            )}
-          </div>
         </div>
         <div className="flex shrink-0 items-start gap-1">
           {card.temperatura && (
