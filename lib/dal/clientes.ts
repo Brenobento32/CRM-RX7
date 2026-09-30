@@ -239,16 +239,19 @@ export type ResultadoArquivar = { ok: true } | { ok: false; mensagem: string }
 /**
  * Soft delete (`deleted_at`) — nunca `delete`. Negociações, fechamentos e
  * histórico continuam intactos; a DAL de cada um deles já filtra clientes
- * arquivados. Recusa se houver negociação em andamento: feche ou perca antes
- * de arquivar.
+ * arquivados. Recusa se houver negociação fechada (ganha): o histórico de
+ * venda/comissão fica preso a um cliente que sumiria das listagens.
  */
 export async function arquivarCliente(id: string): Promise<ResultadoArquivar> {
   await getUsuarioAtual()
 
   const cliente = await obterCliente(id)
   if (!cliente) return { ok: false, mensagem: 'Cliente não encontrado.' }
-  if (cliente.negociacoes.some((n) => n.etapa.tipo === 'aberta')) {
-    return { ok: false, mensagem: 'Cliente possui negociação em andamento.' }
+  if (cliente.negociacoes.some((n) => n.etapa.tipo === 'ganha')) {
+    return {
+      ok: false,
+      mensagem: 'Cliente possui negociação fechada (ganha) e não pode ser arquivado.',
+    }
   }
 
   const supabase = await createClient()
