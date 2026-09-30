@@ -1,7 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
-import { restaurarClienteAction } from '@/lib/actions/clientes'
+import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
+import {
+  excluirClienteAction,
+  restaurarClienteAction,
+  restaurarClienteExcluidoAction,
+} from '@/lib/actions/clientes'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { CLIENTES_POR_PAGINA, listarClientes, type StatusCliente } from '@/lib/dal/clientes'
 import { formatarTelefone } from '@/lib/utils/documentos'
@@ -14,6 +19,7 @@ export const metadata: Metadata = {
 const ABAS: { valor: StatusCliente; rotulo: string }[] = [
   { valor: 'ativos', rotulo: 'Ativos' },
   { valor: 'arquivados', rotulo: 'Arquivados' },
+  { valor: 'excluidos', rotulo: 'Excluídos' },
 ]
 
 export default async function ClientesPage({
@@ -24,12 +30,17 @@ export default async function ClientesPage({
 
   const busca = typeof params.q === 'string' ? params.q.slice(0, 100) : ''
   const pagina = Math.max(1, Number.parseInt(String(params.pagina ?? '1'), 10) || 1)
-  const aba: StatusCliente = params.aba === 'arquivados' ? 'arquivados' : 'ativos'
+  const aba: StatusCliente =
+    params.aba === 'arquivados' ? 'arquivados' : params.aba === 'excluidos' ? 'excluidos' : 'ativos'
 
   const { clientes, total } = await listarClientes({ busca, pagina, status: aba })
   const totalPaginas = Math.max(1, Math.ceil(total / CLIENTES_POR_PAGINA))
   const gerente = usuario.role === 'gerente'
   const arquivados = aba === 'arquivados'
+  const excluidos = aba === 'excluidos'
+  const temAcoes = arquivados || excluidos
+  // Nem arquivado nem excluído abre a página do cliente: obterCliente só enxerga ativos.
+  const nomeAbrePagina = aba === 'ativos'
 
   const hrefPagina = (p: number) => {
     const qs = new URLSearchParams()
@@ -109,19 +120,19 @@ export default async function ClientesPage({
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 font-medium">Contato</th>
               {gerente && <th className="px-4 py-3 font-medium">Carteira</th>}
-              {arquivados && <th className="px-4 py-3 font-medium">Ações</th>}
+              {temAcoes && <th className="px-4 py-3 font-medium">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {clientes.map((c) => (
               <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900">
                 <td className="px-4 py-3">
-                  {arquivados ? (
-                    <span className="font-medium">{c.nome}</span>
-                  ) : (
+                  {nomeAbrePagina ? (
                     <Link href={`/clientes/${c.id}`} className="font-medium hover:underline">
                       {c.nome}
                     </Link>
+                  ) : (
+                    <span className="font-medium">{c.nome}</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
@@ -144,7 +155,37 @@ export default async function ClientesPage({
                 )}
                 {arquivados && (
                   <td className="px-4 py-3">
-                    <form action={restaurarClienteAction.bind(null, c.id)}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <form action={restaurarClienteAction.bind(null, c.id)}>
+                        <button
+                          type="submit"
+                          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        >
+                          Restaurar
+                        </button>
+                      </form>
+                      <form action={excluirClienteAction.bind(null, c.id)} className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          name="motivo"
+                          required
+                          placeholder="Motivo da exclusão"
+                          aria-label={`Motivo da exclusão de ${c.nome}`}
+                          className="w-40 rounded-md border border-zinc-300 px-2 py-1.5 text-xs outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950"
+                        />
+                        <BotaoConfirmar
+                          pergunta="Excluir este cliente? O histórico de negociações e fechamentos não é apagado, mas ele some de Ativos e Arquivados."
+                          className="shrink-0 rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-red-700 transition hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-950"
+                        >
+                          Excluir
+                        </BotaoConfirmar>
+                      </form>
+                    </div>
+                  </td>
+                )}
+                {excluidos && (
+                  <td className="px-4 py-3">
+                    <form action={restaurarClienteExcluidoAction.bind(null, c.id)}>
                       <button
                         type="submit"
                         className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -159,14 +200,16 @@ export default async function ClientesPage({
             {clientes.length === 0 && (
               <tr>
                 <td
-                  colSpan={(gerente ? 5 : 4) + (arquivados ? 1 : 0)}
+                  colSpan={(gerente ? 5 : 4) + (temAcoes ? 1 : 0)}
                   className="px-4 py-10 text-center text-zinc-500"
                 >
                   {busca
                     ? `Nenhum cliente encontrado para “${busca}”.`
                     : arquivados
                       ? 'Nenhum cliente arquivado.'
-                      : 'Nenhum cliente cadastrado ainda.'}
+                      : excluidos
+                        ? 'Nenhum cliente excluído.'
+                        : 'Nenhum cliente cadastrado ainda.'}
                 </td>
               </tr>
             )}

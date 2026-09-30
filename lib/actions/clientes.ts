@@ -4,7 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
-import { arquivarCliente, atualizarCliente, criarCliente, restaurarCliente } from '@/lib/dal/clientes'
+import {
+  arquivarCliente,
+  atualizarCliente,
+  criarCliente,
+  excluirCliente,
+  restaurarCliente,
+  restaurarClienteExcluido,
+} from '@/lib/dal/clientes'
 import {
   CAMPOS_CLIENTE,
   clienteSchema,
@@ -111,6 +118,33 @@ export async function restaurarClienteAction(id: string): Promise<void> {
   const resultado = await restaurarCliente(id)
   if (!resultado.ok) {
     console.warn('Restaurar cliente:', resultado.mensagem)
+    return
+  }
+
+  revalidatePath('/clientes')
+}
+
+/** Botão "Excluir" na aba Arquivados — nunca DELETE físico, ver `excluirCliente`. Motivo é obrigatório. */
+export async function excluirClienteAction(id: string, formData: FormData): Promise<void> {
+  if (!z.uuid().safeParse(id).success) return
+
+  const motivo = String(formData.get('motivo') ?? '')
+  const resultado = await excluirCliente(id, motivo)
+  if (!resultado.ok) {
+    console.warn('Excluir cliente:', resultado.mensagem)
+    return
+  }
+
+  revalidatePath('/clientes')
+}
+
+/** Botão "Restaurar" na aba Excluídos — volta pra Arquivado, não pra Ativo. */
+export async function restaurarClienteExcluidoAction(id: string): Promise<void> {
+  if (!z.uuid().safeParse(id).success) return
+
+  const resultado = await restaurarClienteExcluido(id)
+  if (!resultado.ok) {
+    console.warn('Restaurar cliente excluído:', resultado.mensagem)
     return
   }
 

@@ -58,7 +58,7 @@ export type OpcaoResponsavel = { id: string; nome: string; role: string }
  * RLS. Se este código filtrasse, a regra existiria em dois lugares e um dia
  * eles divergiriam.
  */
-export type StatusCliente = 'ativos' | 'arquivados'
+export type StatusCliente = 'ativos' | 'arquivados' | 'excluidos'
 
 export async function listarClientes({
   busca,
@@ -67,7 +67,11 @@ export async function listarClientes({
 }: {
   busca?: string
   pagina: number
-  /** 'ativos' (padrão, `deleted_at is null`) ou 'arquivados' (`deleted_at is not null`). */
+  /**
+   * 'ativos' (padrão, `deleted_at is null`), 'arquivados' (`deleted_at is
+   * not null and excluido_em is null`) ou 'excluidos' (`excluido_em is not
+   * null`).
+   */
   status?: StatusCliente
 }): Promise<{ clientes: ClienteResumo[]; total: number }> {
   await getUsuarioAtual()
@@ -84,7 +88,9 @@ export async function listarClientes({
     .order('nome', { ascending: true })
     .range(inicio, inicio + CLIENTES_POR_PAGINA - 1)
 
-  query = status === 'arquivados' ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null)
+  if (status === 'excluidos') query = query.not('excluido_em', 'is', null)
+  else if (status === 'arquivados') query = query.not('deleted_at', 'is', null).is('excluido_em', null)
+  else query = query.is('deleted_at', null)
 
   const filtro = filtroDeBusca(busca)
   if (filtro) query = query.or(filtro)
@@ -303,6 +309,73 @@ export async function restaurarCliente(id: string): Promise<ResultadoArquivar> {
   }
 
   return data ? { ok: true } : { ok: false, mensagem: 'Cliente não encontrado ou já está ativo.' }
+}
+
+/**
+ * "Exclusão" com auditoria — nunca `DELETE` físico. Só preenche
+ * `excluido_em`/`excluido_por`/`motivo_exclusao`; negociações, fechamentos e
+ * histórico continuam intactos e vinculados ao cliente. Só grava se o
+ * cliente já estiver arquivado (o botão também só existe lá, mas a DAL
+ * confere de novo). Motivo é obrigatório — o banco também recusa
+ * (`clientes_motivo_exclusao_obrigatorio`), esta checagem só evita a viagem.
+ */
+export async function excluirCliente(id: string, motivo: string): Promise<ResultadoArquivar> {
+  const motivoLimpo = motivo.trim()
+  if (!motivoLimpo) return { ok: false, mensagem: 'Informe o motivo da exclusão.' }
+
+  const usuario = await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('clientes')
+    .update({ excluido_em: new Date().toISOString(), excluido_por: usuario.id, motivo_exclusao: motivoLimpo })
+    .eq('id', id)
+    .not('deleted_at', 'is', null)
+    .is('excluido_em', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    if (error.code === '23514') {
+      return { ok: false, mensagem: 'Informe o motivo da exclusão.' }
+    }
+    console.error('Erro ao excluir cliente', error)
+    return { ok: false, mensagem: 'Não foi possível excluir o cliente. Tente novamente.' }
+  }
+
+  return data
+    ? { ok: true }
+    : { ok: false, mensagem: 'Cliente precisa estar arquivado para ser excluído.' }
+}
+
+/**
+ * Desfaz a exclusão — volta pra arquivado, não direto pra ativo (é o
+ * `restaurarCliente` que tira do arquivado). Só grava se estiver excluído.
+ */
+export async function restaurarClienteExcluido(id: string): Promise<ResultadoArquivar> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('clientes')
+    .update({ excluido_em: null, excluido_por: null, motivo_exclusao: null })
+    .eq('id', id)
+    .not('excluido_em', 'is', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    console.error('Erro ao restaurar cliente excluído', error)
+    return { ok: false, mensagem: 'Não foi possível restaurar o cliente. Tente novamente.' }
+  }
+
+  return data ? { ok: true } : { ok: false, mensagem: 'Cliente não encontrado ou não está excluído.' }
 }
 
 function traduzirErro(error: PostgrestError): ResultadoEscrita {

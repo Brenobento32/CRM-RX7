@@ -197,7 +197,10 @@ export type Database = {
           documento: string | null
           email: string | null
           empresa: string | null
+          excluido_em: string | null
+          excluido_por: string | null
           id: string
+          motivo_exclusao: string | null
           nome: string
           observacoes: string | null
           origem: string | null
@@ -217,7 +220,10 @@ export type Database = {
           documento?: string | null
           email?: string | null
           empresa?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
           id?: string
+          motivo_exclusao?: string | null
           nome: string
           observacoes?: string | null
           origem?: string | null
@@ -237,7 +243,10 @@ export type Database = {
           documento?: string | null
           email?: string | null
           empresa?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
           id?: string
+          motivo_exclusao?: string | null
           nome?: string
           observacoes?: string | null
           origem?: string | null
@@ -249,6 +258,13 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "clientes_excluido_por_fkey"
+            columns: ["excluido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "clientes_owner_id_fkey"
             columns: ["owner_id"]
