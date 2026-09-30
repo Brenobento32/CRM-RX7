@@ -6,11 +6,13 @@ import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarEtapas } from '@/lib/dal/etapas'
 import { DIAS_VISIVEIS_ENCERRADOS, listarCardsFunil } from '@/lib/dal/funil'
+import { listarConversaoFunil } from '@/lib/dal/funil-conversao'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { listarServicosAtivos } from '@/lib/dal/servicos'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
 
 import { BarraFunil } from './_components/barra-funil'
+import { BoxConversao } from './_components/box-conversao'
 import { Kanban } from './_components/kanban'
 
 export const metadata: Metadata = {
@@ -30,6 +32,7 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
     listarEtapas(funilSelecionado.id),
     listarServicosAtivos(),
   ])
+  const conversao = await listarConversaoFunil(funilSelecionado.id, etapas)
 
   const responsaveis = [...new Set(cards.flatMap((c) => (c.responsavel ? [c.responsavel] : [])))].sort(
     (a, b) => a.localeCompare(b, 'pt-BR'),
@@ -61,6 +64,8 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
         responsaveis={responsaveis}
         podeConfigurar={usuario.role === 'gerente'}
       />
+
+      <BoxConversao etapas={etapas} conversao={conversao} />
 
       <Kanban
         cards={cardsFiltrados}
