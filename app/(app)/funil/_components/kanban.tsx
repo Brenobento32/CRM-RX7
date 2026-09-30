@@ -374,7 +374,10 @@ function Coluna({
   onMover: (id: string, etapaId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.id })
-  const total = cards.reduce((soma, c) => soma + (c.valorEstimado ?? 0), 0)
+  const total = cards.reduce(
+    (soma, c) => soma + ((etapa.tipo === 'ganha' ? c.valorVendido : c.valorEstimado) ?? 0),
+    0,
+  )
 
   return (
     // A coluna inteira (cabeçalho incluso) é a área de soltura.
