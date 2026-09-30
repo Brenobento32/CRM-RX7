@@ -33,10 +33,12 @@ export function CardArrastavel({
   card,
   etapas,
   onMover,
+  onEditar,
 }: {
   card: CardFunil
   etapas: EtapaKanban[]
   onMover: (id: string, etapaId: string) => void
+  onEditar: (card: CardFunil) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id })
@@ -52,6 +54,7 @@ export function CardArrastavel({
     >
       <CardConteudo
         card={card}
+        onEditar={onEditar}
         menu={
           <MenuMoverPara
             etapaAtual={card.etapaId}
@@ -69,11 +72,14 @@ export function CardConteudo({
   card,
   flutuando = false,
   menu,
+  onEditar,
 }: {
   card: CardFunil
   flutuando?: boolean
   /** Menu "Mover para"; ausente na cópia flutuante do arraste. */
   menu?: React.ReactNode
+  /** Abre a edição rápida; ausente na cópia flutuante do arraste. */
+  onEditar?: (card: CardFunil) => void
 }) {
   return (
     <article
@@ -81,8 +87,9 @@ export function CardConteudo({
         flutuando ? 'cursor-grabbing shadow-lg ring-2 ring-zinc-900/10' : 'shadow-xs hover:border-zinc-300 dark:hover:border-zinc-700'
       }`}
     >
-      <Link
-        href={`/negociacoes/${card.id}/editar`}
+      <button
+        type="button"
+        onClick={() => onEditar?.(card)}
         aria-label={`Editar negociação de ${card.clienteNome}`}
         title="Editar"
         className="absolute top-2 left-2 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
@@ -91,7 +98,7 @@ export function CardConteudo({
         <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
           <path d="M16.862 4.487a1.875 1.875 0 1 1 2.652 2.652L7.5 19.153l-4.243 1.06 1.06-4.242 12.545-12.484Z" />
         </svg>
-      </Link>
+      </button>
 
       <div className="flex items-start justify-between gap-2 pl-6">
         <div className="min-w-0">

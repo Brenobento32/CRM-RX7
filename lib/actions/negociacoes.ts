@@ -10,6 +10,7 @@ import {
   negociacaoEncerrada,
   obterNegociacaoParaEdicao,
   salvarNegociacao,
+  type NegociacaoEdicao,
 } from '@/lib/dal/negociacoes'
 import { atualizarFechamentoSchema } from '@/lib/validations/funil'
 import { edicaoNegociacaoSchema, type CampoEdicaoNegociacao } from '@/lib/validations/negociacao'
@@ -127,4 +128,75 @@ export async function atualizarFechamentoAction(
 
   revalidatePath('/', 'layout')
   redirect(`/clientes/${clienteId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Edição rápida (modal do lápis, no Kanban) — mesmas regras de negócio das
+// ações acima, mas sem `redirect`: o modal fecha sozinho (`ok: true`) e o
+// Kanban resincroniza pelos `cards` que `revalidatePath('/funil')` renova.
+// As ações com redirect acima continuam intocadas para a página /negociacoes/[id]/editar.
+// ---------------------------------------------------------------------------
+
+/** Dados da negociação pro modal — mesma DAL da página de edição, chamável do client. */
+export async function obterNegociacaoEdicaoAction(id: string): Promise<NegociacaoEdicao | null> {
+  if (!uuid.safeParse(id).success) return null
+  return obterNegociacaoParaEdicao(id)
+}
+
+export type EstadoEdicaoRapidaNegociacao = EstadoFormNegociacao & { ok?: boolean }
+
+export async function salvarNegociacaoRapidaAction(
+  id: string,
+  _estado: EstadoEdicaoRapidaNegociacao | undefined,
+  formData: FormData,
+): Promise<EstadoEdicaoRapidaNegociacao> {
+  const valores = {
+    ...Object.fromEntries(CAMPOS_TEXTO.map((c) => [c, String(formData.get(c) ?? '')])),
+    servico_ids: formData.getAll('servico_ids').map(String),
+  } as Record<CampoTexto, string> & { servico_ids: string[] }
+
+  if (!uuid.safeParse(id).success) {
+    return { erro: 'Negociação inválida.', valores }
+  }
+
+  const atual = await obterNegociacaoParaEdicao(id)
+  if (!atual) return { erro: 'Negociação não encontrada.', valores }
+  if (negociacaoEncerrada(atual)) return { erro: NEGOCIACAO_ENCERRADA, valores }
+
+  const parsed = edicaoNegociacaoSchema.safeParse(valores)
+  if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
+
+  const r = await salvarNegociacao(id, parsed.data)
+  if (!r.ok) {
+    return r.campo ? { campos: { [r.campo]: [r.mensagem] }, valores } : { erro: r.mensagem, valores }
+  }
+
+  revalidatePath('/funil')
+  return { ok: true, valores }
+}
+
+export type EstadoEdicaoRapidaFechamento = EstadoFormFechamento & { ok?: boolean }
+
+export async function atualizarFechamentoRapidoAction(
+  id: string,
+  _estado: EstadoEdicaoRapidaFechamento | undefined,
+  formData: FormData,
+): Promise<EstadoEdicaoRapidaFechamento> {
+  const valores = {
+    ...Object.fromEntries(CAMPOS_FECHAMENTO_TEXTO.map((c) => [c, String(formData.get(c) ?? '')])),
+    servico_ids: formData.getAll('servico_ids').map(String),
+  } as Record<CampoFechamentoTexto, string> & { servico_ids: string[] }
+
+  if (!uuid.safeParse(id).success) {
+    return { erro: 'Negociação inválida.', valores }
+  }
+
+  const parsed = atualizarFechamentoSchema.safeParse({ negociacao_id: id, ...valores })
+  if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
+
+  const r = await atualizarFechamento(parsed.data)
+  if (!r.ok) return { erro: r.mensagem, valores }
+
+  revalidatePath('/funil')
+  return { ok: true, valores }
 }
