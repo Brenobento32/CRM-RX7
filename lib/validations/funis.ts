@@ -33,6 +33,10 @@ export const editarFunilSchema = z.object({
     .trim()
     .max(500, 'Máximo de 500 caracteres.')
     .transform((v) => (v === '' ? null : v)),
+  whatsappHabilitado: z
+    .string()
+    .optional()
+    .transform((v) => v === 'on'),
 })
 
 export type EditarFunilInput = z.output<typeof editarFunilSchema>

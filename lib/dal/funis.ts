@@ -13,11 +13,13 @@ export type Funil = {
   padrao: boolean
   ativo: boolean
   ordem: number
+  /** Libera a seção/drawer de conversa WhatsApp no Kanban deste funil. */
+  whatsappHabilitado: boolean
 }
 
 export type FunilComUso = Funil & { negociacoesAtuais: number }
 
-const COLUNAS = 'id, nome, descricao, padrao, ativo, ordem'
+const COLUNAS = 'id, nome, descricao, padrao, ativo, ordem, whatsapp_habilitado'
 
 function paraFunil(f: {
   id: string
@@ -26,8 +28,17 @@ function paraFunil(f: {
   padrao: boolean
   ativo: boolean
   ordem: number
+  whatsapp_habilitado: boolean
 }): Funil {
-  return { ...f, ordem: Number(f.ordem) }
+  return {
+    id: f.id,
+    nome: f.nome,
+    descricao: f.descricao,
+    padrao: f.padrao,
+    ativo: f.ativo,
+    ordem: Number(f.ordem),
+    whatsappHabilitado: f.whatsapp_habilitado,
+  }
 }
 
 /** Todos os funis, na ordem da lista. Todo usuário logado lê (RLS: select=true). */
@@ -127,13 +138,17 @@ export async function duplicarFunil(id: string, novoNome: string): Promise<Resul
 
 export async function editarFunil(
   id: string,
-  input: { nome: string; descricao: string | null },
+  input: { nome: string; descricao: string | null; whatsappHabilitado: boolean },
 ): Promise<ResultadoFunil> {
   await exigirGerente()
   const supabase = await createClient()
   const { error } = await supabase
     .from('funis')
-    .update({ nome: input.nome, descricao: input.descricao })
+    .update({
+      nome: input.nome,
+      descricao: input.descricao,
+      whatsapp_habilitado: input.whatsappHabilitado,
+    })
     .eq('id', id)
   return error ? traduzirErro(error) : { ok: true }
 }

@@ -662,6 +662,7 @@ export type Database = {
           ordem: number
           padrao: boolean
           updated_at: string
+          whatsapp_habilitado: boolean
         }
         Insert: {
           ativo?: boolean
@@ -673,6 +674,7 @@ export type Database = {
           ordem?: number
           padrao?: boolean
           updated_at?: string
+          whatsapp_habilitado?: boolean
         }
         Update: {
           ativo?: boolean
@@ -684,6 +686,7 @@ export type Database = {
           ordem?: number
           padrao?: boolean
           updated_at?: string
+          whatsapp_habilitado?: boolean
         }
         Relationships: [
           {

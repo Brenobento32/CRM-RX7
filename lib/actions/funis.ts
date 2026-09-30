@@ -69,6 +69,7 @@ export async function editarFunilAction(
   const valores = {
     nome: String(formData.get('nome') ?? ''),
     descricao: String(formData.get('descricao') ?? ''),
+    whatsappHabilitado: formData.get('whatsapp_habilitado') === 'on' ? 'on' : '',
   }
   if (!uuid.safeParse(id).success) return { erro: 'Funil inválido.', valores }
 

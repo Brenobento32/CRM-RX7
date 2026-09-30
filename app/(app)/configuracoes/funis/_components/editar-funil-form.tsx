@@ -10,13 +10,20 @@ export function EditarFunilForm({
   funilId,
   nome,
   descricao,
+  whatsappHabilitado,
 }: {
   funilId: string
   nome: string
   descricao: string | null
+  whatsappHabilitado: boolean
 }) {
   const [estado, formAction, pendente] = useActionState(editarFunilAction.bind(null, funilId), undefined)
-  const valores = { nome, descricao: descricao ?? '', ...estado?.valores }
+  const valores = {
+    nome,
+    descricao: descricao ?? '',
+    whatsappHabilitado: whatsappHabilitado ? 'on' : '',
+    ...estado?.valores,
+  }
   const erro = (campo: string) => estado?.campos?.[campo]?.[0]
 
   return (
@@ -60,6 +67,15 @@ export function EditarFunilForm({
           <ErroCampo mensagem={erro('descricao')} />
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="whatsapp_habilitado"
+          defaultChecked={valores.whatsappHabilitado === 'on'}
+        />
+        Permitir conversa WhatsApp neste funil
+      </label>
 
       <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
         {pendente ? 'Salvando…' : 'Salvar'}

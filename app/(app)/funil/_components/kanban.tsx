@@ -113,10 +113,12 @@ export function Kanban({
   cards,
   etapas,
   servicos,
+  whatsappHabilitado,
 }: {
   cards: CardFunil[]
   etapas: EtapaKanban[]
   servicos: Servico[]
+  whatsappHabilitado: boolean
 }) {
   const dndId = useId()
   const quadroId = useId()
@@ -380,6 +382,7 @@ export function Kanban({
         <DrawerNegociacao
           card={drawer}
           etapas={etapas}
+          whatsappHabilitado={whatsappHabilitado}
           onFechar={() => setDrawer(null)}
           onEditar={setEdicaoRapida}
           onMover={moverPara}

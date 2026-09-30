@@ -70,7 +70,12 @@ export default async function FunilConfigPage({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Dados do funil</h2>
-        <EditarFunilForm funilId={funilId} nome={funil.nome} descricao={funil.descricao} />
+        <EditarFunilForm
+          funilId={funilId}
+          nome={funil.nome}
+          descricao={funil.descricao}
+          whatsappHabilitado={funil.whatsappHabilitado}
+        />
       </section>
 
       <section className="space-y-3">
