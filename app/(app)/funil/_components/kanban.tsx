@@ -36,6 +36,7 @@ import { DrawerNegociacao } from './drawer-negociacao'
 import { ModalEdicaoRapida } from './modal-edicao-rapida'
 import { ModalFechamento } from './modal-fechamento'
 import { ModalPerda } from './modal-perda'
+import { PainelConversa } from './painel-conversa'
 import { useRolagemHorizontal } from './rolagem-horizontal'
 
 /** Cards por id de etapa. */
@@ -137,6 +138,7 @@ export function Kanban({
   const [pendente, setPendente] = useState<MovimentoPendente | null>(null)
   const [edicaoRapida, setEdicaoRapida] = useState<CardFunil | null>(null)
   const [drawer, setDrawer] = useState<CardFunil | null>(null)
+  const [conversa, setConversa] = useState<CardFunil | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, startTransition] = useTransition()
   const inicioArraste = useRef<{ colunas: Colunas; etapa: string } | null>(null)
@@ -381,8 +383,11 @@ export function Kanban({
           onFechar={() => setDrawer(null)}
           onEditar={setEdicaoRapida}
           onMover={moverPara}
+          onAbrirConversa={setConversa}
         />
       )}
+
+      {conversa && <PainelConversa card={conversa} onFechar={() => setConversa(null)} />}
     </>
   )
 }

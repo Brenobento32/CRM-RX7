@@ -17,6 +17,7 @@ type Props = {
   onFechar: () => void
   onEditar: (card: CardFunil) => void
   onMover: (id: string, etapaId: string) => void
+  onAbrirConversa: (card: CardFunil) => void
 }
 
 /**
@@ -26,7 +27,7 @@ type Props = {
  * usada na tela de edição da negociação), buscado ao abrir — não existe
  * ainda no `CardFunil` que o Kanban já tem em mãos.
  */
-export function DrawerNegociacao({ card, etapas, onFechar, onEditar, onMover }: Props) {
+export function DrawerNegociacao({ card, etapas, onFechar, onEditar, onMover, onAbrirConversa }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const [historico, setHistorico] = useState<LinhaHistoricoBruta[] | null>(null)
   const [carregando, startTransition] = useTransition()
@@ -184,6 +185,21 @@ export function DrawerNegociacao({ card, etapas, onFechar, onEditar, onMover }: 
                 </div>
               </div>
             )}
+          </section>
+
+          <section className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">WhatsApp</h3>
+
+            <button
+              type="button"
+              onClick={() => {
+                onFechar()
+                onAbrirConversa(card)
+              }}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Abrir conversa
+            </button>
           </section>
         </div>
       </div>
