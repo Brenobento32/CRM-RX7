@@ -234,6 +234,44 @@ export async function atualizarCliente(
   return { ok: true, id: data.id }
 }
 
+export type ResultadoArquivar = { ok: true } | { ok: false; mensagem: string }
+
+/**
+ * Soft delete (`deleted_at`) — nunca `delete`. Negociações, fechamentos e
+ * histórico continuam intactos; a DAL de cada um deles já filtra clientes
+ * arquivados. Recusa se houver negociação em andamento: feche ou perca antes
+ * de arquivar.
+ */
+export async function arquivarCliente(id: string): Promise<ResultadoArquivar> {
+  await getUsuarioAtual()
+
+  const cliente = await obterCliente(id)
+  if (!cliente) return { ok: false, mensagem: 'Cliente não encontrado.' }
+  if (cliente.negociacoes.some((n) => n.etapa.tipo === 'aberta')) {
+    return { ok: false, mensagem: 'Cliente possui negociação em andamento.' }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('clientes')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    console.error('Erro ao arquivar cliente', error)
+    return { ok: false, mensagem: 'Não foi possível arquivar o cliente. Tente novamente.' }
+  }
+
+  // RLS ou já arquivado por outra aba: 0 linhas afetadas.
+  return data ? { ok: true } : { ok: false, mensagem: 'Cliente não encontrado.' }
+}
+
 function traduzirErro(error: PostgrestError): ResultadoEscrita {
   if (error.code === '23505') {
     if (error.message.includes('clientes_cpf_unico')) {

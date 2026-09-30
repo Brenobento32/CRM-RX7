@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
-import { atualizarCliente, criarCliente } from '@/lib/dal/clientes'
+import { arquivarCliente, atualizarCliente, criarCliente } from '@/lib/dal/clientes'
 import {
   CAMPOS_CLIENTE,
   clienteSchema,
@@ -77,4 +77,29 @@ export async function atualizarClienteAction(
   revalidatePath('/clientes')
   revalidatePath(`/clientes/${id}`)
   redirect(`/clientes/${id}`)
+}
+
+export type EstadoArquivarCliente = { erro?: string }
+
+// Sem campos a ler: o `id` já vem amarrado (bind), e a assinatura de dois
+// argumentos existe só porque `useActionState` exige esse formato.
+/* eslint-disable @typescript-eslint/no-unused-vars */
+export async function arquivarClienteAction(
+  id: string,
+  _estado: EstadoArquivarCliente | undefined,
+  _formData: FormData,
+): Promise<EstadoArquivarCliente> {
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+  if (!z.uuid().safeParse(id).success) {
+    return { erro: 'Cliente inválido.' }
+  }
+
+  const resultado = await arquivarCliente(id)
+  if (!resultado.ok) {
+    return { erro: resultado.mensagem }
+  }
+
+  revalidatePath('/clientes')
+  revalidatePath(`/clientes/${id}`)
+  redirect('/clientes')
 }

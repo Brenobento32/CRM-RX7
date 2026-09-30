@@ -10,6 +10,7 @@ import {
   criarProximaAcaoAction,
   registrarAtividadeAction,
 } from '@/lib/actions/atividades'
+import { arquivarClienteAction } from '@/lib/actions/clientes'
 import { LIMITE_TIMELINE, listarProximasAcoes, listarTimeline } from '@/lib/dal/atividades'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterCliente, type NegociacaoDoCliente } from '@/lib/dal/clientes'
@@ -34,6 +35,7 @@ import { ROTULO_FORMA_PAGAMENTO, ROTULO_TEMPERATURA } from '@/lib/validations/ne
 
 import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
 
+import { BotaoArquivarCliente } from './_components/botao-arquivar'
 import { FormAtividade } from './_components/form-atividade'
 import { FormProximaAcao } from './_components/form-proxima-acao'
 
@@ -121,12 +123,15 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
               <p className="text-sm text-zinc-600 dark:text-zinc-400">{cliente.empresa}</p>
             )}
           </div>
-          <Link
-            href={`/clientes/${cliente.id}/editar`}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            Editar
-          </Link>
+          <div className="flex shrink-0 items-start gap-2">
+            <Link
+              href={`/clientes/${cliente.id}/editar`}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Editar
+            </Link>
+            <BotaoArquivarCliente action={arquivarClienteAction.bind(null, cliente.id)} />
+          </div>
         </div>
       </div>
 
