@@ -97,6 +97,7 @@ export function MenuMoverPara({
         aria-haspopup="menu"
         aria-label={`Mover ${nomeCliente} para outra etapa`}
         title="Mover para"
+        onClick={(e) => e.stopPropagation()}
         className="-mt-0.5 -mr-1 shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         {...pararArraste}
       >
@@ -115,6 +116,7 @@ export function MenuMoverPara({
         aria-label="Mover para"
         onKeyDown={navegarComSetas}
         onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-1 text-sm text-zinc-900 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >

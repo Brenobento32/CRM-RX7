@@ -34,11 +34,13 @@ export function CardArrastavel({
   etapas,
   onMover,
   onEditar,
+  onAbrirDrawer,
 }: {
   card: CardFunil
   etapas: EtapaKanban[]
   onMover: (id: string, etapaId: string) => void
   onEditar: (card: CardFunil) => void
+  onAbrirDrawer: (card: CardFunil) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id })
@@ -55,6 +57,7 @@ export function CardArrastavel({
       <CardConteudo
         card={card}
         onEditar={onEditar}
+        onAbrirDrawer={onAbrirDrawer}
         menu={
           <MenuMoverPara
             etapaAtual={card.etapaId}
@@ -73,6 +76,7 @@ export function CardConteudo({
   flutuando = false,
   menu,
   onEditar,
+  onAbrirDrawer,
 }: {
   card: CardFunil
   flutuando?: boolean
@@ -80,16 +84,22 @@ export function CardConteudo({
   menu?: React.ReactNode
   /** Abre a edição rápida; ausente na cópia flutuante do arraste. */
   onEditar?: (card: CardFunil) => void
+  /** Abre o painel lateral; ausente na cópia flutuante do arraste. */
+  onAbrirDrawer?: (card: CardFunil) => void
 }) {
   return (
     <article
+      onClick={() => onAbrirDrawer?.(card)}
       className={`relative cursor-grab touch-none rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950 ${
         flutuando ? 'cursor-grabbing shadow-lg ring-2 ring-zinc-900/10' : 'shadow-xs hover:border-zinc-300 dark:hover:border-zinc-700'
       }`}
     >
       <button
         type="button"
-        onClick={() => onEditar?.(card)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onEditar?.(card)
+        }}
         aria-label={`Editar negociação de ${card.clienteNome}`}
         title="Editar"
         className="absolute top-2 left-2 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
@@ -109,6 +119,7 @@ export function CardConteudo({
           )}
           <Link
             href={`/clientes/${card.clienteId}`}
+            onClick={(e) => e.stopPropagation()}
             className={`block truncate hover:underline ${
               card.clienteEmpresa ? 'text-xs font-normal text-zinc-500' : 'font-medium'
             }`}

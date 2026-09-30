@@ -9,7 +9,9 @@ import {
   moverNegociacao,
   type ResultadoFunil,
 } from '@/lib/dal/funil'
+import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
 import { fechamentoSchema, moverSchema, perdaSchema } from '@/lib/validations/funil'
+import type { LinhaHistoricoBruta } from '@/lib/utils/historico'
 
 export type EstadoModalFunil = {
   ok?: boolean
@@ -88,4 +90,15 @@ export async function marcarPerdidaAction(
 
   revalidatePath('/funil')
   return { ok: true }
+}
+
+/**
+ * Histórico bruto de uma negociação, pro drawer do card calcular "tempo
+ * parado na etapa" (`montarHistorico` + `formatarDuracaoHistorico`, em
+ * lib/utils/historico.ts) sem duplicar a lógica que já existe na tela de
+ * edição da negociação.
+ */
+export async function obterHistoricoNegociacaoAction(negociacaoId: string): Promise<LinhaHistoricoBruta[]> {
+  if (!z.uuid().safeParse(negociacaoId).success) return []
+  return listarHistoricoDaNegociacao(negociacaoId)
 }

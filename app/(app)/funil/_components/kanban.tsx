@@ -32,6 +32,7 @@ import { tipoExigeModal, type EtapaKanban } from '@/lib/utils/etapas'
 import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
 
 import { CardArrastavel, CardConteudo } from './card-negociacao'
+import { DrawerNegociacao } from './drawer-negociacao'
 import { ModalEdicaoRapida } from './modal-edicao-rapida'
 import { ModalFechamento } from './modal-fechamento'
 import { ModalPerda } from './modal-perda'
@@ -135,6 +136,7 @@ export function Kanban({
   const [ativo, setAtivo] = useState<CardFunil | null>(null)
   const [pendente, setPendente] = useState<MovimentoPendente | null>(null)
   const [edicaoRapida, setEdicaoRapida] = useState<CardFunil | null>(null)
+  const [drawer, setDrawer] = useState<CardFunil | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, startTransition] = useTransition()
   const inicioArraste = useRef<{ colunas: Colunas; etapa: string } | null>(null)
@@ -337,6 +339,7 @@ export function Kanban({
               cards={colunas[etapa.id] ?? []}
               onMover={moverPara}
               onEditar={setEdicaoRapida}
+              onAbrirDrawer={setDrawer}
             />
           ))}
         </div>
@@ -370,6 +373,16 @@ export function Kanban({
           onConcluido={() => setEdicaoRapida(null)}
         />
       )}
+
+      {drawer && (
+        <DrawerNegociacao
+          card={drawer}
+          etapas={etapas}
+          onFechar={() => setDrawer(null)}
+          onEditar={setEdicaoRapida}
+          onMover={moverPara}
+        />
+      )}
     </>
   )
 }
@@ -380,12 +393,14 @@ function Coluna({
   cards,
   onMover,
   onEditar,
+  onAbrirDrawer,
 }: {
   etapa: EtapaKanban
   etapas: EtapaKanban[]
   cards: CardFunil[]
   onMover: (id: string, etapaId: string) => void
   onEditar: (card: CardFunil) => void
+  onAbrirDrawer: (card: CardFunil) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.id })
   const total = cards.reduce(
@@ -420,7 +435,14 @@ function Coluna({
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <ul className="flex min-h-32 flex-1 flex-col gap-2 p-2">
           {cards.map((card) => (
-            <CardArrastavel key={card.id} card={card} etapas={etapas} onMover={onMover} onEditar={onEditar} />
+            <CardArrastavel
+              key={card.id}
+              card={card}
+              etapas={etapas}
+              onMover={onMover}
+              onEditar={onEditar}
+              onAbrirDrawer={onAbrirDrawer}
+            />
           ))}
         </ul>
       </SortableContext>
