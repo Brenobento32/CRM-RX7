@@ -30,6 +30,11 @@ const ITENS_GERENTE: Item[] = [
     titulo: 'Agenda Google',
     descricao: 'Conectar o Google Calendar da empresa e diagnosticar as cores usadas.',
   },
+  {
+    href: '/configuracoes/whatsapp',
+    titulo: 'WhatsApp',
+    descricao: 'Funil e responsável padrão da conexão WhatsApp.',
+  },
 ]
 
 const ITENS_CLOSER: Item[] = [

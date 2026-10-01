@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Edge Functions rodam em Deno, com outro runtime e outros globais.
     "supabase/functions/**",
+    // Projeto Node separado (Baileys) — não é React/Next, tem seu próprio
+    // package.json e tooling.
+    "whatsapp-service/**",
   ]),
 ]);
 

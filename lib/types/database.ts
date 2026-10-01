@@ -274,6 +274,45 @@ export type Database = {
           },
         ]
       }
+      conversas: {
+        Row: {
+          cliente_id: string | null
+          created_at: string
+          id: string
+          telefone: string
+          ultima_mensagem_em: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          telefone: string
+          ultima_mensagem_em?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          telefone?: string
+          ultima_mensagem_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["cliente_id"]
+          },
+        ]
+      }
       etapas_funil: {
         Row: {
           ativo: boolean
@@ -761,6 +800,44 @@ export type Database = {
           },
         ]
       }
+      mensagens: {
+        Row: {
+          conteudo: string | null
+          conversa_id: string
+          created_at: string
+          direcao: Database["public"]["Enums"]["direcao_mensagem"]
+          id: string
+          tipo: Database["public"]["Enums"]["tipo_mensagem"]
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          conteudo?: string | null
+          conversa_id: string
+          created_at?: string
+          direcao: Database["public"]["Enums"]["direcao_mensagem"]
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_mensagem"]
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          conteudo?: string | null
+          conversa_id?: string
+          created_at?: string
+          direcao?: Database["public"]["Enums"]["direcao_mensagem"]
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_mensagem"]
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas: {
         Row: {
           created_at: string
@@ -1095,6 +1172,54 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      whatsapp_conexoes: {
+        Row: {
+          conectado_em: string | null
+          created_at: string
+          funil_id: string
+          id: string
+          numero: string | null
+          responsavel_padrao_id: string
+          status: Database["public"]["Enums"]["status_conexao_whatsapp"]
+          updated_at: string
+        }
+        Insert: {
+          conectado_em?: string | null
+          created_at?: string
+          funil_id: string
+          id?: string
+          numero?: string | null
+          responsavel_padrao_id: string
+          status?: Database["public"]["Enums"]["status_conexao_whatsapp"]
+          updated_at?: string
+        }
+        Update: {
+          conectado_em?: string | null
+          created_at?: string
+          funil_id?: string
+          id?: string
+          numero?: string | null
+          responsavel_padrao_id?: string
+          status?: Database["public"]["Enums"]["status_conexao_whatsapp"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conexoes_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conexoes_responsavel_padrao_id_fkey"
+            columns: ["responsavel_padrao_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1508,9 +1633,11 @@ export type Database = {
         | "rosa"
         | "turquesa"
         | "cinza"
+      direcao_mensagem: "entrada" | "saida"
       forma_pagamento: "avista" | "boleto_3x" | "cartao_12x"
       frequencia_recorrencia: "diaria" | "semanal" | "mensal"
       origem_evento: "crm" | "google"
+      status_conexao_whatsapp: "desconectado" | "conectando" | "conectado"
       status_evento:
         | "agendado"
         | "confirmado"
@@ -1529,6 +1656,7 @@ export type Database = {
       tipo_cliente: "pessoa_fisica" | "empresa"
       tipo_etapa: "aberta" | "ganha" | "perdida"
       tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao" | "outro"
+      tipo_mensagem: "texto" | "imagem" | "documento" | "audio" | "video"
       user_role: "gerente" | "closer"
     }
     CompositeTypes: {
@@ -1672,9 +1800,11 @@ export const Constants = {
         "turquesa",
         "cinza",
       ],
+      direcao_mensagem: ["entrada", "saida"],
       forma_pagamento: ["avista", "boleto_3x", "cartao_12x"],
       frequencia_recorrencia: ["diaria", "semanal", "mensal"],
       origem_evento: ["crm", "google"],
+      status_conexao_whatsapp: ["desconectado", "conectando", "conectado"],
       status_evento: [
         "agendado",
         "confirmado",
@@ -1695,6 +1825,7 @@ export const Constants = {
       tipo_cliente: ["pessoa_fisica", "empresa"],
       tipo_etapa: ["aberta", "ganha", "perdida"],
       tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao", "outro"],
+      tipo_mensagem: ["texto", "imagem", "documento", "audio", "video"],
       user_role: ["gerente", "closer"],
     },
   },
