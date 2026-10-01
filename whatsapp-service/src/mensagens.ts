@@ -84,6 +84,30 @@ async function obterOuCriarConversa(telefone: string, clienteId: string | null):
 }
 
 /**
+ * Cliente novo ("lead") + negociação aberta no funil configurado em
+ * `/configuracoes/whatsapp`, via `criar_cliente_whatsapp()` — atômico, e
+ * idempotente por `conversa_id` (duas mensagens simultâneas do mesmo número
+ * não duplicam lead: a função serializa pelo lock da linha de `conversas`).
+ * Funil e responsável padrão não são passados daqui — a função lê direto de
+ * `whatsapp_conexoes`, nunca um valor que este serviço decide. Nome nunca
+ * inventado — o WhatsApp não manda nome de contato nesta fase.
+ */
+async function criarLeadWhatsapp(telefone: string, conversaId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('criar_cliente_whatsapp', {
+    p_telefone: telefone,
+    p_nome: `Contato WhatsApp — ${telefone}`,
+    p_conversa_id: conversaId,
+  })
+
+  if (error) {
+    console.error('[mensagens] falha ao criar lead automático:', error.message)
+    return null
+  }
+
+  return data?.[0]?.cliente_id ?? null
+}
+
+/**
  * Ponto de entrada chamado pelo evento `messages.upsert` do Baileys.
  * Fase 1: só grava mensagem de ENTRADA (do cliente para a empresa) — mensagem
  * enviada pelo próprio número conectado (`fromMe`) é ignorada aqui.
@@ -108,9 +132,18 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   const extraido = extrairConteudo(msg)
   if (!extraido) return
 
-  const clienteId = await buscarClientePorTelefone(telefone)
+  let clienteId = await buscarClientePorTelefone(telefone)
+  const jaEraCliente = clienteId !== null
   const conversaId = await obterOuCriarConversa(telefone, clienteId)
   if (!conversaId) return
+
+  // Telefone desconhecido: abre lead automático. Telefone já conhecido segue
+  // o fluxo normal, sem tocar em cliente/negociação.
+  let leadCriadoAgora = false
+  if (!clienteId) {
+    clienteId = await criarLeadWhatsapp(telefone, conversaId)
+    leadCriadoAgora = clienteId !== null
+  }
 
   const { error } = await supabase.from('mensagens').insert({
     conversa_id: conversaId,
@@ -125,5 +158,6 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
     return
   }
 
-  console.log(`[mensagens] recebida de ${telefone}${clienteId ? ' (cliente cadastrado)' : ''}: ${extraido.conteudo.slice(0, 60)}`)
+  const rotulo = leadCriadoAgora ? ' (novo lead criado)' : jaEraCliente ? ' (cliente cadastrado)' : ''
+  console.log(`[mensagens] recebida de ${telefone}${rotulo}: ${extraido.conteudo.slice(0, 60)}`)
 }

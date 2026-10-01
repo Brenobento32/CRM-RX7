@@ -1435,6 +1435,13 @@ export type Database = {
         }
         Returns: string
       }
+      criar_cliente_whatsapp: {
+        Args: { p_conversa_id: string; p_nome: string; p_telefone: string }
+        Returns: {
+          cliente_id: string
+          negociacao_id: string
+        }[]
+      }
       criar_funil: {
         Args: {
           p_etapa_ganha_cor: Database["public"]["Enums"]["cor_etapa"]
