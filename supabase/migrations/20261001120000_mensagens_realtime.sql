@@ -1,0 +1,11 @@
+-- ===========================================================================
+-- Habilita Supabase Realtime (postgres_changes) para `mensagens`.
+--
+-- Sem isso, `PainelConversa` assina o canal normalmente mas nunca recebe
+-- INSERT novo — a publicação `supabase_realtime` estava vazia (nenhuma
+-- tabela). RLS de `mensagens` já existe e continua sendo respeitada por
+-- assinante (gerente vê tudo; closer só a conversa de cliente que é dele).
+--
+-- Só `mensagens` — nenhuma outra tabela entra na publicação aqui.
+-- ===========================================================================
+alter publication supabase_realtime add table public.mensagens;

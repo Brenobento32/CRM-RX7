@@ -1,25 +1,110 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+import { obterConversaAction } from '@/lib/actions/conversas'
+import type { MensagemConversa } from '@/lib/dal/conversas'
+import { createClient } from '@/lib/supabase/client'
+import { formatarHora } from '@/lib/utils/formatacao'
 
 type Props = {
-  card: { clienteNome: string; clienteEmpresa: string | null }
+  card: { clienteId: string; clienteNome: string; clienteEmpresa: string | null }
   onFechar: () => void
 }
 
+type Estado =
+  | { status: 'carregando' }
+  | { status: 'sem-conversa' }
+  | { status: 'pronto'; conversaId: string; mensagens: MensagemConversa[] }
+
+/** Linha crua do Realtime (`postgres_changes`) — mesmas colunas de `mensagens`. */
+type LinhaMensagem = {
+  id: string
+  conversa_id: string
+  direcao: MensagemConversa['direcao']
+  tipo: MensagemConversa['tipo']
+  conteudo: string | null
+  created_at: string
+}
+
+function paraMensagem(linha: LinhaMensagem): MensagemConversa {
+  return {
+    id: linha.id,
+    direcao: linha.direcao,
+    tipo: linha.tipo,
+    conteudo: linha.conteudo,
+    createdAt: linha.created_at,
+  }
+}
+
 /**
- * Placeholder visual da conversa por WhatsApp — sem integração ainda (ver
- * `DrawerNegociacao`, seção "WhatsApp"). Mesmo padrão de painel lateral
- * direito do drawer de negociação: `<dialog>` nativo, foco preso, Esc fecha.
+ * Leitura das mensagens de WhatsApp da conversa do cliente — carga inicial
+ * via server action (`obterConversaAction`, respeita a RLS de
+ * `conversas`/`mensagens`) e novas mensagens em tempo real via Supabase
+ * Realtime (`postgres_changes` em `mensagens`, filtrado pela conversa).
+ * Fase de leitura: sem envio, emoji, anexo, áudio ou vídeo ainda.
  */
 export function PainelConversa({ card, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
+  const [estado, setEstado] = useState<Estado>({ status: 'carregando' })
 
   useEffect(() => {
     const dialog = ref.current
     dialog?.showModal()
     return () => dialog?.close()
   }, [])
+
+  // O painel desmonta e remonta a cada card (troca via `{conversa && <PainelConversa .../>}`
+  // no Kanban), então `estado` já nasce 'carregando' — sem precisar resetar aqui.
+  useEffect(() => {
+    let ativo = true
+    void obterConversaAction(card.clienteId).then((conversa) => {
+      if (!ativo) return
+      setEstado(
+        conversa
+          ? { status: 'pronto', conversaId: conversa.id, mensagens: conversa.mensagens }
+          : { status: 'sem-conversa' },
+      )
+    })
+    return () => {
+      ativo = false
+    }
+  }, [card.clienteId])
+
+  const conversaId = estado.status === 'pronto' ? estado.conversaId : null
+
+  useEffect(() => {
+    if (!conversaId) return
+
+    const supabase = createClient()
+    const canal = supabase
+      .channel(`mensagens-conversa-${conversaId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
+        (payload) => {
+          const nova = paraMensagem(payload.new as LinhaMensagem)
+          setEstado((atual) => {
+            if (atual.status !== 'pronto') return atual
+            if (atual.mensagens.some((m) => m.id === nova.id)) return atual
+            return { ...atual, mensagens: [...atual.mensagens, nova] }
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(canal)
+    }
+  }, [conversaId])
+
+  const mensagens = estado.status === 'pronto' ? estado.mensagens : []
+
+  useEffect(() => {
+    const lista = listaRef.current
+    if (lista) lista.scrollTop = lista.scrollHeight
+  }, [mensagens.length])
 
   return (
     <dialog
@@ -62,12 +147,41 @@ export function PainelConversa({ card, onFechar }: Props) {
           </button>
         </header>
 
-        <div className="flex flex-1 items-center justify-center overflow-y-auto p-4">
-          <p className="text-center text-sm text-zinc-500">
-            Nenhuma mensagem ainda.
-            <br />
-            Conversa por WhatsApp — em breve.
-          </p>
+        <div ref={listaRef} className="flex-1 overflow-y-auto p-4">
+          {estado.status === 'carregando' && (
+            <p className="text-center text-sm text-zinc-500">Carregando…</p>
+          )}
+
+          {estado.status !== 'carregando' && mensagens.length === 0 && (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-center text-sm text-zinc-500">Nenhuma mensagem ainda.</p>
+            </div>
+          )}
+
+          {mensagens.length > 0 && (
+            <ul className="space-y-2">
+              {mensagens.map((m) => (
+                <li key={m.id} className={m.direcao === 'saida' ? 'flex justify-end' : 'flex justify-start'}>
+                  <div
+                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                      m.direcao === 'saida'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{m.conteudo ?? ''}</p>
+                    <p
+                      className={`mt-1 text-right text-[11px] ${
+                        m.direcao === 'saida' ? 'text-green-100' : 'text-zinc-500 dark:text-zinc-400'
+                      }`}
+                    >
+                      {formatarHora(m.createdAt)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <form
@@ -78,7 +192,8 @@ export function PainelConversa({ card, onFechar }: Props) {
             rows={2}
             placeholder="Escreva uma mensagem…"
             aria-label="Mensagem"
-            className="flex-1 resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950"
+            disabled
+            className="flex-1 resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
           />
           <button
             type="submit"
