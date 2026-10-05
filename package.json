@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.117.1",
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
+    "emoji-picker-react": "^4.22.3",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",

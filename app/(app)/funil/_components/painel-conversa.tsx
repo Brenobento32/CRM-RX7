@@ -1,11 +1,26 @@
 'use client'
 
-import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
+import { startTransition, useActionState, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { enviarMensagemAction, obterConversaAction, type EstadoEnvioMensagem } from '@/lib/actions/conversas'
+import {
+  enviarMensagemAction,
+  obterConversaAction,
+  obterStatusMensagemAction,
+  type EstadoEnvioMensagem,
+} from '@/lib/actions/conversas'
 import type { MensagemConversa } from '@/lib/dal/conversas'
 import { createClient } from '@/lib/supabase/client'
 import { formatarHora } from '@/lib/utils/formatacao'
+
+import { AnexoMenu } from './anexo-menu'
+import { EmojiPopover } from './emoji-popover'
+
+/** Textarea cresce com o texto até esse limite; depois disso, rola por dentro. */
+const ALTURA_MAX_TEXTAREA = 160
+
+/** Fallback do Realtime: confere no servidor o status da própria mensagem a cada 1s, por no máximo 10 tentativas. */
+const INTERVALO_VERIFICACAO_MS = 1000
+const TENTATIVAS_MAX_VERIFICACAO = 10
 
 type Props = {
   card: { clienteId: string; clienteNome: string; clienteEmpresa: string | null }
@@ -39,21 +54,49 @@ function paraMensagem(linha: LinhaMensagem): MensagemConversa {
   }
 }
 
-/** Insere mensagem nova (INSERT) ou atualiza uma já carregada (UPDATE de status) pelo id. */
-function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inserirSeNaoExistir: boolean) {
-  const indice = atual.findIndex((m) => m.id === nova.id)
-  if (indice === -1) return inserirSeNaoExistir ? [...atual, nova] : atual
-
-  const copia = [...atual]
-  copia[indice] = nova
-  return copia
-}
-
 const ROTULO_STATUS_ENVIO: Record<NonNullable<MensagemConversa['status']>, string> = {
   pendente: 'Enviando…',
   enviando: 'Enviando…',
   enviado: '✓ Enviado',
   falhou: '⚠ Falhou',
+}
+
+/** Posição no ciclo de envio — nunca deixa um payload atrasado regredir pra uma posição anterior. */
+const ORDEM_STATUS_ENVIO: Record<NonNullable<MensagemConversa['status']>, number> = {
+  pendente: 0,
+  enviando: 1,
+  enviado: 2,
+  falhou: 2,
+}
+
+/**
+ * Insere mensagem nova (INSERT) ou atualiza uma já carregada (UPDATE de
+ * status, eco tardio do próprio INSERT otimista, ou o fallback de
+ * verificação pontual) pelo id.
+ *
+ * A inserção otimista local, o INSERT do Realtime da mesma linha, os
+ * UPDATEs de status (pendente → enviando → enviado/falhou) e o fallback de
+ * verificação podem chegar fora de ordem no cliente — ex.: o eco do INSERT,
+ * que carrega o snapshot `status: 'pendente'` de quando a linha nasceu,
+ * chegando *depois* de um UPDATE que já levou pra `enviando`. Pra mensagem
+ * de saída, só aceita o status novo se ele não regredir no ciclo —
+ * `enviado`/`falhou` são terminais (nunca mais aceitam nada; o retry cria
+ * mensagem nova) e `enviando` nunca volta pra `pendente`. Mensagem de
+ * entrada não tem ciclo (`status` é sempre `null`) e passa direto por essa
+ * checagem.
+ */
+function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inserirSeNaoExistir: boolean) {
+  const indice = atual.findIndex((m) => m.id === nova.id)
+  if (indice === -1) return inserirSeNaoExistir ? [...atual, nova] : atual
+
+  const existente = atual[indice]
+  if (existente.status && nova.status && ORDEM_STATUS_ENVIO[nova.status] < ORDEM_STATUS_ENVIO[existente.status]) {
+    return atual
+  }
+
+  const copia = [...atual]
+  copia[indice] = nova
+  return copia
 }
 
 /**
@@ -62,18 +105,26 @@ const ROTULO_STATUS_ENVIO: Record<NonNullable<MensagemConversa['status']>, strin
  * atualização em tempo real via Supabase Realtime (`postgres_changes` em
  * `mensagens`, filtrado pela conversa): INSERT pra mensagem nova, UPDATE pro
  * ciclo de status de saída (pendente → enviando → enviado/falhou) que o
- * whatsapp-service grava de forma assíncrona. Só texto — sem emoji, anexo,
- * áudio ou vídeo ainda.
+ * whatsapp-service grava de forma assíncrona. Envia texto (com emoji) —
+ * anexo, câmera e áudio são só o botão/menu preparados, sem upload ainda.
  */
 export function PainelConversa({ card, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const listaRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  /** Posição de cursor a restaurar depois que `texto` comitar no DOM (ver `inserirEmoji`). */
+  const posicaoPendenteRef = useRef<number | null>(null)
+  /** Pra não aplicar o fallback de verificação (setTimeout) depois que o painel já fechou. */
+  const montadoRef = useRef(true)
   const [estado, setEstado] = useState<Estado>({ status: 'carregando' })
 
   useEffect(() => {
     const dialog = ref.current
     dialog?.showModal()
-    return () => dialog?.close()
+    return () => {
+      montadoRef.current = false
+      dialog?.close()
+    }
   }, [])
 
   // O painel desmonta e remonta a cada card (troca via `{conversa && <PainelConversa .../>}`
@@ -95,12 +146,72 @@ export function PainelConversa({ card, onFechar }: Props) {
 
   const conversaId = estado.status === 'pronto' ? estado.conversaId : null
 
+  /**
+   * Fallback pro caso do UPDATE do Realtime (pendente → enviando →
+   * enviado/falhou) não chegar no próprio remetente: confere no servidor só
+   * o status DESSA mensagem (uma linha, nunca a conversa inteira) a cada 1s,
+   * por no máximo 10 tentativas (10s) — uma única checagem fixa não bastava
+   * porque o envio pode demorar mais do que o intervalo escolhido. Para
+   * assim que o status real vier `enviado`/`falhou` (aplicado via
+   * `mesclarMensagem`, que já impede regressão) ou ao esgotar as tentativas;
+   * nunca "assume" um status, só usa o que o banco devolve.
+   */
+  function agendarVerificacaoStatus(id: string) {
+    let tentativas = 0
+
+    const intervalo = setInterval(async () => {
+      tentativas += 1
+
+      if (!montadoRef.current) {
+        clearInterval(intervalo)
+        return
+      }
+
+      const status = await obterStatusMensagemAction(id)
+      if (!montadoRef.current) {
+        clearInterval(intervalo)
+        return
+      }
+
+      if (status === 'enviado' || status === 'falhou') {
+        clearInterval(intervalo)
+        setEstado((atual) => {
+          if (atual.status !== 'pronto') return atual
+          const existente = atual.mensagens.find((m) => m.id === id)
+          if (!existente) return atual
+          return { ...atual, mensagens: mesclarMensagem(atual.mensagens, { ...existente, status }, false) }
+        })
+        return
+      }
+
+      if (tentativas >= TENTATIVAS_MAX_VERIFICACAO) clearInterval(intervalo)
+    }, INTERVALO_VERIFICACAO_MS)
+  }
+
   const [texto, setTexto] = useState('')
   const [estadoEnvio, formAction, enviando] = useActionState(
     async (_anterior: EstadoEnvioMensagem | undefined, formData: FormData) => {
       if (!conversaId) return { erro: 'Conversa não encontrada.' }
       const resultado = await enviarMensagemAction(conversaId, _anterior, formData)
-      if (resultado.ok) setTexto('')
+      if (resultado.ok && resultado.id && resultado.createdAt) {
+        setTexto('')
+        // Mostra a própria mensagem na hora — não espera o Realtime (que
+        // só chega de volta depois). `mesclarMensagem` descarta por id se o
+        // evento do Realtime também chegar depois, então não duplica.
+        const nova: MensagemConversa = {
+          id: resultado.id,
+          direcao: 'saida',
+          tipo: 'texto',
+          conteudo: resultado.conteudo ?? '',
+          status: 'pendente',
+          createdAt: resultado.createdAt,
+        }
+        setEstado((atual) => {
+          if (atual.status !== 'pronto') return atual
+          return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+        })
+        agendarVerificacaoStatus(resultado.id)
+      }
       return resultado
     },
     undefined,
@@ -112,6 +223,37 @@ export function PainelConversa({ card, onFechar }: Props) {
     formData.set('texto', conteudo)
     startTransition(() => formAction(formData))
   }
+
+  /** Insere o emoji na posição do cursor (não no final) — o foco é devolvido no `useLayoutEffect` abaixo. */
+  function inserirEmoji(emoji: string) {
+    const campo = textareaRef.current
+    const inicio = campo?.selectionStart ?? texto.length
+    const fim = campo?.selectionEnd ?? texto.length
+
+    posicaoPendenteRef.current = inicio + emoji.length
+    setTexto(texto.slice(0, inicio) + emoji + texto.slice(fim))
+  }
+
+  // Roda assim que `texto` comita no DOM (antes da pintura) — não depende de
+  // rAF nem de quando o popover de emoji devolve ou não o foco, só do React
+  // ter aplicado o novo valor na textarea.
+  useLayoutEffect(() => {
+    const posicao = posicaoPendenteRef.current
+    if (posicao === null) return
+    posicaoPendenteRef.current = null
+    const campo = textareaRef.current
+    campo?.focus()
+    campo?.setSelectionRange(posicao, posicao)
+  }, [texto])
+
+  // Cresce com o conteúdo (digitado, emoji inserido ou campo limpo depois do
+  // envio) até ALTURA_MAX_TEXTAREA; depois disso, rola por dentro.
+  useEffect(() => {
+    const campo = textareaRef.current
+    if (!campo) return
+    campo.style.height = 'auto'
+    campo.style.height = `${Math.min(campo.scrollHeight, ALTURA_MAX_TEXTAREA)}px`
+  }, [texto])
 
   useEffect(() => {
     if (!conversaId) return
@@ -260,24 +402,46 @@ export function PainelConversa({ card, onFechar }: Props) {
               {estadoEnvio.erro}
             </p>
           )}
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-1">
+            <EmojiPopover onEscolher={inserirEmoji} disabled={!conversaId} />
+            <AnexoMenu disabled={!conversaId} />
             <textarea
+              ref={textareaRef}
               name="texto"
-              rows={2}
+              rows={1}
               placeholder="Escreva uma mensagem…"
               aria-label="Mensagem"
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter envia; Shift+Enter quebra linha (comportamento padrão do textarea).
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (texto.trim()) e.currentTarget.form?.requestSubmit()
+                }
+              }}
               disabled={!conversaId}
-              className="flex-1 resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+              className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
             />
-            <button
-              type="submit"
-              disabled={!conversaId || !texto.trim() || enviando}
-              className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              {enviando ? 'Enviando…' : 'Enviar'}
-            </button>
+            {texto.trim() ? (
+              <button
+                type="submit"
+                disabled={!conversaId || enviando}
+                className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                {enviando ? 'Enviando…' : 'Enviar'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                aria-label="Gravar áudio (em breve)"
+                title="Gravação de áudio — em breve"
+                className="shrink-0 rounded-md p-2 text-lg leading-none text-zinc-400 disabled:cursor-not-allowed dark:text-zinc-500"
+              >
+                🎤
+              </button>
+            )}
           </div>
         </form>
       </div>

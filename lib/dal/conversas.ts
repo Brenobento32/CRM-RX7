@@ -71,28 +71,54 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
  * envia pelo WhatsApp é o whatsapp-service, de forma assíncrona (ver migration
  * 20261001130000). A RLS de `mensagens_insert` decide se este usuário pode
  * escrever nesta conversa; `autor_id` vem sempre do usuário autenticado, nunca
- * do cliente. A mensagem inserida chega de volta na tela via Realtime
- * (`PainelConversa` já está inscrito em `postgres_changes` de `mensagens`).
+ * do cliente.
+ *
+ * Devolve `id`/`createdAt` pra quem chamou poder mostrar a própria mensagem
+ * na hora, sem esperar o Realtime — o Realtime continua sendo a única fonte
+ * pra mensagem de entrada e pras transições de status que o whatsapp-service
+ * grava depois (`PainelConversa` já está inscrito em `postgres_changes`).
  */
 export async function enviarMensagemTexto(
   conversaId: string,
   texto: string,
-): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+): Promise<{ ok: true; id: string; createdAt: string } | { ok: false; mensagem: string }> {
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
-  const { error } = await supabase.from('mensagens').insert({
-    conversa_id: conversaId,
-    direcao: 'saida',
-    tipo: 'texto',
-    status: 'pendente',
-    conteudo: texto,
-    autor_id: usuario.id,
-  })
+  const { data, error } = await supabase
+    .from('mensagens')
+    .insert({
+      conversa_id: conversaId,
+      direcao: 'saida',
+      tipo: 'texto',
+      status: 'pendente',
+      conteudo: texto,
+      autor_id: usuario.id,
+    })
+    .select('id, created_at')
+    .single()
 
   if (error) {
     return { ok: false, mensagem: 'Não foi possível enviar a mensagem.' }
   }
 
-  return { ok: true }
+  return { ok: true, id: data.id, createdAt: data.created_at }
+}
+
+/**
+ * Status atual de UMA mensagem (por id) — fallback de `PainelConversa` pra
+ * quando o `UPDATE` do Realtime (pendente → enviando → enviado/falhou) não
+ * chega no próprio remetente. Não é polling da conversa: uma linha, uma vez,
+ * puxada pelo cliente alguns segundos depois do envio. RLS de
+ * `mensagens_select` decide se este usuário pode ver esta linha, igual a
+ * qualquer outra leitura.
+ */
+export async function obterStatusMensagem(id: string): Promise<StatusMensagem | null> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.from('mensagens').select('status').eq('id', id).maybeSingle()
+
+  if (error || !data) return null
+  return data.status
 }
