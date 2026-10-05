@@ -802,33 +802,46 @@ export type Database = {
       }
       mensagens: {
         Row: {
+          autor_id: string | null
           conteudo: string | null
           conversa_id: string
           created_at: string
           direcao: Database["public"]["Enums"]["direcao_mensagem"]
           id: string
+          status: Database["public"]["Enums"]["status_mensagem"] | null
           tipo: Database["public"]["Enums"]["tipo_mensagem"]
           whatsapp_message_id: string | null
         }
         Insert: {
+          autor_id?: string | null
           conteudo?: string | null
           conversa_id: string
           created_at?: string
           direcao: Database["public"]["Enums"]["direcao_mensagem"]
           id?: string
+          status?: Database["public"]["Enums"]["status_mensagem"] | null
           tipo?: Database["public"]["Enums"]["tipo_mensagem"]
           whatsapp_message_id?: string | null
         }
         Update: {
+          autor_id?: string | null
           conteudo?: string | null
           conversa_id?: string
           created_at?: string
           direcao?: Database["public"]["Enums"]["direcao_mensagem"]
           id?: string
+          status?: Database["public"]["Enums"]["status_mensagem"] | null
           tipo?: Database["public"]["Enums"]["tipo_mensagem"]
           whatsapp_message_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "mensagens_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mensagens_conversa_id_fkey"
             columns: ["conversa_id"]
@@ -1651,6 +1664,7 @@ export type Database = {
         | "realizado"
         | "nao_compareceu"
         | "cancelado"
+      status_mensagem: "pendente" | "enviando" | "enviado" | "falhou"
       status_onboarding: "nao_iniciado" | "em_andamento" | "concluido"
       status_pagamento:
         | "pendente"
@@ -1819,6 +1833,7 @@ export const Constants = {
         "nao_compareceu",
         "cancelado",
       ],
+      status_mensagem: ["pendente", "enviando", "enviado", "falhou"],
       status_onboarding: ["nao_iniciado", "em_andamento", "concluido"],
       status_pagamento: [
         "pendente",

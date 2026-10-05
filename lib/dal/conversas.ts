@@ -61,3 +61,34 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
     })),
   }
 }
+
+/**
+ * Registra uma mensagem de saída de texto como `pendente` — quem efetivamente
+ * envia pelo WhatsApp é o whatsapp-service, de forma assíncrona (ver migration
+ * 20261001130000). A RLS de `mensagens_insert` decide se este usuário pode
+ * escrever nesta conversa; `autor_id` vem sempre do usuário autenticado, nunca
+ * do cliente. A mensagem inserida chega de volta na tela via Realtime
+ * (`PainelConversa` já está inscrito em `postgres_changes` de `mensagens`).
+ */
+export async function enviarMensagemTexto(
+  conversaId: string,
+  texto: string,
+): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+  const usuario = await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { error } = await supabase.from('mensagens').insert({
+    conversa_id: conversaId,
+    direcao: 'saida',
+    tipo: 'texto',
+    status: 'pendente',
+    conteudo: texto,
+    autor_id: usuario.id,
+  })
+
+  if (error) {
+    return { ok: false, mensagem: 'Não foi possível enviar a mensagem.' }
+  }
+
+  return { ok: true }
+}

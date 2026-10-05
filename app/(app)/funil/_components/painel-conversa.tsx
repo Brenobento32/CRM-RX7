@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
 
-import { obterConversaAction } from '@/lib/actions/conversas'
+import { enviarMensagemAction, obterConversaAction, type EstadoEnvioMensagem } from '@/lib/actions/conversas'
 import type { MensagemConversa } from '@/lib/dal/conversas'
 import { createClient } from '@/lib/supabase/client'
 import { formatarHora } from '@/lib/utils/formatacao'
@@ -73,6 +73,17 @@ export function PainelConversa({ card, onFechar }: Props) {
   }, [card.clienteId])
 
   const conversaId = estado.status === 'pronto' ? estado.conversaId : null
+
+  const [texto, setTexto] = useState('')
+  const [estadoEnvio, formAction, enviando] = useActionState(
+    async (_anterior: EstadoEnvioMensagem | undefined, formData: FormData) => {
+      if (!conversaId) return { erro: 'Conversa não encontrada.' }
+      const resultado = await enviarMensagemAction(conversaId, _anterior, formData)
+      if (resultado.ok) setTexto('')
+      return resultado
+    },
+    undefined,
+  )
 
   useEffect(() => {
     if (!conversaId) return
@@ -185,23 +196,38 @@ export function PainelConversa({ card, onFechar }: Props) {
         </div>
 
         <form
-          onSubmit={(e) => e.preventDefault()}
-          className="flex items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800"
+          className="flex flex-col gap-1.5 border-t border-zinc-200 p-3 dark:border-zinc-800"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!texto.trim()) return
+            const formData = new FormData(e.currentTarget)
+            startTransition(() => formAction(formData))
+          }}
         >
-          <textarea
-            rows={2}
-            placeholder="Escreva uma mensagem…"
-            aria-label="Mensagem"
-            disabled
-            className="flex-1 resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
-          />
-          <button
-            type="submit"
-            disabled
-            className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Enviar
-          </button>
+          {estadoEnvio?.erro && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+              {estadoEnvio.erro}
+            </p>
+          )}
+          <div className="flex items-end gap-2">
+            <textarea
+              name="texto"
+              rows={2}
+              placeholder="Escreva uma mensagem…"
+              aria-label="Mensagem"
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              disabled={!conversaId}
+              className="flex-1 resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+            />
+            <button
+              type="submit"
+              disabled={!conversaId || !texto.trim() || enviando}
+              className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {enviando ? 'Enviando…' : 'Enviar'}
+            </button>
+          </div>
         </form>
       </div>
     </dialog>

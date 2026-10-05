@@ -1,10 +1,9 @@
 /**
  * Conecta 1 número WhatsApp via QR Code (Baileys) e grava no Supabase:
- * status da conexão (`whatsapp_conexoes`) e mensagens recebidas
- * (`conversas`/`mensagens`, ver `mensagens.ts`).
- *
- * Fase 1 — só recebimento: nada aqui cria cliente ("lead"), envia mensagem
- * ou mexe no Kanban. A `service_role` usada em `supabase.ts` só existe neste
+ * status da conexão (`whatsapp_conexoes`), mensagens recebidas
+ * (`conversas`/`mensagens`, ver `mensagens.ts`) e envio de texto pendente
+ * criado pelo CRM (ver `envio.ts`). Nada aqui cria cliente ("lead") nem mexe
+ * no Kanban. A `service_role` usada em `supabase.ts` só existe neste
  * processo, nunca no Next.js.
  */
 import { Boom } from '@hapi/boom'
@@ -19,6 +18,7 @@ import { pino } from 'pino'
 import qrcodeTerminal from 'qrcode-terminal'
 
 import { atualizarStatusConexao } from './conexao.js'
+import { definirSocketAtivo, iniciarSenderTexto } from './envio.js'
 import { salvarMensagemRecebida } from './mensagens.js'
 
 const PASTA_CREDENCIAIS = 'auth_info_baileys'
@@ -54,6 +54,7 @@ async function iniciar() {
       const numero = socket.user?.id?.split(':')[0]
       console.log('[status] conectado — número:', numero ?? 'desconhecido')
       void atualizarStatusConexao('conectado', numero)
+      definirSocketAtivo(socket)
     }
 
     if (connection === 'close') {
@@ -61,6 +62,7 @@ async function iniciar() {
       const deslogado = codigo === DisconnectReason.loggedOut
       console.log('[status] desconectado', { codigo, deslogado })
       void atualizarStatusConexao('desconectado')
+      definirSocketAtivo(null)
 
       if (deslogado) {
         console.log(`Sessão encerrada pelo WhatsApp. Apague a pasta "${PASTA_CREDENCIAIS}" e rode de novo para gerar um QR novo.`)
@@ -81,6 +83,10 @@ async function iniciar() {
     }
   })
 }
+
+// Independente da conexão com o WhatsApp — sobrevive a reconexões do socket
+// e já busca o que ficou pendente enquanto o processo estava fora do ar.
+iniciarSenderTexto()
 
 iniciar().catch((erro) => {
   console.error('Falha ao iniciar o serviço WhatsApp:', erro)
