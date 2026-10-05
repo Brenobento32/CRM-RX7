@@ -6,12 +6,15 @@ import type { Database } from '@/lib/types/database'
 
 type DirecaoMensagem = Database['public']['Enums']['direcao_mensagem']
 type TipoMensagem = Database['public']['Enums']['tipo_mensagem']
+export type StatusMensagem = Database['public']['Enums']['status_mensagem']
 
 export type MensagemConversa = {
   id: string
   direcao: DirecaoMensagem
   tipo: TipoMensagem
   conteudo: string | null
+  /** Ciclo de envio — só existe pra `direcao='saida'`; mensagem de entrada é `null`. */
+  status: StatusMensagem | null
   createdAt: string
 }
 
@@ -44,7 +47,7 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
 
   const { data: mensagens, error: erroMensagens } = await supabase
     .from('mensagens')
-    .select('id, direcao, tipo, conteudo, created_at')
+    .select('id, direcao, tipo, conteudo, status, created_at')
     .eq('conversa_id', conversa.id)
     .order('created_at', { ascending: true })
 
@@ -57,6 +60,7 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
       direcao: m.direcao,
       tipo: m.tipo,
       conteudo: m.conteudo,
+      status: m.status,
       createdAt: m.created_at,
     })),
   }

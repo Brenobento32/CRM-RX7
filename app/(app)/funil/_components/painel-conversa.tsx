@@ -24,6 +24,7 @@ type LinhaMensagem = {
   direcao: MensagemConversa['direcao']
   tipo: MensagemConversa['tipo']
   conteudo: string | null
+  status: MensagemConversa['status']
   created_at: string
 }
 
@@ -33,16 +34,36 @@ function paraMensagem(linha: LinhaMensagem): MensagemConversa {
     direcao: linha.direcao,
     tipo: linha.tipo,
     conteudo: linha.conteudo,
+    status: linha.status,
     createdAt: linha.created_at,
   }
 }
 
+/** Insere mensagem nova (INSERT) ou atualiza uma já carregada (UPDATE de status) pelo id. */
+function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inserirSeNaoExistir: boolean) {
+  const indice = atual.findIndex((m) => m.id === nova.id)
+  if (indice === -1) return inserirSeNaoExistir ? [...atual, nova] : atual
+
+  const copia = [...atual]
+  copia[indice] = nova
+  return copia
+}
+
+const ROTULO_STATUS_ENVIO: Record<NonNullable<MensagemConversa['status']>, string> = {
+  pendente: 'Enviando…',
+  enviando: 'Enviando…',
+  enviado: '✓ Enviado',
+  falhou: '⚠ Falhou',
+}
+
 /**
- * Leitura das mensagens de WhatsApp da conversa do cliente — carga inicial
- * via server action (`obterConversaAction`, respeita a RLS de
- * `conversas`/`mensagens`) e novas mensagens em tempo real via Supabase
- * Realtime (`postgres_changes` em `mensagens`, filtrado pela conversa).
- * Fase de leitura: sem envio, emoji, anexo, áudio ou vídeo ainda.
+ * Conversa de WhatsApp do cliente — carga inicial via server action
+ * (`obterConversaAction`, respeita a RLS de `conversas`/`mensagens`) e
+ * atualização em tempo real via Supabase Realtime (`postgres_changes` em
+ * `mensagens`, filtrado pela conversa): INSERT pra mensagem nova, UPDATE pro
+ * ciclo de status de saída (pendente → enviando → enviado/falhou) que o
+ * whatsapp-service grava de forma assíncrona. Só texto — sem emoji, anexo,
+ * áudio ou vídeo ainda.
  */
 export function PainelConversa({ card, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -85,6 +106,13 @@ export function PainelConversa({ card, onFechar }: Props) {
     undefined,
   )
 
+  /** "Tentar novamente" numa mensagem `falhou` — reaproveita o mesmo envio (nova mensagem pendente). */
+  function reenviar(conteudo: string) {
+    const formData = new FormData()
+    formData.set('texto', conteudo)
+    startTransition(() => formAction(formData))
+  }
+
   useEffect(() => {
     if (!conversaId) return
 
@@ -98,8 +126,20 @@ export function PainelConversa({ card, onFechar }: Props) {
           const nova = paraMensagem(payload.new as LinhaMensagem)
           setEstado((atual) => {
             if (atual.status !== 'pronto') return atual
-            if (atual.mensagens.some((m) => m.id === nova.id)) return atual
-            return { ...atual, mensagens: [...atual.mensagens, nova] }
+            return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+          })
+        },
+      )
+      .on(
+        // O whatsapp-service faz pendente → enviando → enviado/falhou via UPDATE
+        // nesta mesma linha; é só isso que chega aqui (conteúdo não muda depois do INSERT).
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
+        (payload) => {
+          const atualizada = paraMensagem(payload.new as LinhaMensagem)
+          setEstado((atual) => {
+            if (atual.status !== 'pronto') return atual
+            return { ...atual, mensagens: mesclarMensagem(atual.mensagens, atualizada, false) }
           })
         },
       )
@@ -125,7 +165,7 @@ export function PainelConversa({ card, onFechar }: Props) {
         e.preventDefault()
         onFechar()
       }}
-      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-sm border-l border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+      className="m-0 ml-auto h-dvh max-h-dvh w-full border-l border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 sm:w-[48vw] sm:min-w-[420px] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
     >
       <div className="flex h-full flex-col">
         <header className="flex items-start justify-between gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
@@ -182,12 +222,23 @@ export function PainelConversa({ card, onFechar }: Props) {
                   >
                     <p className="whitespace-pre-wrap">{m.conteudo ?? ''}</p>
                     <p
-                      className={`mt-1 text-right text-[11px] ${
+                      className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] ${
                         m.direcao === 'saida' ? 'text-green-100' : 'text-zinc-500 dark:text-zinc-400'
                       }`}
                     >
                       {formatarHora(m.createdAt)}
+                      {m.direcao === 'saida' && m.status && <span>· {ROTULO_STATUS_ENVIO[m.status]}</span>}
                     </p>
+                    {m.direcao === 'saida' && m.status === 'falhou' && (
+                      <button
+                        type="button"
+                        onClick={() => reenviar(m.conteudo ?? '')}
+                        disabled={enviando}
+                        className="mt-1 text-[11px] font-medium text-green-100 underline decoration-dotted disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Tentar novamente
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}

@@ -202,10 +202,11 @@ export function DrawerNegociacao({
 
               <button
                 type="button"
-                onClick={() => {
-                  onFechar()
-                  onAbrirConversa(card)
-                }}
+                // Não fecha o drawer: o PainelConversa abre por cima (outro
+                // <dialog> modal, pilha nativa do navegador) e, ao ser
+                // fechado, revela este de volta sozinho, com o mesmo
+                // estado/contexto — sem recriar nada.
+                onClick={() => onAbrirConversa(card)}
                 className="w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
               >
                 Abrir conversa
