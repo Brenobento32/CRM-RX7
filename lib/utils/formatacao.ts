@@ -108,6 +108,15 @@ export function formatarMes(mes: string): string {
   return formatInTimeZone(meioDiaUtc(mes), 'UTC', 'MMM/yy', { locale: ptBR })
 }
 
+/** Tamanho de arquivo em bytes → "512 B", "320 KB", "1,4 MB". */
+export function formatarTamanhoArquivo(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} KB`
+  const mb = kb / 1024
+  return `${mb.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`
+}
+
 /** Duração em segundos → "menos de 1 h", "5 h", "3,2 dias". */
 export function formatarDuracao(segundos: number): string {
   const horas = segundos / 3600

@@ -9,10 +9,11 @@ const INTERVALO_POLLING_MS = 60_000
 type MensagemPendente = {
   id: string
   conversa_id: string
-  tipo: 'texto' | 'imagem'
+  tipo: 'texto' | 'imagem' | 'documento'
   conteudo: string | null
   arquivo_path: string | null
   arquivo_mime: string | null
+  arquivo_nome: string | null
 }
 
 /**
@@ -31,7 +32,7 @@ export function definirSocketAtivo(socket: WASocket | null): void {
 }
 
 /**
- * Liga o sender de saída (texto e imagem): busca o que já está pendente
+ * Liga o sender de saída (texto, imagem e documento): busca o que já está pendente
  * (mensagem criada enquanto o serviço estava offline), assina Realtime pra
  * pegar novidade em tempo real, e mantém um polling de segurança a cada 60s
  * pro caso de o Realtime cair. Independente da conexão com o WhatsApp — pode
@@ -73,9 +74,9 @@ async function processarPendentes(): Promise<void> {
 
   const { data, error } = await supabase
     .from('mensagens')
-    .select('id, conversa_id, tipo, conteudo, arquivo_path, arquivo_mime')
+    .select('id, conversa_id, tipo, conteudo, arquivo_path, arquivo_mime, arquivo_nome')
     .eq('direcao', 'saida')
-    .in('tipo', ['texto', 'imagem'])
+    .in('tipo', ['texto', 'imagem', 'documento'])
     .eq('status', 'pendente')
     .order('created_at', { ascending: true })
 
@@ -119,17 +120,26 @@ async function buscarTelefoneDaConversa(conversaId: string): Promise<string | nu
   return data?.telefone ?? null
 }
 
-/** Monta o conteúdo que o Baileys espera, por tipo. Baixa do Storage quando for imagem. */
+/** Monta o conteúdo que o Baileys espera, por tipo. Baixa do Storage quando for mídia. */
 async function montarConteudo(mensagem: MensagemPendente): Promise<AnyMessageContent> {
   if (mensagem.tipo === 'texto') {
     if (!mensagem.conteudo) throw new Error('mensagem de texto sem conteúdo')
     return { text: mensagem.conteudo }
   }
 
-  if (!mensagem.arquivo_path || !mensagem.arquivo_mime) throw new Error('mensagem de imagem sem arquivo')
+  if (!mensagem.arquivo_path || !mensagem.arquivo_mime) throw new Error(`mensagem de ${mensagem.tipo} sem arquivo`)
 
   const buffer = await baixarMidia(mensagem.arquivo_path)
   if (!buffer) throw new Error(`falha ao baixar arquivo ${mensagem.arquivo_path} do Storage`)
+
+  if (mensagem.tipo === 'documento') {
+    return {
+      document: buffer,
+      mimetype: mensagem.arquivo_mime,
+      fileName: mensagem.arquivo_nome ?? undefined,
+      caption: mensagem.conteudo ?? undefined,
+    }
+  }
 
   return { image: buffer, mimetype: mensagem.arquivo_mime, caption: mensagem.conteudo ?? undefined }
 }

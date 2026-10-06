@@ -3,7 +3,11 @@ import 'server-only'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { extensaoDeMime } from '@/lib/validations/mensagem'
+import {
+  assinaturaDocumentoValida,
+  extensaoDeMime,
+  extensaoDocumentoDeMime,
+} from '@/lib/validations/mensagem'
 
 type DirecaoMensagem = Database['public']['Enums']['direcao_mensagem']
 type TipoMensagem = Database['public']['Enums']['tipo_mensagem']
@@ -76,7 +80,7 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
         createdAt: m.created_at,
         arquivoNome: m.arquivo_nome,
         arquivoUrl:
-          m.tipo === 'imagem' && m.arquivo_path
+          (m.tipo === 'imagem' || m.tipo === 'documento') && m.arquivo_path
             ? await assinarUrlAnexo(supabase, m.arquivo_path)
             : null,
       })),
@@ -177,6 +181,132 @@ export async function enviarMensagemImagem(
     createdAt: data.created_at,
     conteudo: legenda,
     arquivoUrl: await assinarUrlAnexo(supabase, caminho),
+  }
+}
+
+/**
+ * Sobe o documento pro bucket privado e registra a mensagem de saída como
+ * `pendente` — mesmo ciclo de `enviarMensagemImagem`. Antes do upload, confere
+ * a assinatura real do arquivo (magic bytes) contra o MIME declarado: o
+ * `File.type` do navegador não garante nada sobre o conteúdo, só sobre o que
+ * o próprio navegador disse que é.
+ */
+export async function enviarMensagemDocumento(
+  conversaId: string,
+  arquivo: File,
+  legenda: string | null,
+): Promise<
+  | { ok: true; id: string; createdAt: string; conteudo: string | null; arquivoUrl: string | null; arquivoNome: string | null }
+  | { ok: false; mensagem: string }
+> {
+  const usuario = await getUsuarioAtual()
+
+  const bytes = new Uint8Array(await arquivo.arrayBuffer())
+  if (!assinaturaDocumentoValida(bytes, arquivo.type)) {
+    return { ok: false, mensagem: 'O arquivo não corresponde ao tipo informado.' }
+  }
+
+  const supabase = await createClient()
+  const caminho = `${conversaId}/${crypto.randomUUID()}.${extensaoDocumentoDeMime(arquivo.type)}`
+
+  const { error: erroUpload } = await supabase.storage
+    .from(BUCKET_MIDIA)
+    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false })
+
+  if (erroUpload) {
+    console.error('upload documento whatsapp', erroUpload)
+    return { ok: false, mensagem: 'Não foi possível enviar o documento.' }
+  }
+
+  const { data, error } = await supabase
+    .from('mensagens')
+    .insert({
+      conversa_id: conversaId,
+      direcao: 'saida',
+      tipo: 'documento',
+      status: 'pendente',
+      conteudo: legenda,
+      autor_id: usuario.id,
+      arquivo_path: caminho,
+      arquivo_mime: arquivo.type,
+      arquivo_nome: arquivo.name,
+      arquivo_tamanho: arquivo.size,
+    })
+    .select('id, created_at')
+    .single()
+
+  if (error) {
+    await supabase.storage.from(BUCKET_MIDIA).remove([caminho])
+    console.error('mensagem documento whatsapp', error)
+    return { ok: false, mensagem: 'Não foi possível enviar o documento.' }
+  }
+
+  return {
+    ok: true,
+    id: data.id,
+    createdAt: data.created_at,
+    conteudo: legenda,
+    arquivoUrl: await assinarUrlAnexo(supabase, caminho),
+    arquivoNome: arquivo.name,
+  }
+}
+
+/**
+ * "Tentar novamente" pra mensagem de mídia (imagem ou documento) que falhou —
+ * reaproveita o arquivo já no Storage (não sobe de novo, só cria uma linha
+ * nova pendente com os mesmos dados de arquivo). A mensagem original
+ * precisa passar pela RLS de `mensagens_select` pra ser lida; a nova, pela
+ * RLS de `mensagens_insert` de novo — mesma proteção de sempre, nada
+ * contorna a posse da conversa.
+ */
+export async function reenviarMensagemMidia(
+  mensagemId: string,
+): Promise<
+  | { ok: true; id: string; createdAt: string; conteudo: string | null; arquivoUrl: string | null; arquivoNome: string | null }
+  | { ok: false; mensagem: string }
+> {
+  const usuario = await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data: original, error: erroOriginal } = await supabase
+    .from('mensagens')
+    .select('conversa_id, tipo, conteudo, arquivo_path, arquivo_mime, arquivo_nome, arquivo_tamanho')
+    .eq('id', mensagemId)
+    .maybeSingle()
+
+  if (erroOriginal || !original || !original.arquivo_path || !original.arquivo_mime) {
+    return { ok: false, mensagem: 'Mensagem original não encontrada.' }
+  }
+
+  const { data, error } = await supabase
+    .from('mensagens')
+    .insert({
+      conversa_id: original.conversa_id,
+      direcao: 'saida',
+      tipo: original.tipo,
+      status: 'pendente',
+      conteudo: original.conteudo,
+      autor_id: usuario.id,
+      arquivo_path: original.arquivo_path,
+      arquivo_mime: original.arquivo_mime,
+      arquivo_nome: original.arquivo_nome,
+      arquivo_tamanho: original.arquivo_tamanho,
+    })
+    .select('id, created_at')
+    .single()
+
+  if (error) {
+    console.error('reenviar mídia whatsapp', error)
+    return { ok: false, mensagem: 'Não foi possível reenviar.' }
+  }
+
+  return {
+    ok: true,
+    id: data.id,
+    createdAt: data.created_at,
+    conteudo: original.conteudo,
+    arquivoUrl: await assinarUrlAnexo(supabase, original.arquivo_path),
+    arquivoNome: original.arquivo_nome,
   }
 }
 

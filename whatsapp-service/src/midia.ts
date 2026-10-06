@@ -9,13 +9,30 @@ export function extensaoDeMime(mime: string): string {
   return mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
 }
 
+const EXTENSAO_POR_MIME_DOCUMENTO: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'text/csv': 'csv',
+  'text/plain': 'txt',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+}
+
+export function extensaoDocumentoDeMime(mime: string): string {
+  return EXTENSAO_POR_MIME_DOCUMENTO[mime] ?? 'bin'
+}
+
 /** Sobe mídia recebida/pendente pro bucket privado. Devolve o path (não a URL — leitura é sempre por signed URL). */
 export async function subirMidia(
   conversaId: string,
   buffer: Buffer,
   mimetype: string,
+  extensao: string,
 ): Promise<string | null> {
-  const caminho = `${conversaId}/${randomUUID()}.${extensaoDeMime(mimetype)}`
+  const caminho = `${conversaId}/${randomUUID()}.${extensao}`
 
   const { error } = await supabase.storage.from(BUCKET).upload(caminho, buffer, {
     contentType: mimetype,

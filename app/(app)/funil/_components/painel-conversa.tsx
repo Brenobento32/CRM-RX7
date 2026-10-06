@@ -4,15 +4,17 @@ import { startTransition, useActionState, useEffect, useLayoutEffect, useRef, us
 
 import {
   enviarMensagemAction,
+  enviarMensagemDocumentoAction,
   enviarMensagemImagemAction,
   obterConversaAction,
   obterStatusMensagemAction,
   obterUrlAnexoAction,
+  reenviarMensagemMidiaAction,
   type EstadoEnvioMensagem,
 } from '@/lib/actions/conversas'
 import type { MensagemConversa } from '@/lib/dal/conversas'
 import { createClient } from '@/lib/supabase/client'
-import { formatarHora } from '@/lib/utils/formatacao'
+import { formatarHora, formatarTamanhoArquivo } from '@/lib/utils/formatacao'
 
 import { AnexoMenu } from './anexo-menu'
 import { EmojiPopover } from './emoji-popover'
@@ -123,9 +125,9 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
  * atualização em tempo real via Supabase Realtime (`postgres_changes` em
  * `mensagens`, filtrado pela conversa): INSERT pra mensagem nova, UPDATE pro
  * ciclo de status de saída (pendente → enviando → enviado/falhou) que o
- * whatsapp-service grava de forma assíncrona. Envia texto (com emoji) e
- * imagem (upload pro bucket privado `whatsapp-midia`, exibição por signed
- * URL) — documento, câmera e áudio ainda são só o botão/menu preparados.
+ * whatsapp-service grava de forma assíncrona. Envia texto (com emoji),
+ * imagem e documento (upload pro bucket privado `whatsapp-midia`, exibição
+ * por signed URL) — câmera e áudio ainda são só o botão/menu preparados.
  */
 export function PainelConversa({ card, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -285,6 +287,37 @@ export function PainelConversa({ card, onFechar }: Props) {
     undefined,
   )
 
+  /** Documento escolhido no `AnexoMenu`, ainda não enviado — sem preview de imagem, só nome/tamanho (ver `aoSelecionarDocumento`). */
+  const [documentoSelecionado, setDocumentoSelecionado] = useState<{ arquivo: File } | null>(null)
+
+  const [estadoEnvioDocumento, formActionDocumento, enviandoDocumento] = useActionState(
+    async (_anterior: EstadoEnvioMensagem | undefined, formData: FormData) => {
+      if (!conversaId) return { erro: 'Conversa não encontrada.' }
+      const resultado = await enviarMensagemDocumentoAction(conversaId, _anterior, formData)
+      if (resultado.ok && resultado.id && resultado.createdAt) {
+        setTexto('')
+        setDocumentoSelecionado(null)
+        const nova: MensagemConversa = {
+          id: resultado.id,
+          direcao: 'saida',
+          tipo: 'documento',
+          conteudo: resultado.conteudo ?? null,
+          status: 'pendente',
+          createdAt: resultado.createdAt,
+          arquivoUrl: resultado.arquivoUrl ?? null,
+          arquivoNome: resultado.arquivoNome ?? null,
+        }
+        setEstado((atual) => {
+          if (atual.status !== 'pronto') return atual
+          return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+        })
+        agendarVerificacaoStatus(resultado.id)
+      }
+      return resultado
+    },
+    undefined,
+  )
+
   /** "Tentar novamente" numa mensagem de TEXTO `falhou` — reaproveita o mesmo envio (nova mensagem pendente). Imagem não tem retry nesta fase. */
   function reenviar(conteudo: string) {
     const formData = new FormData()
@@ -292,12 +325,44 @@ export function PainelConversa({ card, onFechar }: Props) {
     startTransition(() => formAction(formData))
   }
 
+  /** "Tentar novamente" numa mensagem de DOCUMENTO `falhou` — reaproveita o arquivo já no Storage, sem subir de novo. */
+  function reenviarDocumento(mensagemId: string) {
+    void reenviarMensagemMidiaAction(mensagemId).then((resultado) => {
+      if (!resultado.ok || !resultado.id || !resultado.createdAt) return
+      const nova: MensagemConversa = {
+        id: resultado.id,
+        direcao: 'saida',
+        tipo: 'documento',
+        conteudo: resultado.conteudo ?? null,
+        status: 'pendente',
+        createdAt: resultado.createdAt,
+        arquivoUrl: resultado.arquivoUrl ?? null,
+        arquivoNome: resultado.arquivoNome ?? null,
+      }
+      setEstado((atual) => {
+        if (atual.status !== 'pronto') return atual
+        return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+      })
+      agendarVerificacaoStatus(resultado.id)
+    })
+  }
+
   function selecionarImagem(arquivo: File) {
+    setDocumentoSelecionado(null)
     setImagemSelecionada({ arquivo, preview: URL.createObjectURL(arquivo) })
   }
 
   function cancelarImagem() {
     setImagemSelecionada(null)
+  }
+
+  function selecionarDocumento(arquivo: File) {
+    setImagemSelecionada(null)
+    setDocumentoSelecionado({ arquivo })
+  }
+
+  function cancelarDocumento() {
+    setDocumentoSelecionado(null)
   }
 
   /** Insere o emoji na posição do cursor (não no final) — o foco é devolvido no `useLayoutEffect` abaixo. */
@@ -429,14 +494,14 @@ export function PainelConversa({ card, onFechar }: Props) {
   /** Ids com busca de signed URL em andamento — evita repetir a mesma chamada a cada render. */
   const buscandoUrlRef = useRef<Set<string>>(new Set())
 
-  // Mensagem de imagem chegada pelo Realtime nasce sem `arquivoUrl` (o
-  // payload só traz as colunas da linha, nunca uma signed URL — ver
-  // `paraMensagem`). Busca sob demanda por id, nunca a partir de um caminho
-  // vindo do cliente.
+  // Mensagem de imagem/documento chegada pelo Realtime nasce sem
+  // `arquivoUrl` (o payload só traz as colunas da linha, nunca uma signed
+  // URL — ver `paraMensagem`). Busca sob demanda por id, nunca a partir de
+  // um caminho vindo do cliente.
   useEffect(() => {
     if (estado.status !== 'pronto') return
     const faltantes = estado.mensagens.filter(
-      (m) => m.tipo === 'imagem' && !m.arquivoUrl && !buscandoUrlRef.current.has(m.id),
+      (m) => (m.tipo === 'imagem' || m.tipo === 'documento') && !m.arquivoUrl && !buscandoUrlRef.current.has(m.id),
     )
     if (faltantes.length === 0) return
 
@@ -533,6 +598,25 @@ export function PainelConversa({ card, onFechar }: Props) {
                       ) : (
                         <p className="mb-1 text-xs italic opacity-70">Carregando imagem…</p>
                       ))}
+                    {m.tipo === 'documento' &&
+                      (m.arquivoUrl ? (
+                        <a
+                          href={m.arquivoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={m.arquivoNome ?? undefined}
+                          className={`mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition ${
+                            m.direcao === 'saida'
+                              ? 'bg-black/10 hover:bg-black/15'
+                              : 'bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15'
+                          }`}
+                        >
+                          <span aria-hidden className="text-xl">📄</span>
+                          <span className="truncate">{m.arquivoNome ?? 'Documento'}</span>
+                        </a>
+                      ) : (
+                        <p className="mb-1 text-xs italic opacity-70">Carregando documento…</p>
+                      ))}
                     {m.conteudo && <p className="whitespace-pre-wrap">{m.conteudo}</p>}
                     <p
                       className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] ${
@@ -547,6 +631,16 @@ export function PainelConversa({ card, onFechar }: Props) {
                         type="button"
                         onClick={() => reenviar(m.conteudo ?? '')}
                         disabled={enviando}
+                        className="mt-1 text-[11px] font-medium text-green-100 underline decoration-dotted disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Tentar novamente
+                      </button>
+                    )}
+                    {m.direcao === 'saida' && m.status === 'falhou' && m.tipo === 'documento' && (
+                      <button
+                        type="button"
+                        onClick={() => reenviarDocumento(m.id)}
+                        disabled={enviandoDocumento}
                         className="mt-1 text-[11px] font-medium text-green-100 underline decoration-dotted disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Tentar novamente
@@ -569,13 +663,18 @@ export function PainelConversa({ card, onFechar }: Props) {
               startTransition(() => formActionImagem(formData))
               return
             }
+            if (documentoSelecionado) {
+              formData.set('arquivo', documentoSelecionado.arquivo)
+              startTransition(() => formActionDocumento(formData))
+              return
+            }
             if (!texto.trim()) return
             startTransition(() => formAction(formData))
           }}
         >
-          {(estadoEnvio?.erro ?? estadoEnvioImagem?.erro) && (
+          {(estadoEnvio?.erro ?? estadoEnvioImagem?.erro ?? estadoEnvioDocumento?.erro) && (
             <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {estadoEnvio?.erro ?? estadoEnvioImagem?.erro}
+              {estadoEnvio?.erro ?? estadoEnvioImagem?.erro ?? estadoEnvioDocumento?.erro}
             </p>
           )}
           {imagemSelecionada && (
@@ -600,34 +699,61 @@ export function PainelConversa({ card, onFechar }: Props) {
               </button>
             </div>
           )}
+          {documentoSelecionado && (
+            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+              <span aria-hidden className="text-2xl">📄</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  {documentoSelecionado.arquivo.name}
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {(documentoSelecionado.arquivo.name.split('.').pop() ?? '').toUpperCase()} ·{' '}
+                  {formatarTamanhoArquivo(documentoSelecionado.arquivo.size)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cancelarDocumento}
+                disabled={enviandoDocumento}
+                aria-label="Remover documento"
+                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-800"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <div className="flex items-end gap-1">
             <EmojiPopover onEscolher={inserirEmoji} disabled={!conversaId} />
-            <AnexoMenu disabled={!conversaId || enviandoImagem} onSelecionarImagem={selecionarImagem} />
+            <AnexoMenu
+              disabled={!conversaId || enviandoImagem || enviandoDocumento}
+              onSelecionarImagem={selecionarImagem}
+              onSelecionarDocumento={selecionarDocumento}
+            />
             <textarea
               ref={textareaRef}
               name="texto"
               rows={1}
-              placeholder={imagemSelecionada ? 'Legenda (opcional)…' : 'Escreva uma mensagem…'}
-              aria-label={imagemSelecionada ? 'Legenda da imagem' : 'Mensagem'}
+              placeholder={imagemSelecionada || documentoSelecionado ? 'Legenda (opcional)…' : 'Escreva uma mensagem…'}
+              aria-label={imagemSelecionada || documentoSelecionado ? 'Legenda do anexo' : 'Mensagem'}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               onKeyDown={(e) => {
                 // Enter envia; Shift+Enter quebra linha (comportamento padrão do textarea).
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  if (imagemSelecionada || texto.trim()) e.currentTarget.form?.requestSubmit()
+                  if (imagemSelecionada || documentoSelecionado || texto.trim()) e.currentTarget.form?.requestSubmit()
                 }
               }}
               disabled={!conversaId}
               className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
             />
-            {imagemSelecionada || texto.trim() ? (
+            {imagemSelecionada || documentoSelecionado || texto.trim() ? (
               <button
                 type="submit"
-                disabled={!conversaId || enviando || enviandoImagem}
+                disabled={!conversaId || enviando || enviandoImagem || enviandoDocumento}
                 className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
               >
-                {enviando || enviandoImagem ? 'Enviando…' : 'Enviar'}
+                {enviando || enviandoImagem || enviandoDocumento ? 'Enviando…' : 'Enviar'}
               </button>
             ) : (
               <button

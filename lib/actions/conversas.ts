@@ -3,15 +3,17 @@
 import { z } from 'zod'
 
 import {
+  enviarMensagemDocumento,
   enviarMensagemImagem,
   enviarMensagemTexto,
   obterConversaDoCliente,
   obterStatusMensagem,
   obterUrlAnexo,
+  reenviarMensagemMidia,
   type ConversaCliente,
   type StatusMensagem,
 } from '@/lib/dal/conversas'
-import { validarAnexoImagem } from '@/lib/validations/mensagem'
+import { validarAnexoDocumento, validarAnexoImagem } from '@/lib/validations/mensagem'
 
 /** Carga inicial do `PainelConversa` — o Realtime assume a partir daqui. */
 export async function obterConversaAction(clienteId: string): Promise<ConversaCliente | null> {
@@ -38,8 +40,9 @@ export type EstadoEnvioMensagem = {
   id?: string
   createdAt?: string
   conteudo?: string
-  /** Só presente quando `ok` e a mensagem é de imagem. */
+  /** Só presentes quando `ok` e a mensagem é de mídia (imagem ou documento). */
   arquivoUrl?: string
+  arquivoNome?: string
 }
 
 const uuid = z.uuid()
@@ -84,5 +87,49 @@ export async function enviarMensagemImagemAction(
     createdAt: resultado.createdAt,
     conteudo: resultado.conteudo ?? undefined,
     arquivoUrl: resultado.arquivoUrl ?? undefined,
+  }
+}
+
+/** Envio de documento pelo `PainelConversa` — mesmo ciclo pendente→enviando→enviado/falhou do texto/imagem. */
+export async function enviarMensagemDocumentoAction(
+  conversaId: string,
+  _estado: EstadoEnvioMensagem | undefined,
+  formData: FormData,
+): Promise<EstadoEnvioMensagem> {
+  if (!uuid.safeParse(conversaId).success) return { erro: 'Conversa inválida.' }
+
+  const arquivo = validarAnexoDocumento(formData.get('arquivo'))
+  if (typeof arquivo === 'string') return { erro: arquivo }
+  if (!arquivo) return { erro: 'Selecione um documento.' }
+
+  const legenda = String(formData.get('texto') ?? '').trim()
+
+  const resultado = await enviarMensagemDocumento(conversaId, arquivo, legenda || null)
+  if (!resultado.ok) return { erro: resultado.mensagem }
+
+  return {
+    ok: true,
+    id: resultado.id,
+    createdAt: resultado.createdAt,
+    conteudo: resultado.conteudo ?? undefined,
+    arquivoUrl: resultado.arquivoUrl ?? undefined,
+    arquivoNome: resultado.arquivoNome ?? undefined,
+  }
+}
+
+/** "Tentar novamente" numa mensagem de mídia (imagem ou documento) `falhou` — reaproveita o arquivo já no Storage. */
+export async function reenviarMensagemMidiaAction(mensagemId: string): Promise<EstadoEnvioMensagem> {
+  if (!uuid.safeParse(mensagemId).success) return { erro: 'Mensagem inválida.' }
+
+  const resultado = await reenviarMensagemMidia(mensagemId)
+  if (!resultado.ok) return { erro: resultado.mensagem }
+
+  return {
+    ok: true,
+    id: resultado.id,
+    createdAt: resultado.createdAt,
+    conteudo: resultado.conteudo ?? undefined,
+    arquivoUrl: resultado.arquivoUrl ?? undefined,
+    arquivoNome: resultado.arquivoNome ?? undefined,
   }
 }

@@ -2,13 +2,12 @@
 
 import { useEffect, useId, useRef } from 'react'
 
-import { ANEXO_IMAGEM_TIPOS } from '@/lib/validations/mensagem'
+import { ANEXO_DOCUMENTO_TIPOS, ANEXO_IMAGEM_TIPOS } from '@/lib/validations/mensagem'
 
 const LARGURA_MENU = 224
 
-/** Documento, câmera e áudio ainda não têm upload/envio implementado — "em breve", sem fingir que algo foi enviado. */
+/** Câmera e áudio ainda não têm upload/envio implementado — "em breve", sem fingir que algo foi enviado. */
 const ITENS_EM_BREVE = [
-  { rotulo: 'Documento', icone: '📄' },
   { rotulo: 'Câmera', icone: '📷' },
   { rotulo: 'Áudio', icone: '🎵' },
 ] as const
@@ -16,14 +15,16 @@ const ITENS_EM_BREVE = [
 type Props = {
   disabled?: boolean
   onSelecionarImagem: (arquivo: File) => void
+  onSelecionarDocumento: (arquivo: File) => void
 }
 
 /** Botão 📎 + menu de anexos pro composer do `PainelConversa` — mesma Popover API nativa de `MenuMoverPara`. */
-export function AnexoMenu({ disabled = false, onSelecionarImagem }: Props) {
+export function AnexoMenu({ disabled = false, onSelecionarImagem, onSelecionarDocumento }: Props) {
   const id = useId()
   const botaoRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputImagemRef = useRef<HTMLInputElement>(null)
+  const inputDocumentoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const menu = menuRef.current
@@ -49,22 +50,42 @@ export function AnexoMenu({ disabled = false, onSelecionarImagem }: Props) {
 
   function escolherFotos() {
     menuRef.current?.hidePopover()
-    inputRef.current?.click()
+    inputImagemRef.current?.click()
   }
 
-  function aoSelecionarArquivo(e: React.ChangeEvent<HTMLInputElement>) {
+  function escolherDocumento() {
+    menuRef.current?.hidePopover()
+    inputDocumentoRef.current?.click()
+  }
+
+  function aoSelecionarImagem(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0]
     e.target.value = '' // permite selecionar o mesmo arquivo de novo depois (ex.: reenviar após corrigir)
     if (arquivo) onSelecionarImagem(arquivo)
   }
 
+  function aoSelecionarDocumento(e: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0]
+    e.target.value = ''
+    if (arquivo) onSelecionarDocumento(arquivo)
+  }
+
   return (
     <>
       <input
-        ref={inputRef}
+        ref={inputImagemRef}
         type="file"
         accept={ANEXO_IMAGEM_TIPOS.join(',')}
-        onChange={aoSelecionarArquivo}
+        onChange={aoSelecionarImagem}
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden
+      />
+      <input
+        ref={inputDocumentoRef}
+        type="file"
+        accept={ANEXO_DOCUMENTO_TIPOS.join(',')}
+        onChange={aoSelecionarDocumento}
         className="hidden"
         tabIndex={-1}
         aria-hidden
@@ -101,6 +122,17 @@ export function AnexoMenu({ disabled = false, onSelecionarImagem }: Props) {
         >
           <span aria-hidden>🖼️</span>
           <span className="truncate">Fotos e vídeos</span>
+        </button>
+
+        <button
+          type="button"
+          role="menuitem"
+          onClick={escolherDocumento}
+          disabled={disabled}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800"
+        >
+          <span aria-hidden>📄</span>
+          <span className="truncate">Documento</span>
         </button>
 
         {ITENS_EM_BREVE.map((item) => (

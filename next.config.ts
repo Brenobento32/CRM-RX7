@@ -5,11 +5,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
-      // Maior limite entre os dois uploads que passam por Server Action:
-      // imagem do WhatsApp vai até 8 MB (bucket whatsapp-midia); avatar,
-      // até 2 MB (bucket avatares). A margem cobre o envelope multipart e
-      // os outros campos do formulário.
-      bodySizeLimit: "9mb",
+      // Maior limite entre os uploads que passam por Server Action:
+      // documento do WhatsApp vai até 20 MB, imagem até 8 MB (mesmo bucket
+      // whatsapp-midia), avatar até 2 MB (bucket avatares). A margem cobre
+      // o envelope multipart e os outros campos do formulário.
+      bodySizeLimit: "21mb",
     },
   },
   images: {

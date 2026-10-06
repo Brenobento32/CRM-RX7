@@ -1,6 +1,6 @@
 import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys'
 
-import { subirMidia } from './midia.js'
+import { extensaoDeMime, extensaoDocumentoDeMime, subirMidia } from './midia.js'
 import { supabase } from './supabase.js'
 import { candidatosTelefone, telefoneDoJid } from './telefone.js'
 
@@ -8,9 +8,9 @@ type Tipo = 'texto' | 'imagem' | 'documento' | 'audio' | 'video'
 
 /**
  * Extrai um conteúdo exibível da mensagem — pra tudo que ainda não tem
- * upload de mídia (vídeo, áudio, documento), só o tipo e uma
- * legenda/placeholder. Imagem é tratada antes de chegar aqui, em
- * `salvarMensagemRecebida` (precisa baixar o arquivo, que é assíncrono).
+ * upload de mídia (vídeo, áudio), só o tipo e uma legenda/placeholder.
+ * Imagem e documento são tratados antes de chegar aqui, em
+ * `salvarMensagemRecebida` (precisam baixar o arquivo, que é assíncrono).
  */
 function extrairConteudo(msg: WAMessage): { conteudo: string; tipo: Tipo } | null {
   const m = msg.message
@@ -20,17 +20,16 @@ function extrairConteudo(msg: WAMessage): { conteudo: string; tipo: Tipo } | nul
   if (m.extendedTextMessage?.text) return { conteudo: m.extendedTextMessage.text, tipo: 'texto' }
   if (m.videoMessage) return { conteudo: m.videoMessage.caption ?? '[Vídeo]', tipo: 'video' }
   if (m.audioMessage) return { conteudo: '[Áudio]', tipo: 'audio' }
-  if (m.documentMessage) return { conteudo: m.documentMessage.fileName ?? '[Documento]', tipo: 'documento' }
 
   return null
 }
 
-/** Baixa e decripta a imagem recebida. `null` em qualquer falha — mensagem é descartada, nunca salva sem arquivo. */
-async function baixarImagemRecebida(msg: WAMessage): Promise<Buffer | null> {
+/** Baixa e decripta a mídia recebida (imagem ou documento). `null` em qualquer falha — mensagem é descartada, nunca salva sem arquivo. */
+async function baixarMidiaRecebida(msg: WAMessage): Promise<Buffer | null> {
   try {
     return await downloadMediaMessage(msg, 'buffer', {})
   } catch (erro) {
-    console.error('[mensagens] falha ao baixar imagem do WhatsApp:', erro)
+    console.error('[mensagens] falha ao baixar mídia do WhatsApp:', erro)
     return null
   }
 }
@@ -141,23 +140,35 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   const telefone = telefoneDoJid(ehLid ? msg.key.senderPn : msg.key.remoteJid)
   if (!telefone) return
 
-  // Imagem precisa ser baixada (assíncrono) antes de decidir o que gravar —
-  // `extrairConteudo` cobre só os tipos ainda sem upload de mídia.
+  // Imagem e documento precisam ser baixados (assíncrono) antes de decidir o
+  // que gravar — `extrairConteudo` cobre só os tipos ainda sem upload de mídia.
   const imagemRecebida = msg.message?.imageMessage
+  const documentoRecebido = msg.message?.documentMessage
   let tipo: Tipo
   let conteudo: string | null
-  let bufferImagem: Buffer | null = null
-  let mimeImagem = 'image/jpeg'
+  let bufferMidia: Buffer | null = null
+  let mimeMidia = ''
+  let nomeMidia: string | null = null
 
   if (imagemRecebida) {
-    bufferImagem = await baixarImagemRecebida(msg)
-    if (!bufferImagem) {
+    bufferMidia = await baixarMidiaRecebida(msg)
+    if (!bufferMidia) {
       console.error('[mensagens] falha ao baixar imagem — mensagem descartada:', msg.key.id)
       return
     }
     tipo = 'imagem'
     conteudo = imagemRecebida.caption ?? null
-    mimeImagem = imagemRecebida.mimetype ?? 'image/jpeg'
+    mimeMidia = imagemRecebida.mimetype ?? 'image/jpeg'
+  } else if (documentoRecebido) {
+    bufferMidia = await baixarMidiaRecebida(msg)
+    if (!bufferMidia) {
+      console.error('[mensagens] falha ao baixar documento — mensagem descartada:', msg.key.id)
+      return
+    }
+    tipo = 'documento'
+    conteudo = documentoRecebido.caption ?? null
+    mimeMidia = documentoRecebido.mimetype ?? 'application/octet-stream'
+    nomeMidia = documentoRecebido.fileName ?? null
   } else {
     const extraido = extrairConteudo(msg)
     if (!extraido) return
@@ -179,16 +190,17 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   }
 
   // Upload só depois de ter o conversaId (path é `{conversaId}/{uuid}.ext`).
-  // Falha aqui descarta a mensagem — `mensagens_imagem_tem_arquivo` nunca
-  // permitiria tipo=imagem sem arquivo_path mesmo assim.
-  let arquivo: { path: string; mime: string; tamanho: number } | null = null
-  if (bufferImagem) {
-    const caminho = await subirMidia(conversaId, bufferImagem, mimeImagem)
+  // Falha aqui descarta a mensagem — `mensagens_midia_tem_arquivo` nunca
+  // permitiria tipo=imagem/documento sem arquivo_path mesmo assim.
+  let arquivo: { path: string; mime: string; nome: string | null; tamanho: number } | null = null
+  if (bufferMidia) {
+    const extensao = tipo === 'imagem' ? extensaoDeMime(mimeMidia) : extensaoDocumentoDeMime(mimeMidia)
+    const caminho = await subirMidia(conversaId, bufferMidia, mimeMidia, extensao)
     if (!caminho) {
-      console.error('[mensagens] falha ao salvar imagem no Storage — mensagem descartada:', msg.key.id)
+      console.error(`[mensagens] falha ao salvar ${tipo} no Storage — mensagem descartada:`, msg.key.id)
       return
     }
-    arquivo = { path: caminho, mime: mimeImagem, tamanho: bufferImagem.length }
+    arquivo = { path: caminho, mime: mimeMidia, nome: nomeMidia, tamanho: bufferMidia.length }
   }
 
   const { error } = await supabase.from('mensagens').insert({
@@ -198,7 +210,12 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
     conteudo,
     whatsapp_message_id: msg.key.id ?? null,
     ...(arquivo
-      ? { arquivo_path: arquivo.path, arquivo_mime: arquivo.mime, arquivo_tamanho: arquivo.tamanho }
+      ? {
+          arquivo_path: arquivo.path,
+          arquivo_mime: arquivo.mime,
+          arquivo_nome: arquivo.nome,
+          arquivo_tamanho: arquivo.tamanho,
+        }
       : {}),
   })
 
@@ -208,6 +225,9 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   }
 
   const rotulo = leadCriadoAgora ? ' (novo lead criado)' : jaEraCliente ? ' (cliente cadastrado)' : ''
-  const resumo = tipo === 'imagem' ? (conteudo ?? '[Imagem]') : (conteudo ?? '')
+  const resumo =
+    tipo === 'imagem' ? (conteudo ?? '[Imagem]')
+    : tipo === 'documento' ? (conteudo ?? `[Documento] ${nomeMidia ?? ''}`)
+    : (conteudo ?? '')
   console.log(`[mensagens] recebida de ${telefone}${rotulo}: ${resumo.slice(0, 60)}`)
 }
