@@ -3,6 +3,7 @@
 import { z } from 'zod'
 
 import {
+  enviarMensagemAudio,
   enviarMensagemDocumento,
   enviarMensagemImagem,
   enviarMensagemTexto,
@@ -12,8 +13,9 @@ import {
   reenviarMensagemMidia,
   type ConversaCliente,
   type StatusMensagem,
+  type TipoMensagem,
 } from '@/lib/dal/conversas'
-import { validarAnexoDocumento, validarAnexoImagem } from '@/lib/validations/mensagem'
+import { validarAnexoAudio, validarAnexoDocumento, validarAnexoImagem } from '@/lib/validations/mensagem'
 
 /** Carga inicial do `PainelConversa` — o Realtime assume a partir daqui. */
 export async function obterConversaAction(clienteId: string): Promise<ConversaCliente | null> {
@@ -40,9 +42,13 @@ export type EstadoEnvioMensagem = {
   id?: string
   createdAt?: string
   conteudo?: string
-  /** Só presentes quando `ok` e a mensagem é de mídia (imagem ou documento). */
+  /** Só presentes quando `ok` e a mensagem é de mídia (imagem, documento ou áudio). */
   arquivoUrl?: string
   arquivoNome?: string
+  /** Só presente pra áudio — segundos, arredondado. */
+  arquivoDuracaoSegundos?: number
+  /** Só presente no retorno de `reenviarMensagemMidiaAction` — a UI não sabe de antemão qual mídia está sendo reenviada. */
+  tipo?: TipoMensagem
 }
 
 const uuid = z.uuid()
@@ -117,7 +123,33 @@ export async function enviarMensagemDocumentoAction(
   }
 }
 
-/** "Tentar novamente" numa mensagem de mídia (imagem ou documento) `falhou` — reaproveita o arquivo já no Storage. */
+/** Envio de áudio (gravado no navegador) pelo `PainelConversa` — mesmo ciclo pendente→enviando→enviado/falhou. Sem legenda. */
+export async function enviarMensagemAudioAction(
+  conversaId: string,
+  _estado: EstadoEnvioMensagem | undefined,
+  formData: FormData,
+): Promise<EstadoEnvioMensagem> {
+  if (!uuid.safeParse(conversaId).success) return { erro: 'Conversa inválida.' }
+
+  const arquivo = validarAnexoAudio(formData.get('arquivo'))
+  if (typeof arquivo === 'string') return { erro: arquivo }
+  if (!arquivo) return { erro: 'Grave um áudio antes de enviar.' }
+
+  const duracaoSegundos = Number(formData.get('duracao') ?? 0)
+
+  const resultado = await enviarMensagemAudio(conversaId, arquivo, duracaoSegundos)
+  if (!resultado.ok) return { erro: resultado.mensagem }
+
+  return {
+    ok: true,
+    id: resultado.id,
+    createdAt: resultado.createdAt,
+    arquivoUrl: resultado.arquivoUrl ?? undefined,
+    arquivoDuracaoSegundos: resultado.arquivoDuracaoSegundos ?? undefined,
+  }
+}
+
+/** "Tentar novamente" numa mensagem de mídia (imagem, documento ou áudio) `falhou` — reaproveita o arquivo já no Storage. */
 export async function reenviarMensagemMidiaAction(mensagemId: string): Promise<EstadoEnvioMensagem> {
   if (!uuid.safeParse(mensagemId).success) return { erro: 'Mensagem inválida.' }
 
@@ -128,8 +160,10 @@ export async function reenviarMensagemMidiaAction(mensagemId: string): Promise<E
     ok: true,
     id: resultado.id,
     createdAt: resultado.createdAt,
+    tipo: resultado.tipo,
     conteudo: resultado.conteudo ?? undefined,
     arquivoUrl: resultado.arquivoUrl ?? undefined,
     arquivoNome: resultado.arquivoNome ?? undefined,
+    arquivoDuracaoSegundos: resultado.arquivoDuracaoSegundos ?? undefined,
   }
 }

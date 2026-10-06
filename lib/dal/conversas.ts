@@ -4,13 +4,15 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import {
+  assinaturaAudioValida,
   assinaturaDocumentoValida,
+  extensaoAudioDeMime,
   extensaoDeMime,
   extensaoDocumentoDeMime,
 } from '@/lib/validations/mensagem'
 
 type DirecaoMensagem = Database['public']['Enums']['direcao_mensagem']
-type TipoMensagem = Database['public']['Enums']['tipo_mensagem']
+export type TipoMensagem = Database['public']['Enums']['tipo_mensagem']
 export type StatusMensagem = Database['public']['Enums']['status_mensagem']
 
 /** Bucket privado de mídia do WhatsApp — path `{conversa_id}/{uuid}.{extensao}` (ver migration 20261006100000). */
@@ -27,10 +29,12 @@ export type MensagemConversa = {
   /** Ciclo de envio — só existe pra `direcao='saida'`; mensagem de entrada é `null`. */
   status: StatusMensagem | null
   createdAt: string
-  /** Signed URL do anexo (`tipo='imagem'`) — `null` até ser gerada (ver `obterUrlAnexo`). */
+  /** Signed URL do anexo (imagem/documento/áudio) — `null` até ser gerada (ver `obterUrlAnexo`). */
   arquivoUrl: string | null
-  /** Nome original do arquivo, só pra exibição (alt da imagem). */
+  /** Nome original do arquivo, só pra exibição (alt da imagem, link do documento). `null` pra áudio. */
   arquivoNome: string | null
+  /** Duração em segundos — só pra `tipo='audio'`. */
+  arquivoDuracaoSegundos: number | null
 }
 
 export type ConversaCliente = {
@@ -62,7 +66,7 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
 
   const { data: mensagens, error: erroMensagens } = await supabase
     .from('mensagens')
-    .select('id, direcao, tipo, conteudo, status, arquivo_path, arquivo_nome, created_at')
+    .select('id, direcao, tipo, conteudo, status, arquivo_path, arquivo_nome, arquivo_duracao_segundos, created_at')
     .eq('conversa_id', conversa.id)
     .order('created_at', { ascending: true })
 
@@ -79,8 +83,9 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
         status: m.status,
         createdAt: m.created_at,
         arquivoNome: m.arquivo_nome,
+        arquivoDuracaoSegundos: m.arquivo_duracao_segundos,
         arquivoUrl:
-          (m.tipo === 'imagem' || m.tipo === 'documento') && m.arquivo_path
+          (m.tipo === 'imagem' || m.tipo === 'documento' || m.tipo === 'audio') && m.arquivo_path
             ? await assinarUrlAnexo(supabase, m.arquivo_path)
             : null,
       })),
@@ -252,17 +257,96 @@ export async function enviarMensagemDocumento(
 }
 
 /**
- * "Tentar novamente" pra mensagem de mídia (imagem ou documento) que falhou —
- * reaproveita o arquivo já no Storage (não sobe de novo, só cria uma linha
- * nova pendente com os mesmos dados de arquivo). A mensagem original
- * precisa passar pela RLS de `mensagens_select` pra ser lida; a nova, pela
- * RLS de `mensagens_insert` de novo — mesma proteção de sempre, nada
- * contorna a posse da conversa.
+ * Sobe o áudio bruto (o que o `MediaRecorder` gravou — webm/ogg/mp4,
+ * dependendo do navegador) pro bucket privado e registra a mensagem de
+ * saída como `pendente`, mesmo ciclo de `enviarMensagemImagem`/
+ * `enviarMensagemDocumento`. A conversão pro Ogg/Opus real que o WhatsApp
+ * exige pra voice note só acontece no whatsapp-service — nunca aqui.
+ * `conteudo` é sempre `null`: áudio não tem legenda.
+ */
+export async function enviarMensagemAudio(
+  conversaId: string,
+  arquivo: File,
+  duracaoSegundos: number,
+): Promise<
+  | { ok: true; id: string; createdAt: string; arquivoUrl: string | null; arquivoDuracaoSegundos: number | null }
+  | { ok: false; mensagem: string }
+> {
+  const usuario = await getUsuarioAtual()
+
+  const bytes = new Uint8Array(await arquivo.arrayBuffer())
+  if (!assinaturaAudioValida(bytes, arquivo.type)) {
+    return { ok: false, mensagem: 'O arquivo não corresponde a um áudio válido.' }
+  }
+
+  const supabase = await createClient()
+  const duracaoArredondada = Math.round(duracaoSegundos) || null
+  const caminho = `${conversaId}/${crypto.randomUUID()}.${extensaoAudioDeMime(arquivo.type)}`
+
+  const { error: erroUpload } = await supabase.storage
+    .from(BUCKET_MIDIA)
+    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false })
+
+  if (erroUpload) {
+    console.error('upload audio whatsapp', erroUpload)
+    return { ok: false, mensagem: 'Não foi possível enviar o áudio.' }
+  }
+
+  const { data, error } = await supabase
+    .from('mensagens')
+    .insert({
+      conversa_id: conversaId,
+      direcao: 'saida',
+      tipo: 'audio',
+      status: 'pendente',
+      conteudo: null,
+      autor_id: usuario.id,
+      arquivo_path: caminho,
+      arquivo_mime: arquivo.type,
+      arquivo_tamanho: arquivo.size,
+      arquivo_duracao_segundos: duracaoArredondada,
+    })
+    .select('id, created_at')
+    .single()
+
+  if (error) {
+    await supabase.storage.from(BUCKET_MIDIA).remove([caminho])
+    console.error('mensagem audio whatsapp', error)
+    return { ok: false, mensagem: 'Não foi possível enviar o áudio.' }
+  }
+
+  return {
+    ok: true,
+    id: data.id,
+    createdAt: data.created_at,
+    arquivoUrl: await assinarUrlAnexo(supabase, caminho),
+    arquivoDuracaoSegundos: duracaoArredondada,
+  }
+}
+
+/**
+ * "Tentar novamente" pra mensagem de mídia (imagem, documento ou áudio) que
+ * falhou — reaproveita o arquivo já no Storage (não sobe de novo, só cria
+ * uma linha nova pendente com os mesmos dados de arquivo, incluindo
+ * duração). A mensagem original precisa passar pela RLS de
+ * `mensagens_select` pra ser lida; a nova, pela RLS de `mensagens_insert`
+ * de novo — mesma proteção de sempre, nada contorna a posse da conversa.
+ * Devolve `tipo` porque quem chama (UI) não sabe de antemão qual mídia está
+ * sendo reenviada.
  */
 export async function reenviarMensagemMidia(
   mensagemId: string,
 ): Promise<
-  | { ok: true; id: string; createdAt: string; conteudo: string | null; arquivoUrl: string | null; arquivoNome: string | null }
+  | {
+      ok: true
+      id: string
+      createdAt: string
+      tipo: TipoMensagem
+      conteudo: string | null
+      arquivoUrl: string | null
+      arquivoNome: string | null
+      arquivoDuracaoSegundos: number | null
+    }
   | { ok: false; mensagem: string }
 > {
   const usuario = await getUsuarioAtual()
@@ -270,7 +354,7 @@ export async function reenviarMensagemMidia(
 
   const { data: original, error: erroOriginal } = await supabase
     .from('mensagens')
-    .select('conversa_id, tipo, conteudo, arquivo_path, arquivo_mime, arquivo_nome, arquivo_tamanho')
+    .select('conversa_id, tipo, conteudo, arquivo_path, arquivo_mime, arquivo_nome, arquivo_tamanho, arquivo_duracao_segundos')
     .eq('id', mensagemId)
     .maybeSingle()
 
@@ -291,6 +375,7 @@ export async function reenviarMensagemMidia(
       arquivo_mime: original.arquivo_mime,
       arquivo_nome: original.arquivo_nome,
       arquivo_tamanho: original.arquivo_tamanho,
+      arquivo_duracao_segundos: original.arquivo_duracao_segundos,
     })
     .select('id, created_at')
     .single()
@@ -304,9 +389,11 @@ export async function reenviarMensagemMidia(
     ok: true,
     id: data.id,
     createdAt: data.created_at,
+    tipo: original.tipo,
     conteudo: original.conteudo,
     arquivoUrl: await assinarUrlAnexo(supabase, original.arquivo_path),
     arquivoNome: original.arquivo_nome,
+    arquivoDuracaoSegundos: original.arquivo_duracao_segundos,
   }
 }
 

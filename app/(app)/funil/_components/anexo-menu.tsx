@@ -6,11 +6,8 @@ import { ANEXO_DOCUMENTO_TIPOS, ANEXO_IMAGEM_TIPOS } from '@/lib/validations/men
 
 const LARGURA_MENU = 224
 
-/** Câmera e áudio ainda não têm upload/envio implementado — "em breve", sem fingir que algo foi enviado. */
-const ITENS_EM_BREVE = [
-  { rotulo: 'Câmera', icone: '📷' },
-  { rotulo: 'Áudio', icone: '🎵' },
-] as const
+/** Câmera ainda não tem upload/envio implementado — "em breve", sem fingir que algo foi enviado. Áudio não é um item deste menu — é o botão 🎤 dedicado no composer, igual ao WhatsApp Web. */
+const ITENS_EM_BREVE = [{ rotulo: 'Câmera', icone: '📷' }] as const
 
 type Props = {
   disabled?: boolean

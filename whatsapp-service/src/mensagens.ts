@@ -1,6 +1,6 @@
-import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys'
+import { downloadMediaMessage, getAudioDuration, type WAMessage } from '@whiskeysockets/baileys'
 
-import { extensaoDeMime, extensaoDocumentoDeMime, subirMidia } from './midia.js'
+import { extensaoAudioDeMime, extensaoDeMime, extensaoDocumentoDeMime, subirMidia } from './midia.js'
 import { supabase } from './supabase.js'
 import { candidatosTelefone, telefoneDoJid } from './telefone.js'
 
@@ -8,9 +8,10 @@ type Tipo = 'texto' | 'imagem' | 'documento' | 'audio' | 'video'
 
 /**
  * Extrai um conteúdo exibível da mensagem — pra tudo que ainda não tem
- * upload de mídia (vídeo, áudio), só o tipo e uma legenda/placeholder.
- * Imagem e documento são tratados antes de chegar aqui, em
- * `salvarMensagemRecebida` (precisam baixar o arquivo, que é assíncrono).
+ * upload de mídia (só vídeo, nesta fase), só o tipo e uma
+ * legenda/placeholder. Imagem, documento e áudio são tratados antes de
+ * chegar aqui, em `salvarMensagemRecebida` (precisam baixar o arquivo, que
+ * é assíncrono).
  */
 function extrairConteudo(msg: WAMessage): { conteudo: string; tipo: Tipo } | null {
   const m = msg.message
@@ -19,12 +20,11 @@ function extrairConteudo(msg: WAMessage): { conteudo: string; tipo: Tipo } | nul
   if (m.conversation) return { conteudo: m.conversation, tipo: 'texto' }
   if (m.extendedTextMessage?.text) return { conteudo: m.extendedTextMessage.text, tipo: 'texto' }
   if (m.videoMessage) return { conteudo: m.videoMessage.caption ?? '[Vídeo]', tipo: 'video' }
-  if (m.audioMessage) return { conteudo: '[Áudio]', tipo: 'audio' }
 
   return null
 }
 
-/** Baixa e decripta a mídia recebida (imagem ou documento). `null` em qualquer falha — mensagem é descartada, nunca salva sem arquivo. */
+/** Baixa e decripta a mídia recebida (imagem, documento ou áudio). `null` em qualquer falha — mensagem é descartada, nunca salva sem arquivo. */
 async function baixarMidiaRecebida(msg: WAMessage): Promise<Buffer | null> {
   try {
     return await downloadMediaMessage(msg, 'buffer', {})
@@ -140,10 +140,12 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   const telefone = telefoneDoJid(ehLid ? msg.key.senderPn : msg.key.remoteJid)
   if (!telefone) return
 
-  // Imagem e documento precisam ser baixados (assíncrono) antes de decidir o
-  // que gravar — `extrairConteudo` cobre só os tipos ainda sem upload de mídia.
+  // Imagem, documento e áudio precisam ser baixados (assíncrono) antes de
+  // decidir o que gravar — `extrairConteudo` cobre só os tipos ainda sem
+  // upload de mídia.
   const imagemRecebida = msg.message?.imageMessage
   const documentoRecebido = msg.message?.documentMessage
+  const audioRecebido = msg.message?.audioMessage
   let tipo: Tipo
   let conteudo: string | null
   let bufferMidia: Buffer | null = null
@@ -169,6 +171,17 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
     conteudo = documentoRecebido.caption ?? null
     mimeMidia = documentoRecebido.mimetype ?? 'application/octet-stream'
     nomeMidia = documentoRecebido.fileName ?? null
+  } else if (audioRecebido) {
+    bufferMidia = await baixarMidiaRecebida(msg)
+    if (!bufferMidia) {
+      console.error('[mensagens] falha ao baixar áudio — mensagem descartada:', msg.key.id)
+      return
+    }
+    tipo = 'audio'
+    conteudo = null // áudio nunca tem legenda
+    // WhatsApp costuma mandar "audio/ogg; codecs=opus" — normaliza pro tipo
+    // base, que é o que está no allowlist do bucket (sem o parâmetro ";codecs=").
+    mimeMidia = (audioRecebido.mimetype ?? 'audio/ogg').split(';')[0].trim()
   } else {
     const extraido = extrairConteudo(msg)
     if (!extraido) return
@@ -191,16 +204,29 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
 
   // Upload só depois de ter o conversaId (path é `{conversaId}/{uuid}.ext`).
   // Falha aqui descarta a mensagem — `mensagens_midia_tem_arquivo` nunca
-  // permitiria tipo=imagem/documento sem arquivo_path mesmo assim.
-  let arquivo: { path: string; mime: string; nome: string | null; tamanho: number } | null = null
+  // permitiria tipo=imagem/documento/audio sem arquivo_path mesmo assim.
+  // Áudio recebido já chega em Ogg/Opus nativo do WhatsApp — nunca
+  // convertido de novo aqui, só o enviado pelo CRM passa por ffmpeg.
+  let arquivo: { path: string; mime: string; nome: string | null; tamanho: number; duracao: number | null } | null =
+    null
   if (bufferMidia) {
-    const extensao = tipo === 'imagem' ? extensaoDeMime(mimeMidia) : extensaoDocumentoDeMime(mimeMidia)
+    const extensao =
+      tipo === 'imagem' ? extensaoDeMime(mimeMidia)
+      : tipo === 'audio' ? extensaoAudioDeMime(mimeMidia)
+      : extensaoDocumentoDeMime(mimeMidia)
     const caminho = await subirMidia(conversaId, bufferMidia, mimeMidia, extensao)
     if (!caminho) {
       console.error(`[mensagens] falha ao salvar ${tipo} no Storage — mensagem descartada:`, msg.key.id)
       return
     }
-    arquivo = { path: caminho, mime: mimeMidia, nome: nomeMidia, tamanho: bufferMidia.length }
+
+    let duracao: number | null = null
+    if (tipo === 'audio') {
+      const segundos = await getAudioDuration(bufferMidia).catch(() => undefined)
+      duracao = segundos !== undefined ? Math.round(segundos) : null
+    }
+
+    arquivo = { path: caminho, mime: mimeMidia, nome: nomeMidia, tamanho: bufferMidia.length, duracao }
   }
 
   const { error } = await supabase.from('mensagens').insert({
@@ -215,6 +241,7 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
           arquivo_mime: arquivo.mime,
           arquivo_nome: arquivo.nome,
           arquivo_tamanho: arquivo.tamanho,
+          arquivo_duracao_segundos: arquivo.duracao,
         }
       : {}),
   })
@@ -228,6 +255,7 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   const resumo =
     tipo === 'imagem' ? (conteudo ?? '[Imagem]')
     : tipo === 'documento' ? (conteudo ?? `[Documento] ${nomeMidia ?? ''}`)
+    : tipo === 'audio' ? '[Áudio]'
     : (conteudo ?? '')
   console.log(`[mensagens] recebida de ${telefone}${rotulo}: ${resumo.slice(0, 60)}`)
 }

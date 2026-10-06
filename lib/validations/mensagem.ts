@@ -92,3 +92,58 @@ export function assinaturaDocumentoValida(bytes: Uint8Array, mime: string): bool
       return false
   }
 }
+
+/**
+ * Formato bruto gravado pelo navegador (`MediaRecorder`) — nunca o que vai
+ * pro Baileys. A conversão pro Ogg/Opus real que o WhatsApp exige pra voice
+ * note acontece só no whatsapp-service (ffmpeg); aqui só valida o que o
+ * navegador conseguiu gravar.
+ */
+export const ANEXO_AUDIO_TIPOS = ['audio/ogg', 'audio/webm', 'audio/mp4', 'audio/mpeg'] as const
+export const ANEXO_AUDIO_TAMANHO_MAXIMO = 20 * 1024 * 1024
+
+const EXTENSAO_POR_MIME_AUDIO: Record<string, string> = {
+  'audio/ogg': 'ogg',
+  'audio/webm': 'webm',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
+}
+
+/** `null` = sem áudio enviado; string = mensagem de erro. */
+export function validarAnexoAudio(arquivo: FormDataEntryValue | null): File | null | string {
+  if (!(arquivo instanceof File) || arquivo.size === 0) return null
+  if (!(ANEXO_AUDIO_TIPOS as readonly string[]).includes(arquivo.type)) {
+    return 'Áudio em formato não suportado.'
+  }
+  if (arquivo.size > ANEXO_AUDIO_TAMANHO_MAXIMO) return 'O áudio pode ter no máximo 20 MB.'
+  return arquivo
+}
+
+export function extensaoAudioDeMime(mime: string): string {
+  return EXTENSAO_POR_MIME_AUDIO[mime] ?? 'bin'
+}
+
+const ASSINATURA_OGG = [0x4f, 0x67, 0x67, 0x53] // OggS
+const ASSINATURA_EBML = [0x1a, 0x45, 0xdf, 0xa3] // WebM/Matroska
+
+/**
+ * Mesma lógica de `assinaturaDocumentoValida`, pra áudio. MP4/M4A tem o box
+ * type "ftyp" nos bytes 4-8 (não no começo, como os outros dois formatos) —
+ * é a assinatura padrão de qualquer contêiner ISO Base Media. MP3 não tem
+ * assinatura binária universal confiável: MIME + tamanho é a defesa que
+ * existe pra ele, mesmo caso de CSV/TXT em `assinaturaDocumentoValida`.
+ */
+export function assinaturaAudioValida(bytes: Uint8Array, mime: string): boolean {
+  switch (mime) {
+    case 'audio/ogg':
+      return comecaCom(bytes, ASSINATURA_OGG)
+    case 'audio/webm':
+      return comecaCom(bytes, ASSINATURA_EBML)
+    case 'audio/mp4':
+      return bytes.length >= 8 && String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]) === 'ftyp'
+    case 'audio/mpeg':
+      return true
+    default:
+      return false
+  }
+}

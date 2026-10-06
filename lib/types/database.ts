@@ -802,6 +802,7 @@ export type Database = {
       }
       mensagens: {
         Row: {
+          arquivo_duracao_segundos: number | null
           arquivo_mime: string | null
           arquivo_nome: string | null
           arquivo_path: string | null
@@ -817,6 +818,7 @@ export type Database = {
           whatsapp_message_id: string | null
         }
         Insert: {
+          arquivo_duracao_segundos?: number | null
           arquivo_mime?: string | null
           arquivo_nome?: string | null
           arquivo_path?: string | null
@@ -832,6 +834,7 @@ export type Database = {
           whatsapp_message_id?: string | null
         }
         Update: {
+          arquivo_duracao_segundos?: number | null
           arquivo_mime?: string | null
           arquivo_nome?: string | null
           arquivo_path?: string | null

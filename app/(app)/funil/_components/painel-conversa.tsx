@@ -4,6 +4,7 @@ import { startTransition, useActionState, useEffect, useLayoutEffect, useRef, us
 
 import {
   enviarMensagemAction,
+  enviarMensagemAudioAction,
   enviarMensagemDocumentoAction,
   enviarMensagemImagemAction,
   obterConversaAction,
@@ -18,6 +19,7 @@ import { formatarHora, formatarTamanhoArquivo } from '@/lib/utils/formatacao'
 
 import { AnexoMenu } from './anexo-menu'
 import { EmojiPopover } from './emoji-popover'
+import { PlayerAudio } from './player-audio'
 
 /** Textarea cresce com o texto até esse limite; depois disso, rola por dentro. */
 const ALTURA_MAX_TEXTAREA = 160
@@ -51,6 +53,7 @@ type LinhaMensagem = {
   conteudo: string | null
   status: MensagemConversa['status']
   arquivo_nome: string | null
+  arquivo_duracao_segundos: number | null
   created_at: string
 }
 
@@ -68,8 +71,96 @@ function paraMensagem(linha: LinhaMensagem): MensagemConversa {
     status: linha.status,
     createdAt: linha.created_at,
     arquivoNome: linha.arquivo_nome,
+    arquivoDuracaoSegundos: linha.arquivo_duracao_segundos,
     arquivoUrl: null,
   }
+}
+
+/** Segundos → "0:07", "1:23" — só o cronômetro da gravação (o player final mostra sua própria duração nativa). */
+function formatarContador(segundos: number): string {
+  const m = Math.floor(segundos / 60)
+  const s = segundos % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+/** Mesmo traço (24×24, stroke 2px) dos ícones de `components/layout/icones.tsx` — escopo local porque esse arquivo é só navegação. */
+function IconeMicrofone({ className = 'size-5' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`shrink-0 ${className}`}
+    >
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 11v1a7 7 0 0 0 14 0v-1" />
+      <path d="M12 19v3M8 22h8" />
+    </svg>
+  )
+}
+
+const N_BARRAS_WAVEFORM = 24
+
+/**
+ * Waveform ao vivo durante a gravação — `AnalyserNode` lê o volume do
+ * próprio `MediaStream` do microfone (o mesmo stream que o `MediaRecorder`
+ * já está usando; um `MediaStream` aceita múltiplos consumidores) e
+ * desenha barras com CSS puro, sem canvas. Todo o ciclo de vida do
+ * `AudioContext`/`AnalyserNode`/`requestAnimationFrame` é local a este
+ * componente — ele só existe montado enquanto `gravacaoAudio.fase ===
+ * 'gravando'`, então o cleanup do efeito abaixo roda sempre que a gravação
+ * para (concluir ou cancelar) ou o painel fecha, sem depender de nenhum
+ * estado externo lembrar de limpar.
+ */
+function WaveformGravacao({ stream }: { stream: MediaStream }) {
+  const [barras, setBarras] = useState<number[]>(() => Array(N_BARRAS_WAVEFORM).fill(0.05))
+
+  useEffect(() => {
+    const audioContext = new AudioContext()
+    const origem = audioContext.createMediaStreamSource(stream)
+    const analisador = audioContext.createAnalyser()
+    analisador.fftSize = 256
+    origem.connect(analisador)
+
+    const dados = new Uint8Array(analisador.frequencyBinCount)
+    let frameId: number
+
+    function passo() {
+      analisador.getByteTimeDomainData(dados)
+      let somaQuadrados = 0
+      for (let i = 0; i < dados.length; i++) {
+        const amostra = (dados[i] - 128) / 128
+        somaQuadrados += amostra * amostra
+      }
+      const volume = Math.sqrt(somaQuadrados / dados.length) // RMS, 0..~1
+      setBarras((atual) => [...atual.slice(1), Math.min(1, volume * 4)]) // ganho só pra ficar visível com fala normal
+      frameId = requestAnimationFrame(passo)
+    }
+    frameId = requestAnimationFrame(passo)
+
+    return () => {
+      cancelAnimationFrame(frameId)
+      origem.disconnect()
+      analisador.disconnect()
+      void audioContext.close()
+    }
+  }, [stream])
+
+  return (
+    <div className="flex h-6 flex-1 items-center gap-0.5" aria-hidden>
+      {barras.map((v, i) => (
+        <span
+          key={i}
+          className="w-1 flex-1 rounded-full bg-red-500"
+          style={{ height: `${Math.max(10, v * 100)}%` }}
+        />
+      ))}
+    </div>
+  )
 }
 
 const ROTULO_STATUS_ENVIO: Record<NonNullable<MensagemConversa['status']>, string> = {
@@ -126,8 +217,9 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
  * `mensagens`, filtrado pela conversa): INSERT pra mensagem nova, UPDATE pro
  * ciclo de status de saída (pendente → enviando → enviado/falhou) que o
  * whatsapp-service grava de forma assíncrona. Envia texto (com emoji),
- * imagem e documento (upload pro bucket privado `whatsapp-midia`, exibição
- * por signed URL) — câmera e áudio ainda são só o botão/menu preparados.
+ * imagem, documento e áudio (gravado com `MediaRecorder`, bruto no Storage —
+ * a conversão pro Ogg/Opus real do WhatsApp só acontece no whatsapp-service)
+ * — câmera ainda é só o botão/menu preparado.
  */
 export function PainelConversa({ card, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -237,6 +329,7 @@ export function PainelConversa({ card, onFechar }: Props) {
           createdAt: resultado.createdAt,
           arquivoUrl: null,
           arquivoNome: null,
+          arquivoDuracaoSegundos: null,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -275,6 +368,7 @@ export function PainelConversa({ card, onFechar }: Props) {
           createdAt: resultado.createdAt,
           arquivoUrl: resultado.arquivoUrl ?? null,
           arquivoNome: null,
+          arquivoDuracaoSegundos: null,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -306,6 +400,85 @@ export function PainelConversa({ card, onFechar }: Props) {
           createdAt: resultado.createdAt,
           arquivoUrl: resultado.arquivoUrl ?? null,
           arquivoNome: resultado.arquivoNome ?? null,
+          arquivoDuracaoSegundos: null,
+        }
+        setEstado((atual) => {
+          if (atual.status !== 'pronto') return atual
+          return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+        })
+        agendarVerificacaoStatus(resultado.id)
+      }
+      return resultado
+    },
+    undefined,
+  )
+
+  /**
+   * Gravação de áudio: `MediaRecorder.isTypeSupported` decide o formato
+   * bruto por navegador — nunca o que vai pro Baileys (isso é conversão no
+   * whatsapp-service). `MediaRecorder`/`MediaStream` são objetos mutáveis
+   * da Web API (seta `onstop` neles, chama `.stop()`) — nunca ficam dentro
+   * do `useState`, que o React trata como imutável; só o ref abaixo.
+   */
+  type GravacaoAudio = { fase: 'gravando' } | { fase: 'pronta'; blob: Blob; duracaoSegundos: number; preview: string }
+
+  const [gravacaoAudio, setGravacaoAudio] = useState<GravacaoAudio | null>(null)
+  const [tempoGravacao, setTempoGravacao] = useState(0)
+  const [erroGravacao, setErroGravacao] = useState<string | null>(null)
+  const chunksGravacaoRef = useRef<Blob[]>([])
+  const recorderRef = useRef<{ recorder: MediaRecorder; stream: MediaStream; mimeType: string } | null>(null)
+  /**
+   * Cópia só-leitura do stream ativo, pra renderizar `<WaveformGravacao>` —
+   * refs nunca podem ser lidos durante a renderização (só em efeitos/
+   * handlers), então o stream "de trabalho" continua exclusivamente em
+   * `recorderRef`; esta variável nunca é mutada, só passada como prop.
+   */
+  const [streamAtivo, setStreamAtivo] = useState<MediaStream | null>(null)
+
+  // Libera a blob URL do preview ao trocar/cancelar — mesma lógica de `imagemSelecionada`.
+  useEffect(() => {
+    return () => {
+      if (gravacaoAudio?.fase === 'pronta') URL.revokeObjectURL(gravacaoAudio.preview)
+    }
+  }, [gravacaoAudio])
+
+  // Se o painel inteiro fechar enquanto ainda está gravando (sem passar por
+  // cancelarGravacao/pararGravacao — ex.: clicar no X do cabeçalho), o
+  // microfone nunca seria liberado: `recorderRef` é um ref, não é limpo por
+  // nenhum outro efeito. Roda só na desmontagem (array vazio).
+  useEffect(() => {
+    return () => {
+      if (recorderRef.current) {
+        recorderRef.current.recorder.stop()
+        recorderRef.current.stream.getTracks().forEach((t) => t.stop())
+        recorderRef.current = null
+      }
+    }
+  }, [])
+
+  // Cronômetro — só roda enquanto estiver de fato gravando.
+  useEffect(() => {
+    if (gravacaoAudio?.fase !== 'gravando') return
+    const intervalo = setInterval(() => setTempoGravacao((t) => t + 1), 1000)
+    return () => clearInterval(intervalo)
+  }, [gravacaoAudio])
+
+  const [estadoEnvioAudio, formActionAudio, enviandoAudio] = useActionState(
+    async (_anterior: EstadoEnvioMensagem | undefined, formData: FormData) => {
+      if (!conversaId) return { erro: 'Conversa não encontrada.' }
+      const resultado = await enviarMensagemAudioAction(conversaId, _anterior, formData)
+      if (resultado.ok && resultado.id && resultado.createdAt) {
+        setGravacaoAudio(null)
+        const nova: MensagemConversa = {
+          id: resultado.id,
+          direcao: 'saida',
+          tipo: 'audio',
+          conteudo: null,
+          status: 'pendente',
+          createdAt: resultado.createdAt,
+          arquivoUrl: resultado.arquivoUrl ?? null,
+          arquivoNome: null,
+          arquivoDuracaoSegundos: resultado.arquivoDuracaoSegundos ?? null,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -325,19 +498,26 @@ export function PainelConversa({ card, onFechar }: Props) {
     startTransition(() => formAction(formData))
   }
 
-  /** "Tentar novamente" numa mensagem de DOCUMENTO `falhou` — reaproveita o arquivo já no Storage, sem subir de novo. */
-  function reenviarDocumento(mensagemId: string) {
+  /**
+   * "Tentar novamente" numa mensagem de MÍDIA (documento ou áudio) `falhou`
+   * — reaproveita o arquivo já no Storage, sem subir de novo. Genérico por
+   * `tipo`: `reenviarMensagemMidiaAction` devolve o tipo da mensagem original,
+   * a UI não precisa saber de antemão qual mídia está sendo reenviada.
+   * Imagem não tem retry nesta fase (ver `AnexoMenu`).
+   */
+  function reenviarMidia(mensagemId: string) {
     void reenviarMensagemMidiaAction(mensagemId).then((resultado) => {
-      if (!resultado.ok || !resultado.id || !resultado.createdAt) return
+      if (!resultado.ok || !resultado.id || !resultado.createdAt || !resultado.tipo) return
       const nova: MensagemConversa = {
         id: resultado.id,
         direcao: 'saida',
-        tipo: 'documento',
+        tipo: resultado.tipo,
         conteudo: resultado.conteudo ?? null,
         status: 'pendente',
         createdAt: resultado.createdAt,
         arquivoUrl: resultado.arquivoUrl ?? null,
         arquivoNome: resultado.arquivoNome ?? null,
+        arquivoDuracaoSegundos: resultado.arquivoDuracaoSegundos ?? null,
       }
       setEstado((atual) => {
         if (atual.status !== 'pronto') return atual
@@ -363,6 +543,82 @@ export function PainelConversa({ card, onFechar }: Props) {
 
   function cancelarDocumento() {
     setDocumentoSelecionado(null)
+  }
+
+  /**
+   * Escolhe o MIME de gravação por suporte real do navegador, nunca por
+   * sniffing de user-agent — `isTypeSupported` já devolve exatamente o que
+   * cada engine aceita: Chrome/Edge só webm;codecs=opus, Firefox aceita os
+   * dois (ogg primeiro na lista, então é o que ele escolhe), Safari/iOS só
+   * mp4. O formato bruto nunca é o que vai pro Baileys — isso é conversão no
+   * whatsapp-service (ffmpeg), sempre pra Ogg/Opus real.
+   */
+  function escolherMimeGravacao(): string | null {
+    if (typeof MediaRecorder === 'undefined') return null
+    const candidatos = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/mp4']
+    return candidatos.find((tipo) => MediaRecorder.isTypeSupported(tipo)) ?? null
+  }
+
+  /** Pede o microfone só agora (nunca antes do clique) e começa a gravar. Impede gravação simultânea. */
+  async function iniciarGravacao() {
+    if (gravacaoAudio) return
+    setErroGravacao(null)
+
+    const mimeType = escolherMimeGravacao()
+    if (!mimeType) {
+      setErroGravacao('Seu navegador não suporta gravação de áudio.')
+      return
+    }
+
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      setErroGravacao('Não foi possível acessar o microfone.')
+      return
+    }
+
+    const recorder = new MediaRecorder(stream, { mimeType })
+    chunksGravacaoRef.current = []
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksGravacaoRef.current.push(e.data)
+    }
+    recorder.start()
+    recorderRef.current = { recorder, stream, mimeType }
+    setTempoGravacao(0)
+    setStreamAtivo(stream)
+    setGravacaoAudio({ fase: 'gravando' })
+  }
+
+  /** Para a gravação. `enviar=false` descarta (cancelar); `enviar=true` monta o blob pra revisão antes do envio de fato. */
+  function pararGravacao(enviar: boolean) {
+    if (gravacaoAudio?.fase !== 'gravando' || !recorderRef.current) return
+    const { recorder, stream, mimeType } = recorderRef.current
+    const duracaoFinal = tempoGravacao
+
+    recorder.onstop = () => {
+      // Libera o microfone sempre — cancelando ou enviando, nunca fica preso.
+      stream.getTracks().forEach((t) => t.stop())
+      recorderRef.current = null
+      setStreamAtivo(null)
+
+      if (!enviar) {
+        setGravacaoAudio(null)
+        return
+      }
+
+      const blob = new Blob(chunksGravacaoRef.current, { type: mimeType })
+      setGravacaoAudio({ fase: 'pronta', blob, duracaoSegundos: duracaoFinal, preview: URL.createObjectURL(blob) })
+    }
+    recorder.stop()
+  }
+
+  function cancelarGravacao() {
+    if (gravacaoAudio?.fase === 'gravando') {
+      pararGravacao(false)
+    } else {
+      setGravacaoAudio(null)
+    }
   }
 
   /** Insere o emoji na posição do cursor (não no final) — o foco é devolvido no `useLayoutEffect` abaixo. */
@@ -497,7 +753,9 @@ export function PainelConversa({ card, onFechar }: Props) {
   // Mensagem de imagem/documento chegada pelo Realtime nasce sem
   // `arquivoUrl` (o payload só traz as colunas da linha, nunca uma signed
   // URL — ver `paraMensagem`). Busca sob demanda por id, nunca a partir de
-  // um caminho vindo do cliente.
+  // um caminho vindo do cliente. Áudio fica de fora: `PlayerAudio` busca a
+  // própria signed URL só no primeiro play, nunca antes — pré-buscar aqui
+  // só desperdiçaria uma URL que expira em 5 min bem antes de alguém clicar.
   useEffect(() => {
     if (estado.status !== 'pronto') return
     const faltantes = estado.mensagens.filter(
@@ -617,6 +875,9 @@ export function PainelConversa({ card, onFechar }: Props) {
                       ) : (
                         <p className="mb-1 text-xs italic opacity-70">Carregando documento…</p>
                       ))}
+                    {m.tipo === 'audio' && (
+                      <PlayerAudio mensagemId={m.id} duracaoInicial={m.arquivoDuracaoSegundos} />
+                    )}
                     {m.conteudo && <p className="whitespace-pre-wrap">{m.conteudo}</p>}
                     <p
                       className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] ${
@@ -636,16 +897,18 @@ export function PainelConversa({ card, onFechar }: Props) {
                         Tentar novamente
                       </button>
                     )}
-                    {m.direcao === 'saida' && m.status === 'falhou' && m.tipo === 'documento' && (
-                      <button
-                        type="button"
-                        onClick={() => reenviarDocumento(m.id)}
-                        disabled={enviandoDocumento}
-                        className="mt-1 text-[11px] font-medium text-green-100 underline decoration-dotted disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Tentar novamente
-                      </button>
-                    )}
+                    {m.direcao === 'saida' &&
+                      m.status === 'falhou' &&
+                      (m.tipo === 'documento' || m.tipo === 'audio') && (
+                        <button
+                          type="button"
+                          onClick={() => reenviarMidia(m.id)}
+                          disabled={enviandoDocumento || enviandoAudio}
+                          className="mt-1 text-[11px] font-medium text-green-100 underline decoration-dotted disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Tentar novamente
+                        </button>
+                      )}
                   </div>
                 </li>
               ))}
@@ -668,13 +931,23 @@ export function PainelConversa({ card, onFechar }: Props) {
               startTransition(() => formActionDocumento(formData))
               return
             }
+            if (gravacaoAudio?.fase === 'pronta') {
+              formData.set('arquivo', gravacaoAudio.blob, 'gravacao')
+              formData.set('duracao', String(gravacaoAudio.duracaoSegundos))
+              startTransition(() => formActionAudio(formData))
+              return
+            }
             if (!texto.trim()) return
             startTransition(() => formAction(formData))
           }}
         >
-          {(estadoEnvio?.erro ?? estadoEnvioImagem?.erro ?? estadoEnvioDocumento?.erro) && (
+          {(estadoEnvio?.erro ??
+            estadoEnvioImagem?.erro ??
+            estadoEnvioDocumento?.erro ??
+            estadoEnvioAudio?.erro ??
+            erroGravacao) && (
             <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {estadoEnvio?.erro ?? estadoEnvioImagem?.erro ?? estadoEnvioDocumento?.erro}
+              {estadoEnvio?.erro ?? estadoEnvioImagem?.erro ?? estadoEnvioDocumento?.erro ?? estadoEnvioAudio?.erro ?? erroGravacao}
             </p>
           )}
           {imagemSelecionada && (
@@ -722,51 +995,102 @@ export function PainelConversa({ card, onFechar }: Props) {
               </button>
             </div>
           )}
-          <div className="flex items-end gap-1">
-            <EmojiPopover onEscolher={inserirEmoji} disabled={!conversaId} />
-            <AnexoMenu
-              disabled={!conversaId || enviandoImagem || enviandoDocumento}
-              onSelecionarImagem={selecionarImagem}
-              onSelecionarDocumento={selecionarDocumento}
-            />
-            <textarea
-              ref={textareaRef}
-              name="texto"
-              rows={1}
-              placeholder={imagemSelecionada || documentoSelecionado ? 'Legenda (opcional)…' : 'Escreva uma mensagem…'}
-              aria-label={imagemSelecionada || documentoSelecionado ? 'Legenda do anexo' : 'Mensagem'}
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              onKeyDown={(e) => {
-                // Enter envia; Shift+Enter quebra linha (comportamento padrão do textarea).
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  if (imagemSelecionada || documentoSelecionado || texto.trim()) e.currentTarget.form?.requestSubmit()
-                }
-              }}
-              disabled={!conversaId}
-              className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
-            />
-            {imagemSelecionada || documentoSelecionado || texto.trim() ? (
-              <button
-                type="submit"
-                disabled={!conversaId || enviando || enviandoImagem || enviandoDocumento}
-                className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
-              >
-                {enviando || enviandoImagem || enviandoDocumento ? 'Enviando…' : 'Enviar'}
-              </button>
-            ) : (
+          {gravacaoAudio?.fase === 'pronta' && (
+            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+              <div className="flex-1">
+                <PlayerAudio srcLocal={gravacaoAudio.preview} duracaoInicial={gravacaoAudio.duracaoSegundos} />
+              </div>
               <button
                 type="button"
-                disabled
-                aria-label="Gravar áudio (em breve)"
-                title="Gravação de áudio — em breve"
-                className="shrink-0 rounded-md p-2 text-lg leading-none text-zinc-400 disabled:cursor-not-allowed dark:text-zinc-500"
+                onClick={cancelarGravacao}
+                disabled={enviandoAudio}
+                aria-label="Remover áudio"
+                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-800"
               >
-                🎤
+                ✕
               </button>
-            )}
-          </div>
+            </div>
+          )}
+          {gravacaoAudio?.fase === 'gravando' ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={cancelarGravacao}
+                aria-label="Cancelar gravação"
+                className="shrink-0 rounded-md p-2 text-lg leading-none text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                🗑️
+              </button>
+              <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-red-600 dark:text-red-400">
+                <span aria-hidden className="size-2 animate-pulse rounded-full bg-red-600" />
+                {formatarContador(tempoGravacao)}
+              </span>
+              {streamAtivo && <WaveformGravacao stream={streamAtivo} />}
+              <button
+                type="button"
+                onClick={() => pararGravacao(true)}
+                aria-label="Parar gravação e revisar"
+                className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                Concluir
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-end gap-1">
+              <EmojiPopover onEscolher={inserirEmoji} disabled={!conversaId} />
+              <AnexoMenu
+                disabled={!conversaId || enviandoImagem || enviandoDocumento || gravacaoAudio?.fase === 'pronta'}
+                onSelecionarImagem={selecionarImagem}
+                onSelecionarDocumento={selecionarDocumento}
+              />
+              <textarea
+                ref={textareaRef}
+                name="texto"
+                rows={1}
+                placeholder={
+                  imagemSelecionada || documentoSelecionado
+                    ? 'Legenda (opcional)…'
+                    : gravacaoAudio?.fase === 'pronta'
+                      ? 'Áudio gravado — sem legenda'
+                      : 'Escreva uma mensagem…'
+                }
+                aria-label={imagemSelecionada || documentoSelecionado ? 'Legenda do anexo' : 'Mensagem'}
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter envia; Shift+Enter quebra linha (comportamento padrão do textarea).
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (imagemSelecionada || documentoSelecionado || gravacaoAudio?.fase === 'pronta' || texto.trim()) {
+                      e.currentTarget.form?.requestSubmit()
+                    }
+                  }
+                }}
+                disabled={!conversaId || gravacaoAudio?.fase === 'pronta'}
+                className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+              />
+              {imagemSelecionada || documentoSelecionado || gravacaoAudio?.fase === 'pronta' || texto.trim() ? (
+                <button
+                  type="submit"
+                  disabled={!conversaId || enviando || enviandoImagem || enviandoDocumento || enviandoAudio}
+                  className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+                >
+                  {enviando || enviandoImagem || enviandoDocumento || enviandoAudio ? 'Enviando…' : 'Enviar'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={iniciarGravacao}
+                  disabled={!conversaId}
+                  aria-label="Gravar áudio"
+                  title="Gravar áudio"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  <IconeMicrofone />
+                </button>
+              )}
+            </div>
+          )}
         </form>
       </div>
     </dialog>

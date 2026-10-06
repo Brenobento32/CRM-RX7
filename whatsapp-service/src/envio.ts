@@ -1,6 +1,6 @@
-import type { AnyMessageContent, WASocket } from '@whiskeysockets/baileys'
+import { getAudioDuration, type AnyMessageContent, type WASocket } from '@whiskeysockets/baileys'
 
-import { baixarMidia } from './midia.js'
+import { baixarMidia, converterParaOggOpus } from './midia.js'
 import { supabase } from './supabase.js'
 
 /** Intervalo do polling de segurança — cobre o caso de o Realtime cair sem o processo notar. */
@@ -9,11 +9,12 @@ const INTERVALO_POLLING_MS = 60_000
 type MensagemPendente = {
   id: string
   conversa_id: string
-  tipo: 'texto' | 'imagem' | 'documento'
+  tipo: 'texto' | 'imagem' | 'documento' | 'audio'
   conteudo: string | null
   arquivo_path: string | null
   arquivo_mime: string | null
   arquivo_nome: string | null
+  arquivo_duracao_segundos: number | null
 }
 
 /**
@@ -32,7 +33,7 @@ export function definirSocketAtivo(socket: WASocket | null): void {
 }
 
 /**
- * Liga o sender de saída (texto, imagem e documento): busca o que já está pendente
+ * Liga o sender de saída (texto, imagem, documento e áudio): busca o que já está pendente
  * (mensagem criada enquanto o serviço estava offline), assina Realtime pra
  * pegar novidade em tempo real, e mantém um polling de segurança a cada 60s
  * pro caso de o Realtime cair. Independente da conexão com o WhatsApp — pode
@@ -74,9 +75,9 @@ async function processarPendentes(): Promise<void> {
 
   const { data, error } = await supabase
     .from('mensagens')
-    .select('id, conversa_id, tipo, conteudo, arquivo_path, arquivo_mime, arquivo_nome')
+    .select('id, conversa_id, tipo, conteudo, arquivo_path, arquivo_mime, arquivo_nome, arquivo_duracao_segundos')
     .eq('direcao', 'saida')
-    .in('tipo', ['texto', 'imagem', 'documento'])
+    .in('tipo', ['texto', 'imagem', 'documento', 'audio'])
     .eq('status', 'pendente')
     .order('created_at', { ascending: true })
 
@@ -129,19 +130,34 @@ async function montarConteudo(mensagem: MensagemPendente): Promise<AnyMessageCon
 
   if (!mensagem.arquivo_path || !mensagem.arquivo_mime) throw new Error(`mensagem de ${mensagem.tipo} sem arquivo`)
 
-  const buffer = await baixarMidia(mensagem.arquivo_path)
-  if (!buffer) throw new Error(`falha ao baixar arquivo ${mensagem.arquivo_path} do Storage`)
+  const bufferBruto = await baixarMidia(mensagem.arquivo_path)
+  if (!bufferBruto) throw new Error(`falha ao baixar arquivo ${mensagem.arquivo_path} do Storage`)
 
   if (mensagem.tipo === 'documento') {
     return {
-      document: buffer,
+      document: bufferBruto,
       mimetype: mensagem.arquivo_mime,
       fileName: mensagem.arquivo_nome ?? undefined,
       caption: mensagem.conteudo ?? undefined,
     }
   }
 
-  return { image: buffer, mimetype: mensagem.arquivo_mime, caption: mensagem.conteudo ?? undefined }
+  if (mensagem.tipo === 'audio') {
+    // O arquivo bruto é o que o MediaRecorder do navegador gravou
+    // (webm/ogg/mp4) — nunca o que vai pro Baileys. Conversão real pro
+    // Ogg/Opus acontece aqui, sempre, independente do formato de entrada.
+    const bufferOggOpus = await converterParaOggOpus(bufferBruto)
+    const duracao = mensagem.arquivo_duracao_segundos ?? (await getAudioDuration(bufferOggOpus).catch(() => undefined))
+
+    return {
+      audio: bufferOggOpus,
+      mimetype: 'audio/ogg; codecs=opus',
+      ptt: true,
+      seconds: duracao !== undefined ? Math.round(duracao) : undefined,
+    }
+  }
+
+  return { image: bufferBruto, mimetype: mensagem.arquivo_mime, caption: mensagem.conteudo ?? undefined }
 }
 
 async function processarMensagem(mensagem: MensagemPendente): Promise<void> {
