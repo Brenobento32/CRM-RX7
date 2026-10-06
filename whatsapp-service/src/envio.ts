@@ -1,5 +1,6 @@
-import type { WASocket } from '@whiskeysockets/baileys'
+import type { AnyMessageContent, WASocket } from '@whiskeysockets/baileys'
 
+import { baixarMidia } from './midia.js'
 import { supabase } from './supabase.js'
 
 /** Intervalo do polling de segurança — cobre o caso de o Realtime cair sem o processo notar. */
@@ -8,7 +9,10 @@ const INTERVALO_POLLING_MS = 60_000
 type MensagemPendente = {
   id: string
   conversa_id: string
+  tipo: 'texto' | 'imagem'
   conteudo: string | null
+  arquivo_path: string | null
+  arquivo_mime: string | null
 }
 
 /**
@@ -27,13 +31,13 @@ export function definirSocketAtivo(socket: WASocket | null): void {
 }
 
 /**
- * Liga o sender de texto: busca o que já está pendente (mensagem criada
- * enquanto o serviço estava offline), assina Realtime pra pegar novidade em
- * tempo real, e mantém um polling de segurança a cada 60s pro caso de o
- * Realtime cair. Independente da conexão com o WhatsApp — pode ser chamado
- * uma única vez no início do processo, antes mesmo do primeiro QR.
+ * Liga o sender de saída (texto e imagem): busca o que já está pendente
+ * (mensagem criada enquanto o serviço estava offline), assina Realtime pra
+ * pegar novidade em tempo real, e mantém um polling de segurança a cada 60s
+ * pro caso de o Realtime cair. Independente da conexão com o WhatsApp — pode
+ * ser chamado uma única vez no início do processo, antes mesmo do primeiro QR.
  */
-export function iniciarSenderTexto(): void {
+export function iniciarSenderMensagens(): void {
   assinarRealtime()
   setInterval(() => void processarPendentes(), INTERVALO_POLLING_MS)
   void processarPendentes()
@@ -69,9 +73,9 @@ async function processarPendentes(): Promise<void> {
 
   const { data, error } = await supabase
     .from('mensagens')
-    .select('id, conversa_id, conteudo')
+    .select('id, conversa_id, tipo, conteudo, arquivo_path, arquivo_mime')
     .eq('direcao', 'saida')
-    .eq('tipo', 'texto')
+    .in('tipo', ['texto', 'imagem'])
     .eq('status', 'pendente')
     .order('created_at', { ascending: true })
 
@@ -115,6 +119,21 @@ async function buscarTelefoneDaConversa(conversaId: string): Promise<string | nu
   return data?.telefone ?? null
 }
 
+/** Monta o conteúdo que o Baileys espera, por tipo. Baixa do Storage quando for imagem. */
+async function montarConteudo(mensagem: MensagemPendente): Promise<AnyMessageContent> {
+  if (mensagem.tipo === 'texto') {
+    if (!mensagem.conteudo) throw new Error('mensagem de texto sem conteúdo')
+    return { text: mensagem.conteudo }
+  }
+
+  if (!mensagem.arquivo_path || !mensagem.arquivo_mime) throw new Error('mensagem de imagem sem arquivo')
+
+  const buffer = await baixarMidia(mensagem.arquivo_path)
+  if (!buffer) throw new Error(`falha ao baixar arquivo ${mensagem.arquivo_path} do Storage`)
+
+  return { image: buffer, mimetype: mensagem.arquivo_mime, caption: mensagem.conteudo ?? undefined }
+}
+
 async function processarMensagem(mensagem: MensagemPendente): Promise<void> {
   const socket = socketAtivo
   if (!socket) return
@@ -122,12 +141,11 @@ async function processarMensagem(mensagem: MensagemPendente): Promise<void> {
   if (!(await reivindicar(mensagem.id))) return // outra chamada (Realtime/polling) já pegou essa
 
   try {
-    if (!mensagem.conteudo) throw new Error('mensagem de texto sem conteúdo')
-
     const telefone = await buscarTelefoneDaConversa(mensagem.conversa_id)
     if (!telefone) throw new Error(`conversa ${mensagem.conversa_id} sem telefone`)
 
-    const enviada = await socket.sendMessage(`${telefone}@s.whatsapp.net`, { text: mensagem.conteudo })
+    const conteudo = await montarConteudo(mensagem)
+    const enviada = await socket.sendMessage(`${telefone}@s.whatsapp.net`, conteudo)
 
     const { error } = await supabase
       .from('mensagens')

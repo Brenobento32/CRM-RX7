@@ -18,7 +18,7 @@ import { pino } from 'pino'
 import qrcodeTerminal from 'qrcode-terminal'
 
 import { atualizarStatusConexao } from './conexao.js'
-import { definirSocketAtivo, iniciarSenderTexto } from './envio.js'
+import { definirSocketAtivo, iniciarSenderMensagens } from './envio.js'
 import { salvarMensagemRecebida } from './mensagens.js'
 
 const PASTA_CREDENCIAIS = 'auth_info_baileys'
@@ -86,7 +86,7 @@ async function iniciar() {
 
 // Independente da conexão com o WhatsApp — sobrevive a reconexões do socket
 // e já busca o que ficou pendente enquanto o processo estava fora do ar.
-iniciarSenderTexto()
+iniciarSenderMensagens()
 
 iniciar().catch((erro) => {
   console.error('Falha ao iniciar o serviço WhatsApp:', erro)

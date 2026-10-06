@@ -2,25 +2,28 @@
 
 import { useEffect, useId, useRef } from 'react'
 
+import { ANEXO_IMAGEM_TIPOS } from '@/lib/validations/mensagem'
+
 const LARGURA_MENU = 224
 
-/**
- * Só o visual, preparado pra quando upload/envio de mídia existir. Nenhum
- * item é clicável de verdade nesta etapa — "em breve" em todos, sem fingir
- * que algo foi enviado.
- */
-const ITENS = [
-  { rotulo: 'Fotos e vídeos', icone: '🖼️' },
+/** Documento, câmera e áudio ainda não têm upload/envio implementado — "em breve", sem fingir que algo foi enviado. */
+const ITENS_EM_BREVE = [
   { rotulo: 'Documento', icone: '📄' },
   { rotulo: 'Câmera', icone: '📷' },
   { rotulo: 'Áudio', icone: '🎵' },
 ] as const
 
+type Props = {
+  disabled?: boolean
+  onSelecionarImagem: (arquivo: File) => void
+}
+
 /** Botão 📎 + menu de anexos pro composer do `PainelConversa` — mesma Popover API nativa de `MenuMoverPara`. */
-export function AnexoMenu({ disabled = false }: { disabled?: boolean }) {
+export function AnexoMenu({ disabled = false, onSelecionarImagem }: Props) {
   const id = useId()
   const botaoRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const menu = menuRef.current
@@ -44,8 +47,29 @@ export function AnexoMenu({ disabled = false }: { disabled?: boolean }) {
     return () => menu.removeEventListener('toggle', aoAlternar)
   }, [])
 
+  function escolherFotos() {
+    menuRef.current?.hidePopover()
+    inputRef.current?.click()
+  }
+
+  function aoSelecionarArquivo(e: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0]
+    e.target.value = '' // permite selecionar o mesmo arquivo de novo depois (ex.: reenviar após corrigir)
+    if (arquivo) onSelecionarImagem(arquivo)
+  }
+
   return (
     <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ANEXO_IMAGEM_TIPOS.join(',')}
+        onChange={aoSelecionarArquivo}
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden
+      />
+
       <button
         ref={botaoRef}
         type="button"
@@ -68,7 +92,18 @@ export function AnexoMenu({ disabled = false }: { disabled?: boolean }) {
         className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
-        {ITENS.map((item) => (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={escolherFotos}
+          disabled={disabled}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800"
+        >
+          <span aria-hidden>🖼️</span>
+          <span className="truncate">Fotos e vídeos</span>
+        </button>
+
+        {ITENS_EM_BREVE.map((item) => (
           <button
             key={item.rotulo}
             type="button"

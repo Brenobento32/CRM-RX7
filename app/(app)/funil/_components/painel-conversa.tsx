@@ -4,8 +4,10 @@ import { startTransition, useActionState, useEffect, useLayoutEffect, useRef, us
 
 import {
   enviarMensagemAction,
+  enviarMensagemImagemAction,
   obterConversaAction,
   obterStatusMensagemAction,
+  obterUrlAnexoAction,
   type EstadoEnvioMensagem,
 } from '@/lib/actions/conversas'
 import type { MensagemConversa } from '@/lib/dal/conversas'
@@ -18,9 +20,15 @@ import { EmojiPopover } from './emoji-popover'
 /** Textarea cresce com o texto até esse limite; depois disso, rola por dentro. */
 const ALTURA_MAX_TEXTAREA = 160
 
-/** Fallback do Realtime: confere no servidor o status da própria mensagem a cada 1s, por no máximo 10 tentativas. */
+/**
+ * Fallback do Realtime: confere no servidor o status da própria mensagem a
+ * cada 1s, por no máximo 30 tentativas (30s) — janela alargada porque imagem
+ * tem um passo de upload de mídia pro WhatsApp que texto não tem, e
+ * rotineiramente passa dos ~10s que bastavam só para texto. Só essa UMA
+ * mensagem é conferida, nunca a conversa inteira (sem polling de lista).
+ */
 const INTERVALO_VERIFICACAO_MS = 1000
-const TENTATIVAS_MAX_VERIFICACAO = 10
+const TENTATIVAS_MAX_VERIFICACAO = 30
 
 type Props = {
   card: { clienteId: string; clienteNome: string; clienteEmpresa: string | null }
@@ -40,9 +48,15 @@ type LinhaMensagem = {
   tipo: MensagemConversa['tipo']
   conteudo: string | null
   status: MensagemConversa['status']
+  arquivo_nome: string | null
   created_at: string
 }
 
+/**
+ * O payload do Realtime traz as colunas da linha, mas nunca uma signed URL —
+ * isso é gerado sob demanda (ver `buscarUrlsFaltantes` abaixo), nunca
+ * confiando num caminho vindo do cliente.
+ */
 function paraMensagem(linha: LinhaMensagem): MensagemConversa {
   return {
     id: linha.id,
@@ -51,6 +65,8 @@ function paraMensagem(linha: LinhaMensagem): MensagemConversa {
     conteudo: linha.conteudo,
     status: linha.status,
     createdAt: linha.created_at,
+    arquivoNome: linha.arquivo_nome,
+    arquivoUrl: null,
   }
 }
 
@@ -95,7 +111,9 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
   }
 
   const copia = [...atual]
-  copia[indice] = nova
+  // `nova` pode vir de um payload crú do Realtime (sem signed URL, ver
+  // `paraMensagem`) — nunca regride uma URL já resolvida por `arquivoUrl: null`.
+  copia[indice] = { ...nova, arquivoUrl: nova.arquivoUrl ?? existente.arquivoUrl }
   return copia
 }
 
@@ -105,8 +123,9 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
  * atualização em tempo real via Supabase Realtime (`postgres_changes` em
  * `mensagens`, filtrado pela conversa): INSERT pra mensagem nova, UPDATE pro
  * ciclo de status de saída (pendente → enviando → enviado/falhou) que o
- * whatsapp-service grava de forma assíncrona. Envia texto (com emoji) —
- * anexo, câmera e áudio são só o botão/menu preparados, sem upload ainda.
+ * whatsapp-service grava de forma assíncrona. Envia texto (com emoji) e
+ * imagem (upload pro bucket privado `whatsapp-midia`, exibição por signed
+ * URL) — documento, câmera e áudio ainda são só o botão/menu preparados.
  */
 export function PainelConversa({ card, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -119,6 +138,15 @@ export function PainelConversa({ card, onFechar }: Props) {
   const [estado, setEstado] = useState<Estado>({ status: 'carregando' })
 
   useEffect(() => {
+    // `useRef(true)` só vale na primeira criação do ref — nunca é
+    // reaplicado numa remontagem. Em dev, o Strict Mode monta → desmonta →
+    // remonta de propósito (pra pegar cleanup faltando); o cleanup abaixo
+    // zera o ref, e sem este set aqui ele nunca volta a `true` na
+    // remontagem real, deixando TUDO que depende de `montadoRef.current`
+    // (o fallback de status, a busca de signed URL) permanentemente
+    // bloqueado mesmo com o painel aberto e funcionando.
+    montadoRef.current = true
+
     const dialog = ref.current
     dialog?.showModal()
     return () => {
@@ -150,7 +178,7 @@ export function PainelConversa({ card, onFechar }: Props) {
    * Fallback pro caso do UPDATE do Realtime (pendente → enviando →
    * enviado/falhou) não chegar no próprio remetente: confere no servidor só
    * o status DESSA mensagem (uma linha, nunca a conversa inteira) a cada 1s,
-   * por no máximo 10 tentativas (10s) — uma única checagem fixa não bastava
+   * por no máximo 30 tentativas (30s) — uma única checagem fixa não bastava
    * porque o envio pode demorar mais do que o intervalo escolhido. Para
    * assim que o status real vier `enviado`/`falhou` (aplicado via
    * `mesclarMensagem`, que já impede regressão) ou ao esgotar as tentativas;
@@ -205,6 +233,8 @@ export function PainelConversa({ card, onFechar }: Props) {
           conteudo: resultado.conteudo ?? '',
           status: 'pendente',
           createdAt: resultado.createdAt,
+          arquivoUrl: null,
+          arquivoNome: null,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -217,11 +247,57 @@ export function PainelConversa({ card, onFechar }: Props) {
     undefined,
   )
 
-  /** "Tentar novamente" numa mensagem `falhou` — reaproveita o mesmo envio (nova mensagem pendente). */
+  /** Imagem escolhida no `AnexoMenu`, ainda não enviada — preview local (blob) até a confirmação do servidor. */
+  const [imagemSelecionada, setImagemSelecionada] = useState<{ arquivo: File; preview: string } | null>(null)
+
+  // Libera a blob URL ao trocar de imagem ou cancelar — nunca ao trocar de `estado`/mensagens.
+  useEffect(() => {
+    return () => {
+      if (imagemSelecionada) URL.revokeObjectURL(imagemSelecionada.preview)
+    }
+  }, [imagemSelecionada])
+
+  const [estadoEnvioImagem, formActionImagem, enviandoImagem] = useActionState(
+    async (_anterior: EstadoEnvioMensagem | undefined, formData: FormData) => {
+      if (!conversaId) return { erro: 'Conversa não encontrada.' }
+      const resultado = await enviarMensagemImagemAction(conversaId, _anterior, formData)
+      if (resultado.ok && resultado.id && resultado.createdAt) {
+        setTexto('')
+        setImagemSelecionada(null)
+        const nova: MensagemConversa = {
+          id: resultado.id,
+          direcao: 'saida',
+          tipo: 'imagem',
+          conteudo: resultado.conteudo ?? null,
+          status: 'pendente',
+          createdAt: resultado.createdAt,
+          arquivoUrl: resultado.arquivoUrl ?? null,
+          arquivoNome: null,
+        }
+        setEstado((atual) => {
+          if (atual.status !== 'pronto') return atual
+          return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+        })
+        agendarVerificacaoStatus(resultado.id)
+      }
+      return resultado
+    },
+    undefined,
+  )
+
+  /** "Tentar novamente" numa mensagem de TEXTO `falhou` — reaproveita o mesmo envio (nova mensagem pendente). Imagem não tem retry nesta fase. */
   function reenviar(conteudo: string) {
     const formData = new FormData()
     formData.set('texto', conteudo)
     startTransition(() => formAction(formData))
+  }
+
+  function selecionarImagem(arquivo: File) {
+    setImagemSelecionada({ arquivo, preview: URL.createObjectURL(arquivo) })
+  }
+
+  function cancelarImagem() {
+    setImagemSelecionada(null)
   }
 
   /** Insere o emoji na posição do cursor (não no final) — o foco é devolvido no `useLayoutEffect` abaixo. */
@@ -255,44 +331,128 @@ export function PainelConversa({ card, onFechar }: Props) {
     campo.style.height = `${Math.min(campo.scrollHeight, ALTURA_MAX_TEXTAREA)}px`
   }, [texto])
 
+  /**
+   * Canal de Realtime da conversa, com reconexão controlada. Sem isso, um
+   * canal que cai (CHANNEL_ERROR/TIMED_OUT) ou fecha sem ter sido este efeito
+   * quem pediu (CLOSED) fica morto pro resto da sessão — nada avisa, e o
+   * fallback por mensagem (acima) é curto demais pra cobrir isso sozinho.
+   *
+   * `geracao` invalida o callback de um canal já substituído: ao reconectar
+   * ou desmontar, o canal antigo ainda pode emitir um 'CLOSED' tardio (efeito
+   * do nosso próprio `removeChannel`), e sem essa checagem esse eco agendaria
+   * uma reconexão duplicada. Backoff exponencial (1s, 2s, 4s, ... até 30s)
+   * evita martelar o servidor numa queda persistente; zera a cada
+   * `SUBSCRIBED`. Nunca faz polling da conversa — só resubscreve os mesmos
+   * listeners INSERT/UPDATE; o que tiver sido perdido no intervalo chega
+   * depois por INSERT/UPDATE de novo ou pelo fallback por mensagem, e
+   * `mesclarMensagem` já deduplica por id.
+   */
   useEffect(() => {
     if (!conversaId) return
 
     const supabase = createClient()
-    const canal = supabase
-      .channel(`mensagens-conversa-${conversaId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
-        (payload) => {
-          const nova = paraMensagem(payload.new as LinhaMensagem)
-          setEstado((atual) => {
-            if (atual.status !== 'pronto') return atual
-            return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
-          })
-        },
-      )
-      .on(
-        // O whatsapp-service faz pendente → enviando → enviado/falhou via UPDATE
-        // nesta mesma linha; é só isso que chega aqui (conteúdo não muda depois do INSERT).
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
-        (payload) => {
-          const atualizada = paraMensagem(payload.new as LinhaMensagem)
-          setEstado((atual) => {
-            if (atual.status !== 'pronto') return atual
-            return { ...atual, mensagens: mesclarMensagem(atual.mensagens, atualizada, false) }
-          })
-        },
-      )
-      .subscribe()
+    let desmontado = false
+    let canalAtual: ReturnType<typeof supabase.channel> | null = null
+    let timeoutReconexao: ReturnType<typeof setTimeout> | null = null
+    let tentativas = 0
+    let geracao = 0
+
+    function conectar() {
+      geracao += 1
+      const minhaGeracao = geracao
+
+      const canalAnterior = canalAtual
+      canalAtual = null
+      if (canalAnterior) void supabase.removeChannel(canalAnterior)
+
+      canalAtual = supabase
+        .channel(`mensagens-conversa-${conversaId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
+          (payload) => {
+            const nova = paraMensagem(payload.new as LinhaMensagem)
+            setEstado((atual) => {
+              if (atual.status !== 'pronto') return atual
+              return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
+            })
+          },
+        )
+        .on(
+          // O whatsapp-service faz pendente → enviando → enviado/falhou via UPDATE
+          // nesta mesma linha; é só isso que chega aqui (conteúdo não muda depois do INSERT).
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
+          (payload) => {
+            const atualizada = paraMensagem(payload.new as LinhaMensagem)
+            setEstado((atual) => {
+              if (atual.status !== 'pronto') return atual
+              return { ...atual, mensagens: mesclarMensagem(atual.mensagens, atualizada, false) }
+            })
+          },
+        )
+        .subscribe((status) => {
+          if (minhaGeracao !== geracao) return // canal já substituído — eco do removeChannel acima
+
+          if (status === 'SUBSCRIBED') {
+            tentativas = 0
+            return
+          }
+
+          if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            if (desmontado) return
+
+            const espera = Math.min(1000 * 2 ** tentativas, 30_000)
+            tentativas += 1
+            console.error(
+              `[realtime] canal da conversa caiu (${status}) — reconectando em ${espera}ms (tentativa ${tentativas})`,
+            )
+            timeoutReconexao = setTimeout(() => {
+              if (!desmontado) conectar()
+            }, espera)
+          }
+        })
+    }
+
+    conectar()
 
     return () => {
-      void supabase.removeChannel(canal)
+      desmontado = true
+      geracao += 1 // invalida qualquer callback do canal atual que ainda não tenha chegado
+      if (timeoutReconexao) clearTimeout(timeoutReconexao)
+      if (canalAtual) void supabase.removeChannel(canalAtual)
     }
   }, [conversaId])
 
   const mensagens = estado.status === 'pronto' ? estado.mensagens : []
+
+  /** Ids com busca de signed URL em andamento — evita repetir a mesma chamada a cada render. */
+  const buscandoUrlRef = useRef<Set<string>>(new Set())
+
+  // Mensagem de imagem chegada pelo Realtime nasce sem `arquivoUrl` (o
+  // payload só traz as colunas da linha, nunca uma signed URL — ver
+  // `paraMensagem`). Busca sob demanda por id, nunca a partir de um caminho
+  // vindo do cliente.
+  useEffect(() => {
+    if (estado.status !== 'pronto') return
+    const faltantes = estado.mensagens.filter(
+      (m) => m.tipo === 'imagem' && !m.arquivoUrl && !buscandoUrlRef.current.has(m.id),
+    )
+    if (faltantes.length === 0) return
+
+    for (const m of faltantes) {
+      buscandoUrlRef.current.add(m.id)
+      void obterUrlAnexoAction(m.id).then((url) => {
+        if (!montadoRef.current || !url) return
+        setEstado((atual) => {
+          if (atual.status !== 'pronto') return atual
+          const existente = atual.mensagens.find((x) => x.id === m.id)
+          if (!existente) return atual
+          return { ...atual, mensagens: mesclarMensagem(atual.mensagens, { ...existente, arquivoUrl: url }, false) }
+        })
+      })
+    }
+  }, [estado])
 
   useEffect(() => {
     const lista = listaRef.current
@@ -362,7 +522,18 @@ export function PainelConversa({ card, onFechar }: Props) {
                         : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{m.conteudo ?? ''}</p>
+                    {m.tipo === 'imagem' &&
+                      (m.arquivoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- bucket privado, signed URL com token e TTL curtos; não é um candidato a next/image
+                        <img
+                          src={m.arquivoUrl}
+                          alt={m.arquivoNome ?? 'Imagem'}
+                          className="mb-1 max-h-72 w-full rounded-md object-contain"
+                        />
+                      ) : (
+                        <p className="mb-1 text-xs italic opacity-70">Carregando imagem…</p>
+                      ))}
+                    {m.conteudo && <p className="whitespace-pre-wrap">{m.conteudo}</p>}
                     <p
                       className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] ${
                         m.direcao === 'saida' ? 'text-green-100' : 'text-zinc-500 dark:text-zinc-400'
@@ -371,7 +542,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                       {formatarHora(m.createdAt)}
                       {m.direcao === 'saida' && m.status && <span>· {ROTULO_STATUS_ENVIO[m.status]}</span>}
                     </p>
-                    {m.direcao === 'saida' && m.status === 'falhou' && (
+                    {m.direcao === 'saida' && m.status === 'falhou' && m.tipo === 'texto' && (
                       <button
                         type="button"
                         onClick={() => reenviar(m.conteudo ?? '')}
@@ -392,44 +563,71 @@ export function PainelConversa({ card, onFechar }: Props) {
           className="flex flex-col gap-1.5 border-t border-zinc-200 p-3 dark:border-zinc-800"
           onSubmit={(e) => {
             e.preventDefault()
-            if (!texto.trim()) return
             const formData = new FormData(e.currentTarget)
+            if (imagemSelecionada) {
+              formData.set('arquivo', imagemSelecionada.arquivo)
+              startTransition(() => formActionImagem(formData))
+              return
+            }
+            if (!texto.trim()) return
             startTransition(() => formAction(formData))
           }}
         >
-          {estadoEnvio?.erro && (
+          {(estadoEnvio?.erro ?? estadoEnvioImagem?.erro) && (
             <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {estadoEnvio.erro}
+              {estadoEnvio?.erro ?? estadoEnvioImagem?.erro}
             </p>
+          )}
+          {imagemSelecionada && (
+            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+              {/* eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), nunca passa por next/image */}
+              <img
+                src={imagemSelecionada.preview}
+                alt=""
+                className="h-14 w-14 shrink-0 rounded object-cover"
+              />
+              <p className="flex-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {imagemSelecionada.arquivo.name}
+              </p>
+              <button
+                type="button"
+                onClick={cancelarImagem}
+                disabled={enviandoImagem}
+                aria-label="Remover imagem"
+                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-800"
+              >
+                ✕
+              </button>
+            </div>
           )}
           <div className="flex items-end gap-1">
             <EmojiPopover onEscolher={inserirEmoji} disabled={!conversaId} />
-            <AnexoMenu disabled={!conversaId} />
+            <AnexoMenu disabled={!conversaId || enviandoImagem} onSelecionarImagem={selecionarImagem} />
             <textarea
               ref={textareaRef}
               name="texto"
               rows={1}
-              placeholder="Escreva uma mensagem…"
-              aria-label="Mensagem"
+              placeholder={imagemSelecionada ? 'Legenda (opcional)…' : 'Escreva uma mensagem…'}
+              aria-label={imagemSelecionada ? 'Legenda da imagem' : 'Mensagem'}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               onKeyDown={(e) => {
                 // Enter envia; Shift+Enter quebra linha (comportamento padrão do textarea).
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  if (texto.trim()) e.currentTarget.form?.requestSubmit()
+                  if (imagemSelecionada || texto.trim()) e.currentTarget.form?.requestSubmit()
                 }
               }}
               disabled={!conversaId}
               className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
             />
-            {texto.trim() ? (
+            {imagemSelecionada || texto.trim() ? (
               <button
                 type="submit"
-                disabled={!conversaId || enviando}
+                disabled={!conversaId || enviando || enviandoImagem}
                 className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
               >
-                {enviando ? 'Enviando…' : 'Enviar'}
+                {enviando || enviandoImagem ? 'Enviando…' : 'Enviar'}
               </button>
             ) : (
               <button

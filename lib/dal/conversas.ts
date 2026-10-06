@@ -3,10 +3,17 @@ import 'server-only'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
+import { extensaoDeMime } from '@/lib/validations/mensagem'
 
 type DirecaoMensagem = Database['public']['Enums']['direcao_mensagem']
 type TipoMensagem = Database['public']['Enums']['tipo_mensagem']
 export type StatusMensagem = Database['public']['Enums']['status_mensagem']
+
+/** Bucket privado de mídia do WhatsApp — path `{conversa_id}/{uuid}.{extensao}` (ver migration 20261006100000). */
+const BUCKET_MIDIA = 'whatsapp-midia'
+
+/** Só o tempo de exibir no painel — nunca persistida, sempre gerada de novo sob demanda. */
+const TTL_URL_ASSINADA = 300
 
 export type MensagemConversa = {
   id: string
@@ -16,6 +23,10 @@ export type MensagemConversa = {
   /** Ciclo de envio — só existe pra `direcao='saida'`; mensagem de entrada é `null`. */
   status: StatusMensagem | null
   createdAt: string
+  /** Signed URL do anexo (`tipo='imagem'`) — `null` até ser gerada (ver `obterUrlAnexo`). */
+  arquivoUrl: string | null
+  /** Nome original do arquivo, só pra exibição (alt da imagem). */
+  arquivoNome: string | null
 }
 
 export type ConversaCliente = {
@@ -47,7 +58,7 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
 
   const { data: mensagens, error: erroMensagens } = await supabase
     .from('mensagens')
-    .select('id, direcao, tipo, conteudo, status, created_at')
+    .select('id, direcao, tipo, conteudo, status, arquivo_path, arquivo_nome, created_at')
     .eq('conversa_id', conversa.id)
     .order('created_at', { ascending: true })
 
@@ -55,14 +66,117 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
 
   return {
     id: conversa.id,
-    mensagens: (mensagens ?? []).map((m) => ({
-      id: m.id,
-      direcao: m.direcao,
-      tipo: m.tipo,
-      conteudo: m.conteudo,
-      status: m.status,
-      createdAt: m.created_at,
-    })),
+    mensagens: await Promise.all(
+      (mensagens ?? []).map(async (m) => ({
+        id: m.id,
+        direcao: m.direcao,
+        tipo: m.tipo,
+        conteudo: m.conteudo,
+        status: m.status,
+        createdAt: m.created_at,
+        arquivoNome: m.arquivo_nome,
+        arquivoUrl:
+          m.tipo === 'imagem' && m.arquivo_path
+            ? await assinarUrlAnexo(supabase, m.arquivo_path)
+            : null,
+      })),
+    ),
+  }
+}
+
+/** `createSignedUrl` isolado — usado na carga inicial e em `obterUrlAnexo`. `null` em qualquer falha. */
+async function assinarUrlAnexo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  caminho: string,
+): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(BUCKET_MIDIA).createSignedUrl(caminho, TTL_URL_ASSINADA)
+  if (error) {
+    console.error('signed url anexo whatsapp', error)
+    return null
+  }
+  return data?.signedUrl ?? null
+}
+
+/**
+ * URL assinada de UMA mensagem (por id) — usada pelo `PainelConversa` quando
+ * uma imagem chega via Realtime (o payload de `postgres_changes` não traz
+ * signed URL, só as colunas da linha). O caminho nunca vem do cliente: é
+ * sempre lido de volta do banco por `mensagemId`, sob a RLS de
+ * `mensagens_select` — e a policy de SELECT de `storage.objects` confere a
+ * posse de novo, independente da RLS de `mensagens`.
+ */
+export async function obterUrlAnexo(mensagemId: string): Promise<string | null> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('mensagens')
+    .select('arquivo_path')
+    .eq('id', mensagemId)
+    .maybeSingle()
+
+  if (error || !data?.arquivo_path) return null
+  return assinarUrlAnexo(supabase, data.arquivo_path)
+}
+
+/**
+ * Sobe a imagem pro bucket privado e registra a mensagem de saída como
+ * `pendente` — mesmo ciclo de `enviarMensagemTexto`, quem efetivamente envia
+ * pelo WhatsApp é o whatsapp-service, de forma assíncrona. Se o INSERT
+ * falhar depois do upload ir, o arquivo é removido — nunca fica lixo
+ * referenciado por ninguém nem mensagem apontando pra arquivo inexistente.
+ */
+export async function enviarMensagemImagem(
+  conversaId: string,
+  arquivo: File,
+  legenda: string | null,
+): Promise<
+  | { ok: true; id: string; createdAt: string; conteudo: string | null; arquivoUrl: string | null }
+  | { ok: false; mensagem: string }
+> {
+  const usuario = await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const caminho = `${conversaId}/${crypto.randomUUID()}.${extensaoDeMime(arquivo.type)}`
+
+  const { error: erroUpload } = await supabase.storage
+    .from(BUCKET_MIDIA)
+    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false })
+
+  if (erroUpload) {
+    console.error('upload imagem whatsapp', erroUpload)
+    return { ok: false, mensagem: 'Não foi possível enviar a imagem.' }
+  }
+
+  const { data, error } = await supabase
+    .from('mensagens')
+    .insert({
+      conversa_id: conversaId,
+      direcao: 'saida',
+      tipo: 'imagem',
+      status: 'pendente',
+      conteudo: legenda,
+      autor_id: usuario.id,
+      arquivo_path: caminho,
+      arquivo_mime: arquivo.type,
+      arquivo_nome: arquivo.name,
+      arquivo_tamanho: arquivo.size,
+    })
+    .select('id, created_at')
+    .single()
+
+  if (error) {
+    await supabase.storage.from(BUCKET_MIDIA).remove([caminho])
+    console.error('mensagem imagem whatsapp', error)
+    return { ok: false, mensagem: 'Não foi possível enviar a imagem.' }
+  }
+
+  return {
+    ok: true,
+    id: data.id,
+    createdAt: data.created_at,
+    conteudo: legenda,
+    arquivoUrl: await assinarUrlAnexo(supabase, caminho),
   }
 }
 

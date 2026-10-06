@@ -1,13 +1,16 @@
-import type { WAMessage } from '@whiskeysockets/baileys'
+import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys'
 
+import { subirMidia } from './midia.js'
 import { supabase } from './supabase.js'
 import { candidatosTelefone, telefoneDoJid } from './telefone.js'
 
 type Tipo = 'texto' | 'imagem' | 'documento' | 'audio' | 'video'
 
 /**
- * Extrai um conteúdo exibível da mensagem. Mídia não é baixada nesta fase
- * (sem tabela de anexo/Storage ainda) — só o tipo e uma legenda/placeholder.
+ * Extrai um conteúdo exibível da mensagem — pra tudo que ainda não tem
+ * upload de mídia (vídeo, áudio, documento), só o tipo e uma
+ * legenda/placeholder. Imagem é tratada antes de chegar aqui, em
+ * `salvarMensagemRecebida` (precisa baixar o arquivo, que é assíncrono).
  */
 function extrairConteudo(msg: WAMessage): { conteudo: string; tipo: Tipo } | null {
   const m = msg.message
@@ -15,12 +18,21 @@ function extrairConteudo(msg: WAMessage): { conteudo: string; tipo: Tipo } | nul
 
   if (m.conversation) return { conteudo: m.conversation, tipo: 'texto' }
   if (m.extendedTextMessage?.text) return { conteudo: m.extendedTextMessage.text, tipo: 'texto' }
-  if (m.imageMessage) return { conteudo: m.imageMessage.caption ?? '[Imagem]', tipo: 'imagem' }
   if (m.videoMessage) return { conteudo: m.videoMessage.caption ?? '[Vídeo]', tipo: 'video' }
   if (m.audioMessage) return { conteudo: '[Áudio]', tipo: 'audio' }
   if (m.documentMessage) return { conteudo: m.documentMessage.fileName ?? '[Documento]', tipo: 'documento' }
 
   return null
+}
+
+/** Baixa e decripta a imagem recebida. `null` em qualquer falha — mensagem é descartada, nunca salva sem arquivo. */
+async function baixarImagemRecebida(msg: WAMessage): Promise<Buffer | null> {
+  try {
+    return await downloadMediaMessage(msg, 'buffer', {})
+  } catch (erro) {
+    console.error('[mensagens] falha ao baixar imagem do WhatsApp:', erro)
+    return null
+  }
 }
 
 /** Acha o cliente já cadastrado com esse telefone/whatsapp. Nunca cria um novo ("lead"). */
@@ -129,8 +141,29 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   const telefone = telefoneDoJid(ehLid ? msg.key.senderPn : msg.key.remoteJid)
   if (!telefone) return
 
-  const extraido = extrairConteudo(msg)
-  if (!extraido) return
+  // Imagem precisa ser baixada (assíncrono) antes de decidir o que gravar —
+  // `extrairConteudo` cobre só os tipos ainda sem upload de mídia.
+  const imagemRecebida = msg.message?.imageMessage
+  let tipo: Tipo
+  let conteudo: string | null
+  let bufferImagem: Buffer | null = null
+  let mimeImagem = 'image/jpeg'
+
+  if (imagemRecebida) {
+    bufferImagem = await baixarImagemRecebida(msg)
+    if (!bufferImagem) {
+      console.error('[mensagens] falha ao baixar imagem — mensagem descartada:', msg.key.id)
+      return
+    }
+    tipo = 'imagem'
+    conteudo = imagemRecebida.caption ?? null
+    mimeImagem = imagemRecebida.mimetype ?? 'image/jpeg'
+  } else {
+    const extraido = extrairConteudo(msg)
+    if (!extraido) return
+    tipo = extraido.tipo
+    conteudo = extraido.conteudo
+  }
 
   let clienteId = await buscarClientePorTelefone(telefone)
   const jaEraCliente = clienteId !== null
@@ -145,12 +178,28 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
     leadCriadoAgora = clienteId !== null
   }
 
+  // Upload só depois de ter o conversaId (path é `{conversaId}/{uuid}.ext`).
+  // Falha aqui descarta a mensagem — `mensagens_imagem_tem_arquivo` nunca
+  // permitiria tipo=imagem sem arquivo_path mesmo assim.
+  let arquivo: { path: string; mime: string; tamanho: number } | null = null
+  if (bufferImagem) {
+    const caminho = await subirMidia(conversaId, bufferImagem, mimeImagem)
+    if (!caminho) {
+      console.error('[mensagens] falha ao salvar imagem no Storage — mensagem descartada:', msg.key.id)
+      return
+    }
+    arquivo = { path: caminho, mime: mimeImagem, tamanho: bufferImagem.length }
+  }
+
   const { error } = await supabase.from('mensagens').insert({
     conversa_id: conversaId,
     direcao: 'entrada',
-    tipo: extraido.tipo,
-    conteudo: extraido.conteudo,
+    tipo,
+    conteudo,
     whatsapp_message_id: msg.key.id ?? null,
+    ...(arquivo
+      ? { arquivo_path: arquivo.path, arquivo_mime: arquivo.mime, arquivo_tamanho: arquivo.tamanho }
+      : {}),
   })
 
   if (error) {
@@ -159,5 +208,6 @@ export async function salvarMensagemRecebida(msg: WAMessage): Promise<void> {
   }
 
   const rotulo = leadCriadoAgora ? ' (novo lead criado)' : jaEraCliente ? ' (cliente cadastrado)' : ''
-  console.log(`[mensagens] recebida de ${telefone}${rotulo}: ${extraido.conteudo.slice(0, 60)}`)
+  const resumo = tipo === 'imagem' ? (conteudo ?? '[Imagem]') : (conteudo ?? '')
+  console.log(`[mensagens] recebida de ${telefone}${rotulo}: ${resumo.slice(0, 60)}`)
 }
