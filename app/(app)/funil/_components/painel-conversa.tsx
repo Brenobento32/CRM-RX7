@@ -15,7 +15,14 @@ import {
 } from '@/lib/actions/conversas'
 import type { MensagemConversa } from '@/lib/dal/conversas'
 import { createClient } from '@/lib/supabase/client'
-import { formatarHora, formatarTamanhoArquivo } from '@/lib/utils/formatacao'
+import {
+  diaEmSaoPaulo,
+  formatarDia,
+  formatarHora,
+  formatarTamanhoArquivo,
+  hojeSaoPaulo,
+  somarDias,
+} from '@/lib/utils/formatacao'
 
 import { AnexoMenu } from './anexo-menu'
 import { EmojiPopover } from './emoji-popover'
@@ -208,6 +215,43 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
   // `paraMensagem`) — nunca regride uma URL já resolvida por `arquivoUrl: null`.
   copia[indice] = { ...nova, arquivoUrl: nova.arquivoUrl ?? existente.arquivoUrl }
   return copia
+}
+
+/** Dia (AAAA-MM-DD, fuso São Paulo) → "Hoje" / "Ontem" / "DD/MM/AAAA" — mesma referência de fuso de `formatarHora`. */
+function rotuloSeparadorData(dia: string): string {
+  const hoje = hojeSaoPaulo()
+  if (dia === hoje) return 'Hoje'
+  if (dia === somarDias(hoje, -1)) return 'Ontem'
+  return formatarDia(dia)
+}
+
+type ItemHistorico =
+  | { tipo: 'separador'; dia: string }
+  | { tipo: 'mensagem'; mensagem: MensagemConversa; primeiroDoGrupo: boolean }
+
+/**
+ * Deriva do array de mensagens já carregado (sem consulta nova) onde entram
+ * separadores de dia e quais mensagens abrem um novo grupo visual —
+ * consecutivas da mesma `direcao` no mesmo dia viram um grupo, reduzindo o
+ * espaçamento entre elas (ver uso de `primeiroDoGrupo` no render).
+ */
+function construirItensHistorico(mensagens: MensagemConversa[]): ItemHistorico[] {
+  const itens: ItemHistorico[] = []
+  let diaAnterior: string | null = null
+  let direcaoAnterior: MensagemConversa['direcao'] | null = null
+
+  for (const m of mensagens) {
+    const dia = diaEmSaoPaulo(m.createdAt)
+    const novoDia = dia !== diaAnterior
+    if (novoDia) itens.push({ tipo: 'separador', dia })
+
+    itens.push({ tipo: 'mensagem', mensagem: m, primeiroDoGrupo: novoDia || m.direcao !== direcaoAnterior })
+
+    diaAnterior = dia
+    direcaoAnterior = m.direcao
+  }
+
+  return itens
 }
 
 /**
@@ -746,6 +790,7 @@ export function PainelConversa({ card, onFechar }: Props) {
   }, [conversaId])
 
   const mensagens = estado.status === 'pronto' ? estado.mensagens : []
+  const itensHistorico = construirItensHistorico(mensagens)
 
   /** Ids com busca de signed URL em andamento — evita repetir a mesma chamada a cada render. */
   const buscandoUrlRef = useRef<Set<string>>(new Set())
@@ -835,16 +880,33 @@ export function PainelConversa({ card, onFechar }: Props) {
           )}
 
           {mensagens.length > 0 && (
-            <ul className="space-y-2">
-              {mensagens.map((m) => (
-                <li key={m.id} className={m.direcao === 'saida' ? 'flex justify-end' : 'flex justify-start'}>
-                  <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                      m.direcao === 'saida'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+            <ul>
+              {itensHistorico.map((item) => {
+                if (item.tipo === 'separador') {
+                  return (
+                    <li key={`dia-${item.dia}`} className="my-3 flex justify-center first:mt-0">
+                      <span className="rounded-full bg-zinc-200/70 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-300">
+                        {rotuloSeparadorData(item.dia)}
+                      </span>
+                    </li>
+                  )
+                }
+
+                const m = item.mensagem
+                return (
+                  <li
+                    key={m.id}
+                    className={`flex ${m.direcao === 'saida' ? 'justify-end' : 'justify-start'} ${
+                      item.primeiroDoGrupo ? 'mt-3 first:mt-0' : 'mt-0.5'
                     }`}
                   >
+                    <div
+                      className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                        m.direcao === 'saida'
+                          ? `bg-green-600 text-white ${item.primeiroDoGrupo ? 'rounded-tr-sm' : ''}`
+                          : `bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 ${item.primeiroDoGrupo ? 'rounded-tl-sm' : ''}`
+                      }`}
+                    >
                     {m.tipo === 'imagem' &&
                       (m.arquivoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- bucket privado, signed URL com token e TTL curtos; não é um candidato a next/image
@@ -909,9 +971,10 @@ export function PainelConversa({ card, onFechar }: Props) {
                           Tentar novamente
                         </button>
                       )}
-                  </div>
-                </li>
-              ))}
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
