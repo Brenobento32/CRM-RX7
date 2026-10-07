@@ -170,11 +170,71 @@ function WaveformGravacao({ stream }: { stream: MediaStream }) {
   )
 }
 
+/**
+ * Rótulo acessível (`title`/`aria-label`) do ícone de status — nunca visível
+ * como texto solto na bolha, só leitor de tela/tooltip. "Enviado" aqui nunca
+ * vira "Entregue"/"Lido": o estado `enviado` continua significando só que o
+ * whatsapp-service teve sucesso no `sendMessage`, nada sobre o aparelho do
+ * destinatário (ver `IconeStatusEnvio`, abaixo).
+ */
 const ROTULO_STATUS_ENVIO: Record<NonNullable<MensagemConversa['status']>, string> = {
   pendente: 'Enviando…',
   enviando: 'Enviando…',
-  enviado: '✓ Enviado',
-  falhou: '⚠ Falhou',
+  enviado: 'Enviado',
+  falhou: 'Falha no envio',
+}
+
+/**
+ * Indicador compacto de status, ícone junto ao horário — mesmo traço (2px,
+ * `currentColor`) dos outros ícones locais deste arquivo (`IconeMicrofone`).
+ * Só muda o FORMATO por estado, nunca a cor: o texto original também não
+ * diferenciava cor por status, só a palavra/símbolo — manter esse mesmo peso
+ * visual, só compactado. Deliberadamente sem ✓✓ (duplo check) nem azul: isso
+ * sugeriria entregue/lido, que este estado nunca significou.
+ */
+function IconeStatusEnvio({ status }: { status: NonNullable<MensagemConversa['status']> }) {
+  if (status === 'pendente' || status === 'enviando') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden className="size-3 shrink-0 animate-spin">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={2.5} opacity="0.35" />
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (status === 'enviado') {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        className="size-3.5 shrink-0"
+      >
+        <path d="M5 12.5 9.5 17 19 7" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="size-3.5 shrink-0"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5" />
+      <path d="M12 16.5v.01" />
+    </svg>
+  )
 }
 
 /** Posição no ciclo de envio — nunca deixa um payload atrasado regredir pra uma posição anterior. */
@@ -798,9 +858,11 @@ export function PainelConversa({ card, onFechar }: Props) {
   // Mensagem de imagem/documento chegada pelo Realtime nasce sem
   // `arquivoUrl` (o payload só traz as colunas da linha, nunca uma signed
   // URL — ver `paraMensagem`). Busca sob demanda por id, nunca a partir de
-  // um caminho vindo do cliente. Áudio fica de fora: `PlayerAudio` busca a
-  // própria signed URL só no primeiro play, nunca antes — pré-buscar aqui
-  // só desperdiçaria uma URL que expira em 5 min bem antes de alguém clicar.
+  // um caminho vindo do cliente. Áudio fica de fora: `PlayerAudio` já
+  // reaproveita a signed URL da carga inicial (`urlInicial`) quando ela
+  // existe, e só busca a própria por `mensagemId` quando não há nenhuma
+  // ainda (caso justamente de uma mensagem chegada crua pelo Realtime) ou
+  // quando a reaproveitada expirou — nunca precisa deste efeito.
   useEffect(() => {
     if (estado.status !== 'pronto') return
     const faltantes = estado.mensagens.filter(
@@ -938,7 +1000,11 @@ export function PainelConversa({ card, onFechar }: Props) {
                         <p className="mb-1 text-xs italic opacity-70">Carregando documento…</p>
                       ))}
                     {m.tipo === 'audio' && (
-                      <PlayerAudio mensagemId={m.id} duracaoInicial={m.arquivoDuracaoSegundos} />
+                      <PlayerAudio
+                        mensagemId={m.id}
+                        urlInicial={m.arquivoUrl}
+                        duracaoInicial={m.arquivoDuracaoSegundos}
+                      />
                     )}
                     {m.conteudo && <p className="whitespace-pre-wrap">{m.conteudo}</p>}
                     <p
@@ -947,7 +1013,11 @@ export function PainelConversa({ card, onFechar }: Props) {
                       }`}
                     >
                       {formatarHora(m.createdAt)}
-                      {m.direcao === 'saida' && m.status && <span>· {ROTULO_STATUS_ENVIO[m.status]}</span>}
+                      {m.direcao === 'saida' && m.status && (
+                        <span title={ROTULO_STATUS_ENVIO[m.status]} aria-label={ROTULO_STATUS_ENVIO[m.status]}>
+                          <IconeStatusEnvio status={m.status} />
+                        </span>
+                      )}
                     </p>
                     {m.direcao === 'saida' && m.status === 'falhou' && m.tipo === 'texto' && (
                       <button
