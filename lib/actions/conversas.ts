@@ -8,10 +8,12 @@ import {
   enviarMensagemImagem,
   enviarMensagemTexto,
   obterConversaDoCliente,
+  obterMensagensAnteriores,
   obterStatusMensagem,
   obterUrlAnexo,
   reenviarMensagemMidia,
   type ConversaCliente,
+  type MensagensAntigas,
   type StatusMensagem,
   type TipoMensagem,
 } from '@/lib/dal/conversas'
@@ -21,6 +23,23 @@ import { validarAnexoAudio, validarAnexoDocumento, validarAnexoImagem } from '@/
 export async function obterConversaAction(clienteId: string): Promise<ConversaCliente | null> {
   if (!z.uuid().safeParse(clienteId).success) return null
   return obterConversaDoCliente(clienteId)
+}
+
+const cursorMensagensAntigasSchema = z.object({
+  conversaId: z.uuid(),
+  cursorCreatedAt: z.iso.datetime({ offset: true }),
+  cursorId: z.uuid(),
+})
+
+/** Página de mensagens mais antigas que o cursor — `PainelConversa` chama ao rolar pro topo do histórico já carregado. */
+export async function obterMensagensAntigasAction(
+  conversaId: string,
+  cursorCreatedAt: string,
+  cursorId: string,
+): Promise<MensagensAntigas | null> {
+  const cursor = cursorMensagensAntigasSchema.safeParse({ conversaId, cursorCreatedAt, cursorId })
+  if (!cursor.success) return null
+  return obterMensagensAnteriores(cursor.data.conversaId, cursor.data.cursorCreatedAt, cursor.data.cursorId)
 }
 
 /** Fallback pontual (uma mensagem, uma vez) pro caso do UPDATE do Realtime não chegar no remetente. */

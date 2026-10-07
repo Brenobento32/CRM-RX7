@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useActionState, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { startTransition, useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
   enviarMensagemAction,
@@ -8,6 +8,7 @@ import {
   enviarMensagemDocumentoAction,
   enviarMensagemImagemAction,
   obterConversaAction,
+  obterMensagensAntigasAction,
   obterStatusMensagemAction,
   obterUrlAnexoAction,
   reenviarMensagemMidiaAction,
@@ -49,7 +50,13 @@ type Props = {
 type Estado =
   | { status: 'carregando' }
   | { status: 'sem-conversa' }
-  | { status: 'pronto'; conversaId: string; mensagens: MensagemConversa[] }
+  | {
+      status: 'pronto'
+      conversaId: string
+      mensagens: MensagemConversa[]
+      /** `true` quando ainda pode haver mensagens mais antigas que a primeira carregada (ver `carregarMensagensAntigas`). */
+      temMensagensAntigas: boolean
+    }
 
 /** Linha crua do Realtime (`postgres_changes`) — mesmas colunas de `mensagens`. */
 type LinhaMensagem = {
@@ -277,6 +284,22 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
   return copia
 }
 
+/**
+ * Prependa um lote de mensagens antigas (já em ordem cronológica) no início
+ * do array — nunca no fim, nunca via `mesclarMensagem` (que é pra update
+ * pontual de uma linha já existente ou inserção no fim). Filtra por id
+ * qualquer sobreposição com o que já está carregado: defesa barata contra
+ * uma mensagem que, por algum motivo, já tenha chegado por outro caminho
+ * (Realtime, fallback de status) entre o pedido da página e a resposta —
+ * nunca duplica, mesmo nesse caso raro.
+ */
+function prependarAntigas(atual: MensagemConversa[], antigas: MensagemConversa[]): MensagemConversa[] {
+  const idsExistentes = new Set(atual.map((m) => m.id))
+  const novas = antigas.filter((m) => !idsExistentes.has(m.id))
+  if (novas.length === 0) return atual
+  return [...novas, ...atual]
+}
+
 /** Dia (AAAA-MM-DD, fuso São Paulo) → "Hoje" / "Ontem" / "DD/MM/AAAA" — mesma referência de fuso de `formatarHora`. */
 function rotuloSeparadorData(dia: string): string {
   const hoje = hojeSaoPaulo()
@@ -334,6 +357,26 @@ export function PainelConversa({ card, onFechar }: Props) {
   /** Pra não aplicar o fallback de verificação (setTimeout) depois que o painel já fechou. */
   const montadoRef = useRef(true)
   const [estado, setEstado] = useState<Estado>({ status: 'carregando' })
+  /**
+   * Espelho síncrono de `estado`, sempre atualizado no corpo do render —
+   * `carregarMensagensAntigas` é chamada de dentro do callback do
+   * `IntersectionObserver` (efeito que só reconfigura quando `conversaId`
+   * muda, nunca a cada mensagem nova), então ler `estado` direto ali
+   * capturaria um snapshot velho. Ler `estadoRef.current` em vez disso
+   * garante o cursor (primeira mensagem carregada) sempre atual.
+   */
+  const estadoRef = useRef(estado)
+  useEffect(() => {
+    estadoRef.current = estado
+  }, [estado])
+  const sentinelaTopoRef = useRef<HTMLDivElement>(null)
+  const [carregandoAntigas, setCarregandoAntigas] = useState(false)
+  /** Guarda de concorrência lida de dentro do observer — `carregandoAntigas` (estado) não está disponível ali sem recriar o observer a cada render. */
+  const carregandoAntigasRef = useRef(false)
+  /** Scroll a restaurar depois que um lote de mensagens antigas prependar — consumido e limpo no `useLayoutEffect` de scroll, abaixo. */
+  const preservarScrollRef = useRef<{ scrollTopAntes: number; scrollHeightAntes: number } | null>(null)
+  /** Id da última mensagem no render anterior — só ele dispara o auto-scroll-pro-fim, nunca o tamanho do array (ver `useLayoutEffect` de scroll). */
+  const ultimoIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     // `useRef(true)` só vale na primeira criação do ref — nunca é
@@ -361,7 +404,12 @@ export function PainelConversa({ card, onFechar }: Props) {
       if (!ativo) return
       setEstado(
         conversa
-          ? { status: 'pronto', conversaId: conversa.id, mensagens: conversa.mensagens }
+          ? {
+              status: 'pronto',
+              conversaId: conversa.id,
+              mensagens: conversa.mensagens,
+              temMensagensAntigas: conversa.temMensagensAntigas,
+            }
           : { status: 'sem-conversa' },
       )
     })
@@ -849,7 +897,78 @@ export function PainelConversa({ card, onFechar }: Props) {
     }
   }, [conversaId])
 
-  const mensagens = estado.status === 'pronto' ? estado.mensagens : []
+  /**
+   * Busca a próxima página de mensagens mais antigas que a primeira
+   * atualmente carregada — cursor composto `(created_at, id)` da mensagem
+   * em `estadoRef.current.mensagens[0]`, sempre lido do ref (nunca do
+   * `estado` fechado no escopo de quem chama) pra nunca pedir uma página
+   * baseada numa primeira mensagem que já não é mais a primeira. Guarda de
+   * concorrência por ref: `IntersectionObserver` pode disparar de novo
+   * antes da resposta anterior voltar (ex.: rolagem rápida) — só a primeira
+   * chamada em voo segue adiante.
+   */
+  async function carregarMensagensAntigas() {
+    const atual = estadoRef.current
+    if (atual.status !== 'pronto' || !atual.temMensagensAntigas || carregandoAntigasRef.current) return
+    const primeira = atual.mensagens[0]
+    if (!primeira) return
+
+    carregandoAntigasRef.current = true
+    setCarregandoAntigas(true)
+
+    const lista = listaRef.current
+    if (lista) {
+      preservarScrollRef.current = { scrollTopAntes: lista.scrollTop, scrollHeightAntes: lista.scrollHeight }
+    }
+
+    const resultado = await obterMensagensAntigasAction(atual.conversaId, primeira.createdAt, primeira.id)
+
+    carregandoAntigasRef.current = false
+    if (!montadoRef.current) return
+    setCarregandoAntigas(false)
+
+    if (!resultado) {
+      preservarScrollRef.current = null // pedido falhou — nada vai prependar, não deixa o scroll pendente de ajuste
+      return
+    }
+
+    setEstado((atualEstado) => {
+      if (atualEstado.status !== 'pronto') return atualEstado
+      return {
+        ...atualEstado,
+        mensagens: prependarAntigas(atualEstado.mensagens, resultado.mensagens),
+        temMensagensAntigas: resultado.temMensagensAntigas,
+      }
+    })
+  }
+
+  // Sentinela no topo da lista: observer configurado uma vez por conversa
+  // (nunca recriado a cada mensagem nova) — `carregarMensagensAntigas` já lê
+  // estado sempre atual via `estadoRef`, então não precisa reconfigurar o
+  // observer pra isso. Dispara um pouco antes do topo física (rootMargin),
+  // pra a rolagem parecer natural em vez de travar bem na borda.
+  useEffect(() => {
+    if (!conversaId) return
+    const sentinela = sentinelaTopoRef.current
+    const lista = listaRef.current
+    if (!sentinela || !lista) return
+
+    const observer = new IntersectionObserver(
+      (entradas) => {
+        if (entradas[0]?.isIntersecting) void carregarMensagensAntigas()
+      },
+      { root: lista, rootMargin: '200px 0px 0px 0px' },
+    )
+    observer.observe(sentinela)
+    return () => observer.disconnect()
+  }, [conversaId])
+
+  // Memoizado: referência só muda quando `estado` muda de fato — o
+  // `useLayoutEffect` de scroll (abaixo) depende do array inteiro (pra
+  // comparar o id da última mensagem), não só do tamanho, e sem isso
+  // recalcularia a cada render só por causa do `[]` novo nos estados
+  // `carregando`/`sem-conversa`.
+  const mensagens = useMemo(() => (estado.status === 'pronto' ? estado.mensagens : []), [estado])
   const itensHistorico = construirItensHistorico(mensagens)
 
   /** Ids com busca de signed URL em andamento — evita repetir a mesma chamada a cada render. */
@@ -884,10 +1003,46 @@ export function PainelConversa({ card, onFechar }: Props) {
     }
   }, [estado])
 
-  useEffect(() => {
+  /**
+   * Único efeito que decide o scroll depois de qualquer mudança nas
+   * mensagens — `useLayoutEffect` (não `useEffect`) pra aplicar antes do
+   * paint, sem flash visual em nenhum dos dois casos:
+   *
+   * 1. Prepend de mensagens antigas (`preservarScrollRef` setado em
+   *    `carregarMensagensAntigas`): restaura a posição exata — usuário
+   *    continua vendo a mesma mensagem na mesma posição da tela. Nunca
+   *    rola pro fim nesse caso, mesmo que a lista tenha crescido.
+   * 2. Mensagem nova no FIM (detectado comparando o id da última mensagem
+   *    com o do render anterior, nunca o tamanho do array — prepend também
+   *    muda o tamanho, mas nunca o id da última): só rola pro fim se for a
+   *    carga inicial da conversa OU se o usuário já estava a ≤100px do
+   *    fim. Se ele está lendo histórico antigo, mensagem nova não o
+   *    arrasta pra baixo à força.
+   */
+  useLayoutEffect(() => {
     const lista = listaRef.current
-    if (lista) lista.scrollTop = lista.scrollHeight
-  }, [mensagens.length])
+    if (!lista) return
+
+    const prependPendente = preservarScrollRef.current
+    if (prependPendente) {
+      preservarScrollRef.current = null
+      lista.scrollTop = prependPendente.scrollTopAntes + (lista.scrollHeight - prependPendente.scrollHeightAntes)
+      ultimoIdRef.current = mensagens.at(-1)?.id ?? ultimoIdRef.current
+      return
+    }
+
+    if (mensagens.length === 0) return
+    const ultimaMensagem = mensagens[mensagens.length - 1]
+    const idAnterior = ultimoIdRef.current
+    ultimoIdRef.current = ultimaMensagem.id
+
+    const éCargaInicial = idAnterior === null
+    const últimaMudou = idAnterior !== null && idAnterior !== ultimaMensagem.id
+    if (!éCargaInicial && !últimaMudou) return // só prepend de antigas sem ser via `preservarScrollRef` — não deveria acontecer, mas não mexe no scroll por garantia
+
+    const pertoDoFim = lista.scrollHeight - lista.scrollTop - lista.clientHeight <= 100
+    if (éCargaInicial || pertoDoFim) lista.scrollTop = lista.scrollHeight
+  }, [mensagens])
 
   return (
     <dialog
@@ -942,7 +1097,15 @@ export function PainelConversa({ card, onFechar }: Props) {
           )}
 
           {mensagens.length > 0 && (
-            <ul>
+            <>
+              {/* Sentinela 1px — `IntersectionObserver` dispara `carregarMensagensAntigas` ao entrar na viewport (ver efeito acima). Sem botão: a rolagem natural já é o gatilho. */}
+              <div ref={sentinelaTopoRef} aria-hidden className="h-px" />
+              {carregandoAntigas && (
+                <p className="mb-2 text-center text-xs text-zinc-400 dark:text-zinc-500">
+                  Carregando mensagens anteriores…
+                </p>
+              )}
+              <ul>
               {itensHistorico.map((item) => {
                 if (item.tipo === 'separador') {
                   return (
@@ -1045,7 +1208,8 @@ export function PainelConversa({ card, onFechar }: Props) {
                   </li>
                 )
               })}
-            </ul>
+              </ul>
+            </>
           )}
         </div>
 

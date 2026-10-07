@@ -21,6 +21,9 @@ const BUCKET_MIDIA = 'whatsapp-midia'
 /** Só o tempo de exibir no painel — nunca persistida, sempre gerada de novo sob demanda. */
 const TTL_URL_ASSINADA = 300
 
+/** Tamanho de página do histórico — carga inicial e cada rolagem pro topo (ver `obterMensagensAnteriores`). */
+const LIMITE_MENSAGENS_PAGINA = 50
+
 export type MensagemConversa = {
   id: string
   direcao: DirecaoMensagem
@@ -40,14 +43,18 @@ export type MensagemConversa = {
 export type ConversaCliente = {
   id: string
   mensagens: MensagemConversa[]
+  /** `true` quando a carga trouxe exatamente `LIMITE_MENSAGENS_PAGINA` linhas — pode haver mais além da mais antiga aqui. */
+  temMensagensAntigas: boolean
 }
 
 /**
- * Conversa de WhatsApp vinculada a um cliente, com as mensagens em ordem
- * cronológica (mais antiga primeiro). `null` quando o cliente nunca teve
- * conversa — RLS de `conversas`/`mensagens` decide o que cada usuário
- * enxerga (gerente vê tudo; closer só a conversa de um cliente que é dele),
- * mesma regra do resto do sistema.
+ * Conversa de WhatsApp vinculada a um cliente, com as últimas
+ * `LIMITE_MENSAGENS_PAGINA` mensagens em ordem cronológica (mais antiga
+ * primeiro) — histórico mais antigo que isso só entra sob demanda, ver
+ * `obterMensagensAnteriores`. `null` quando o cliente nunca teve conversa —
+ * RLS de `conversas`/`mensagens` decide o que cada usuário enxerga (gerente
+ * vê tudo; closer só a conversa de um cliente que é dele), mesma regra do
+ * resto do sistema.
  */
 export async function obterConversaDoCliente(clienteId: string): Promise<ConversaCliente | null> {
   await getUsuarioAtual()
@@ -64,18 +71,26 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
   if (erroConversa) throw new Error('Não foi possível carregar a conversa.', { cause: erroConversa })
   if (!conversa) return null
 
+  // Busca as mais recentes primeiro (desc, com `id` como desempate de
+  // `created_at` igual) pra pegar exatamente a "última página" via LIMIT no
+  // índice `mensagens_conversa_idx (conversa_id, created_at)` — depois
+  // inverte em memória pra ordem cronológica que a UI espera.
   const { data: mensagens, error: erroMensagens } = await supabase
     .from('mensagens')
     .select('id, direcao, tipo, conteudo, status, arquivo_path, arquivo_nome, arquivo_duracao_segundos, created_at')
     .eq('conversa_id', conversa.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(LIMITE_MENSAGENS_PAGINA)
 
   if (erroMensagens) throw new Error('Não foi possível carregar as mensagens.', { cause: erroMensagens })
+
+  const linhas = (mensagens ?? []).reverse()
 
   return {
     id: conversa.id,
     mensagens: await Promise.all(
-      (mensagens ?? []).map(async (m) => ({
+      linhas.map(async (m) => ({
         id: m.id,
         direcao: m.direcao,
         tipo: m.tipo,
@@ -90,6 +105,69 @@ export async function obterConversaDoCliente(clienteId: string): Promise<Convers
             : null,
       })),
     ),
+    temMensagensAntigas: linhas.length === LIMITE_MENSAGENS_PAGINA,
+  }
+}
+
+export type MensagensAntigas = {
+  mensagens: MensagemConversa[]
+  temMensagensAntigas: boolean
+}
+
+/**
+ * Página de mensagens mais antigas que o cursor `(cursorCreatedAt,
+ * cursorId)` — chamada só quando o usuário rola pro topo do histórico já
+ * carregado (ver `PainelConversa`). Mesmo índice da carga inicial
+ * (`mensagens_conversa_idx`, `conversa_id`+`created_at`) cobre o range; o
+ * desempate por `id` (linhas com o MESMO `created_at` do cursor, caso raro
+ * mas possível) é resolvido pelo próprio Postgres sobre o conjunto já
+ * filtrado por `conversa_id` + já limitado, sem precisar de `id` no índice.
+ *
+ * `hasMore` nunca faz `count(*)`: só compara quantas linhas vieram com o
+ * limite pedido — otimista quando bate exato (a próxima rolagem corrige
+ * sozinha se não houver mais, nunca duplica nem perde nada).
+ *
+ * Nunca assina URL de anexo aqui — mensagem antiga de imagem/documento
+ * recém-prependada fica `arquivoUrl: null` e é pega pelo mesmo efeito de
+ * busca sob demanda que já existe no `PainelConversa`; áudio já busca a
+ * própria URL sob demanda no primeiro play. Pré-assinar aqui gastaria
+ * Storage com histórico que o usuário pode nunca rolar até ver.
+ */
+export async function obterMensagensAnteriores(
+  conversaId: string,
+  cursorCreatedAt: string,
+  cursorId: string,
+  limite: number = LIMITE_MENSAGENS_PAGINA,
+): Promise<MensagensAntigas> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data: mensagens, error } = await supabase
+    .from('mensagens')
+    .select('id, direcao, tipo, conteudo, status, arquivo_path, arquivo_nome, arquivo_duracao_segundos, created_at')
+    .eq('conversa_id', conversaId)
+    .or(`created_at.lt.${cursorCreatedAt},and(created_at.eq.${cursorCreatedAt},id.lt.${cursorId})`)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limite)
+
+  if (error) throw new Error('Não foi possível carregar mensagens anteriores.', { cause: error })
+
+  const linhas = (mensagens ?? []).reverse()
+
+  return {
+    mensagens: linhas.map((m) => ({
+      id: m.id,
+      direcao: m.direcao,
+      tipo: m.tipo,
+      conteudo: m.conteudo,
+      status: m.status,
+      createdAt: m.created_at,
+      arquivoNome: m.arquivo_nome,
+      arquivoDuracaoSegundos: m.arquivo_duracao_segundos,
+      arquivoUrl: null,
+    })),
+    temMensagensAntigas: linhas.length === limite,
   }
 }
 
