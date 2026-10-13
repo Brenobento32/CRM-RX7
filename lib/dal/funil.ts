@@ -6,7 +6,7 @@ import { subDays } from 'date-fns'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { DIAS_PARADO, tipoExigeModal } from '@/lib/utils/etapas'
+import { calcularDataChegada, DIAS_PARADO, tipoExigeModal } from '@/lib/utils/etapas'
 import type { AtualizarFechamentoInput, FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 import type { NovaNegociacaoInput } from '@/lib/validations/funis'
 
@@ -14,6 +14,40 @@ type Enums = Database['public']['Enums']
 
 /** Quantos dias um card em etapa ganha/perdida continua visível no quadro. */
 export const DIAS_VISIVEIS_ENCERRADOS = 30
+
+/**
+ * Atribuição de campanha (Meta Ads/UTM) — chaves canônicas, não os headers
+ * reais de nenhuma planilha específica (ver comentário em
+ * 20261008120000_negociacoes_atribuicao.sql). Todas opcionais: a fonte
+ * manda o que tiver.
+ *
+ * `gclid`/`fbclid`/`pontuacao`/`data_formulario`/`respondent_id`/`form_id`/
+ * `form_name` vêm da integração direta com o Respondi (ver
+ * `CHAVES_ATRIBUICAO` em supabase/functions/ingestao-lead/index.ts) — já
+ * gravados em `negociacoes.atribuicao` desde essa integração, só não
+ * tipados aqui ainda.
+ */
+export type AtribuicaoCampanha = {
+  source?: string | null
+  campaign_id?: string | null
+  campaign_name?: string | null
+  adset_id?: string | null
+  adset_name?: string | null
+  ad_id?: string | null
+  ad_name?: string | null
+  utm_source?: string | null
+  utm_medium?: string | null
+  utm_campaign?: string | null
+  utm_content?: string | null
+  utm_term?: string | null
+  gclid?: string | null
+  fbclid?: string | null
+  pontuacao?: string | null
+  data_formulario?: string | null
+  respondent_id?: string | null
+  form_id?: string | null
+  form_name?: string | null
+}
 
 export type CardFunil = {
   id: string
@@ -30,6 +64,15 @@ export type CardFunil = {
   servicoIds: string[]
   temperatura: Enums['temperatura_negociacao'] | null
   responsavel: string | null
+  clienteTelefone: string | null
+  nichoId: string | null
+  nichoNome: string | null
+  nichoCor: Enums['cor_etapa'] | null
+  origem: Enums['origem_negociacao']
+  formularioId: string | null
+  formularioNome: string | null
+  funilNome: string | null
+  atribuicao: AtribuicaoCampanha | null
   /** Dias inteiros na etapa atual, calculados no servidor (sem divergir na hidratação). */
   diasNaEtapa: number
   /** Etapa aberta e há mais de DIAS_PARADO dias nela — mesma regra de `funil_metricas`. */
@@ -37,6 +80,81 @@ export type CardFunil = {
   /** `data` é AAAA-MM-DD (dia, sem hora). */
   proximaAcao: { titulo: string; data: string } | null
   ultimaAtividade: { tipo: Enums['tipo_atividade']; data: string; descricao: string } | null
+  /**
+   * Chegada real do lead (ISO) — `atribuicao.data_formulario` quando válida,
+   * senão `negociacoes.created_at` (ver `calcularDataChegada`). Nunca exibida
+   * no card; só usada para ordenar a etapa inicial do funil por chegada em
+   * vez de `posicao` (um lead importado hoje não deve parecer recém-chegado).
+   */
+  dataChegada: string
+}
+
+type LinhaFunilCards = Database['public']['Views']['funil_cards']['Row']
+
+/**
+ * Uma linha de `funil_cards` → `CardFunil`, compartilhado por
+ * `listarCardsFunil` (Kanban) e `listarLeadsAtivos` (/funil/leads) — mesma
+ * view, mesma forma, dois filtros diferentes por cima.
+ *
+ * Colunas de view vêm todas como anuláveis nos tipos gerados; as que são
+ * NOT NULL nas tabelas de origem nunca chegam nulas — por isso o `flatMap`
+ * defensivo em vez de assumir.
+ */
+function paraCardFunil(r: LinhaFunilCards, agora: number, criadoEm: Map<string, string>): CardFunil[] {
+  if (!r.id || !r.etapa_id || !r.etapa_tipo || !r.cliente_id || !r.cliente_nome || r.posicao === null || !r.data_entrada_etapa) {
+    return []
+  }
+
+  const atribuicao = (r.atribuicao as AtribuicaoCampanha | null) ?? null
+  // Fallback final defensivo (r.data_entrada_etapa): só entraria em jogo se
+  // a consulta em lote abaixo não trouxesse o id por algum motivo — nunca
+  // deveria faltar, já que os ids vêm da mesma linha.
+  const criadoEmLead = criadoEm.get(r.id) ?? r.data_entrada_etapa
+
+  return [
+    {
+      id: r.id,
+      etapaId: r.etapa_id,
+      etapaTipo: r.etapa_tipo,
+      posicao: r.posicao,
+      clienteId: r.cliente_id,
+      clienteNome: r.cliente_nome,
+      clienteEmpresa: r.cliente_empresa,
+      valorEstimado: r.valor_estimado,
+      valorVendido: r.valor_vendido,
+      // Coalesce defensivo: a view já garante array, nunca null, mas o
+      // gerador de tipos marca toda coluna de view como anulável.
+      servicoIds: r.servico_ids ?? [],
+      temperatura: r.temperatura,
+      responsavel: r.responsavel_nome,
+      clienteTelefone: r.cliente_telefone,
+      nichoId: r.nicho_id,
+      nichoNome: r.nicho_nome,
+      nichoCor: r.nicho_cor,
+      origem: r.origem ?? 'manual',
+      formularioId: r.formulario_id,
+      formularioNome: r.formulario_nome,
+      funilNome: r.funil_nome,
+      atribuicao,
+      dataChegada: calcularDataChegada(atribuicao?.data_formulario, criadoEmLead),
+      diasNaEtapa: Math.floor((agora - new Date(r.data_entrada_etapa).getTime()) / 86_400_000),
+      parado:
+        r.etapa_tipo === 'aberta' &&
+        agora - new Date(r.data_entrada_etapa).getTime() > DIAS_PARADO * 86_400_000,
+      proximaAcao:
+        r.proxima_acao_titulo && r.proxima_acao_data
+          ? { titulo: r.proxima_acao_titulo, data: r.proxima_acao_data }
+          : null,
+      ultimaAtividade:
+        r.ultima_atividade_tipo && r.ultima_atividade_data && r.ultima_atividade_descricao
+          ? {
+              tipo: r.ultima_atividade_tipo,
+              data: r.ultima_atividade_data,
+              descricao: r.ultima_atividade_descricao,
+            }
+          : null,
+    },
+  ]
 }
 
 /**
@@ -68,46 +186,51 @@ export async function listarCardsFunil(funilId: string): Promise<CardFunil[]> {
     throw new Error('Não foi possível carregar o funil.', { cause: error })
   }
 
-  // Colunas de view vêm todas como anuláveis nos tipos gerados; as que são
-  // NOT NULL nas tabelas de origem nunca chegam nulas.
-  return data.flatMap((r) =>
-    r.id && r.etapa_id && r.etapa_tipo && r.cliente_id && r.cliente_nome && r.posicao !== null && r.data_entrada_etapa
-      ? [
-          {
-            id: r.id,
-            etapaId: r.etapa_id,
-            etapaTipo: r.etapa_tipo,
-            posicao: r.posicao,
-            clienteId: r.cliente_id,
-            clienteNome: r.cliente_nome,
-            clienteEmpresa: r.cliente_empresa,
-            valorEstimado: r.valor_estimado,
-            valorVendido: r.valor_vendido,
-            // Coalesce defensivo: a view já garante array, nunca null, mas o
-            // gerador de tipos marca toda coluna de view como anulável.
-            servicoIds: r.servico_ids ?? [],
-            temperatura: r.temperatura,
-            responsavel: r.responsavel_nome,
-            diasNaEtapa: Math.floor((agora - new Date(r.data_entrada_etapa).getTime()) / 86_400_000),
-            parado:
-              r.etapa_tipo === 'aberta' &&
-              agora - new Date(r.data_entrada_etapa).getTime() > DIAS_PARADO * 86_400_000,
-            proximaAcao:
-              r.proxima_acao_titulo && r.proxima_acao_data
-                ? { titulo: r.proxima_acao_titulo, data: r.proxima_acao_data }
-                : null,
-            ultimaAtividade:
-              r.ultima_atividade_tipo && r.ultima_atividade_data && r.ultima_atividade_descricao
-                ? {
-                    tipo: r.ultima_atividade_tipo,
-                    data: r.ultima_atividade_data,
-                    descricao: r.ultima_atividade_descricao,
-                  }
-                : null,
-          },
-        ]
-      : [],
-  )
+  const criadoEm = await buscarCriadoEm(supabase, data)
+  return data.flatMap((r) => paraCardFunil(r, agora, criadoEm))
+}
+
+/**
+ * `negociacoes.created_at` de todos os cards, numa consulta só (nunca uma
+ * por card) — fallback de `dataChegada` quando não há `data_formulario`.
+ */
+async function buscarCriadoEm(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  linhas: LinhaFunilCards[],
+): Promise<Map<string, string>> {
+  const ids = linhas.flatMap((r) => (r.id ? [r.id] : []))
+  if (ids.length === 0) return new Map()
+
+  const { data, error } = await supabase.from('negociacoes').select('id, created_at').in('id', ids)
+  if (error) throw new Error('Não foi possível carregar o funil.', { cause: error })
+
+  return new Map(data.map((n) => [n.id, n.created_at]))
+}
+
+/**
+ * Leads ativos pra /funil/leads — tabela plana (não o Kanban), uma consulta
+ * só, filtrada opcionalmente por funil (nunca N consultas por linha).
+ * "Ativo" aqui é etapa tipo `aberta`: fechado (ganho) ou perdido não é mais
+ * um "lead" nesse sentido, mesmo sem estar arquivado.
+ */
+export async function listarLeadsAtivos(funilId?: string | null): Promise<CardFunil[]> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('funil_cards')
+    .select('*')
+    .eq('etapa_tipo', 'aberta')
+    .order('data_entrada_etapa', { ascending: false })
+
+  if (funilId) query = query.eq('funil_id', funilId)
+
+  const { data, error } = await query
+  if (error) throw new Error('Não foi possível carregar os leads.', { cause: error })
+
+  const agora = Date.now()
+  const criadoEm = await buscarCriadoEm(supabase, data)
+  return data.flatMap((r) => paraCardFunil(r, agora, criadoEm))
 }
 
 export type ResultadoFunil = { ok: true } | { ok: false; mensagem: string }

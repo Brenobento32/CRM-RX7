@@ -6,7 +6,7 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import type { Servico } from '@/lib/dal/servicos'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import type { EtapaKanban } from '@/lib/utils/etapas'
+import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
 import type {
   CampoEdicaoNegociacao,
   EdicaoNegociacaoInput,
@@ -31,7 +31,7 @@ export type NegociacaoEdicao = {
   id: string
   clienteId: string
   clienteNome: string
-  etapa: Omit<EtapaKanban, 'id'>
+  etapa: EtapaVisual & { tipo: TipoEtapa }
   valorEstimado: number | null
   temperatura: Temperatura | null
   dataPrimeiraReuniao: string | null
@@ -138,6 +138,67 @@ export async function salvarNegociacao(id: string, n: EdicaoNegociacaoInput): Pr
 
   const { error } = await supabase.rpc('salvar_negociacao', args as ArgsSalvar)
   return error ? traduzirErro(error) : { ok: true }
+}
+
+export type DetalhesLeadNegociacao = {
+  clienteEmail: string | null
+  clienteInstagram: string | null
+  /** Valor da proposta comercial (`valor_proposta`) — diferente de `valor_estimado`, que já vem em `CardFunil`. */
+  valorProposta: number | null
+}
+
+/**
+ * Únicos campos do painel lateral do lead que `CardFunil` não traz:
+ * e-mail/Instagram do cliente e o valor da proposta da negociação — uma
+ * consulta só (join cliente ↔ negociação), sem repetir o que a view
+ * `funil_cards` já buscou. RLS de `negociacoes`/`clientes` decide a
+ * visibilidade, igual ao resto do módulo.
+ */
+export async function obterDetalhesLeadNegociacao(id: string): Promise<DetalhesLeadNegociacao | null> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('negociacoes')
+    .select('valor_proposta, cliente:clientes!negociacoes_cliente_id_fkey(email, instagram, deleted_at)')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('Não foi possível carregar os detalhes do lead.', { cause: error })
+  }
+  if (!data || !data.cliente || data.cliente.deleted_at) return null
+
+  return {
+    clienteEmail: data.cliente.email,
+    clienteInstagram: data.cliente.instagram,
+    valorProposta: data.valor_proposta === null ? null : Number(data.valor_proposta),
+  }
+}
+
+export type RespostaLead = { pergunta: string; resposta: string }
+
+/** Qualificação de um lead, legível (pergunta + resposta) — nunca JSON cru. */
+export async function listarRespostasLead(negociacaoId: string): Promise<RespostaLead[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('respostas_lead')
+    .select('resposta_texto, resposta_opcao, pergunta:perguntas(texto, ordem)')
+    .eq('negociacao_id', negociacaoId)
+
+  if (error) {
+    throw new Error('Não foi possível carregar a qualificação do lead.', { cause: error })
+  }
+
+  return data
+    .flatMap((r) =>
+      r.pergunta
+        ? [{ pergunta: r.pergunta.texto, resposta: r.resposta_texto ?? r.resposta_opcao ?? '', ordem: r.pergunta.ordem }]
+        : [],
+    )
+    .sort((a, b) => a.ordem - b.ordem)
+    .map(({ pergunta, resposta }) => ({ pergunta, resposta }))
 }
 
 function traduzirErro(error: PostgrestError): Extract<ResultadoNegociacao, { ok: false }> {

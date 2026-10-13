@@ -11,6 +11,7 @@
     "db:types": "node scripts/gerar-tipos.mts",
     "db:types:local": "node scripts/gerar-tipos.mts --local",
     "importar:planilha": "node scripts/importar-planilha.mts",
+    "importar:respondi": "node scripts/importar-respondi.mts",
     "test": "vitest run"
   },
   "dependencies": {

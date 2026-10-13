@@ -200,6 +200,7 @@ export type Database = {
           excluido_em: string | null
           excluido_por: string | null
           id: string
+          instagram: string | null
           motivo_exclusao: string | null
           nome: string
           observacoes: string | null
@@ -223,6 +224,7 @@ export type Database = {
           excluido_em?: string | null
           excluido_por?: string | null
           id?: string
+          instagram?: string | null
           motivo_exclusao?: string | null
           nome: string
           observacoes?: string | null
@@ -246,6 +248,7 @@ export type Database = {
           excluido_em?: string | null
           excluido_por?: string | null
           id?: string
+          instagram?: string | null
           motivo_exclusao?: string | null
           nome?: string
           observacoes?: string | null
@@ -320,6 +323,7 @@ export type Database = {
           cor: Database["public"]["Enums"]["cor_etapa"]
           created_at: string
           criado_por: string | null
+          etapa_inicial: boolean
           funil_id: string
           id: string
           nome: string
@@ -335,6 +339,7 @@ export type Database = {
           cor: Database["public"]["Enums"]["cor_etapa"]
           created_at?: string
           criado_por?: string | null
+          etapa_inicial?: boolean
           funil_id: string
           id?: string
           nome: string
@@ -350,6 +355,7 @@ export type Database = {
           cor?: Database["public"]["Enums"]["cor_etapa"]
           created_at?: string
           criado_por?: string | null
+          etapa_inicial?: boolean
           funil_id?: string
           id?: string
           nome?: string
@@ -690,6 +696,41 @@ export type Database = {
           },
         ]
       }
+      formularios: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nicho_id: string
+          nome: string
+          slug: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nicho_id: string
+          nome: string
+          slug: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nicho_id?: string
+          nome?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formularios_nicho_id_fkey"
+            columns: ["nicho_id"]
+            isOneToOne: false
+            referencedRelation: "nichos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funis: {
         Row: {
           ativo: boolean
@@ -800,6 +841,92 @@ export type Database = {
           },
         ]
       }
+      mensagem_exclusoes: {
+        Row: {
+          deleted_at: string
+          mensagem_id: string
+          usuario_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          mensagem_id: string
+          usuario_id: string
+        }
+        Update: {
+          deleted_at?: string
+          mensagem_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagem_exclusoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagem_exclusoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_visiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagem_exclusoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mensagem_reacoes: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          mensagem_id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          mensagem_id: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          mensagem_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagem_reacoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagem_reacoes_mensagem_id_fkey"
+            columns: ["mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_visiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagem_reacoes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mensagens: {
         Row: {
           arquivo_duracao_segundos: number | null
@@ -812,7 +939,14 @@ export type Database = {
           conversa_id: string
           created_at: string
           direcao: Database["public"]["Enums"]["direcao_mensagem"]
+          encaminhada_de_id: string | null
           id: string
+          resposta_a_conteudo: string | null
+          resposta_a_direcao:
+            | Database["public"]["Enums"]["direcao_mensagem"]
+            | null
+          resposta_a_id: string | null
+          resposta_a_tipo: Database["public"]["Enums"]["tipo_mensagem"] | null
           status: Database["public"]["Enums"]["status_mensagem"] | null
           tipo: Database["public"]["Enums"]["tipo_mensagem"]
           whatsapp_message_id: string | null
@@ -828,7 +962,14 @@ export type Database = {
           conversa_id: string
           created_at?: string
           direcao: Database["public"]["Enums"]["direcao_mensagem"]
+          encaminhada_de_id?: string | null
           id?: string
+          resposta_a_conteudo?: string | null
+          resposta_a_direcao?:
+            | Database["public"]["Enums"]["direcao_mensagem"]
+            | null
+          resposta_a_id?: string | null
+          resposta_a_tipo?: Database["public"]["Enums"]["tipo_mensagem"] | null
           status?: Database["public"]["Enums"]["status_mensagem"] | null
           tipo?: Database["public"]["Enums"]["tipo_mensagem"]
           whatsapp_message_id?: string | null
@@ -844,7 +985,14 @@ export type Database = {
           conversa_id?: string
           created_at?: string
           direcao?: Database["public"]["Enums"]["direcao_mensagem"]
+          encaminhada_de_id?: string | null
           id?: string
+          resposta_a_conteudo?: string | null
+          resposta_a_direcao?:
+            | Database["public"]["Enums"]["direcao_mensagem"]
+            | null
+          resposta_a_id?: string | null
+          resposta_a_tipo?: Database["public"]["Enums"]["tipo_mensagem"] | null
           status?: Database["public"]["Enums"]["status_mensagem"] | null
           tipo?: Database["public"]["Enums"]["tipo_mensagem"]
           whatsapp_message_id?: string | null
@@ -862,6 +1010,34 @@ export type Database = {
             columns: ["conversa_id"]
             isOneToOne: false
             referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_encaminhada_de_id_fkey"
+            columns: ["encaminhada_de_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_encaminhada_de_id_fkey"
+            columns: ["encaminhada_de_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_visiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_resposta_a_id_fkey"
+            columns: ["resposta_a_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_resposta_a_id_fkey"
+            columns: ["resposta_a_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_visiveis"
             referencedColumns: ["id"]
           },
         ]
@@ -953,17 +1129,27 @@ export type Database = {
       }
       negociacoes: {
         Row: {
+          arquivada_em: string | null
+          atribuicao: Json | null
           cliente_id: string
           created_at: string
           data_entrada_etapa: string
           data_primeira_reuniao: string | null
           data_proposta: string | null
           etapa_id: string
+          excluida_em: string | null
+          excluida_por: string | null
+          external_id: string | null
           forma_pagamento: Database["public"]["Enums"]["forma_pagamento"] | null
+          formulario_id: string | null
           funil_id: string
           id: string
+          motivo_arquivamento: string | null
+          motivo_exclusao: string | null
           motivo_perda: string | null
+          nicho_id: string | null
           objecao_principal: string | null
+          origem: Database["public"]["Enums"]["origem_negociacao"]
           owner_id: string
           posicao: number
           temperatura:
@@ -975,19 +1161,29 @@ export type Database = {
           valor_proposta: number | null
         }
         Insert: {
+          arquivada_em?: string | null
+          atribuicao?: Json | null
           cliente_id: string
           created_at?: string
           data_entrada_etapa?: string
           data_primeira_reuniao?: string | null
           data_proposta?: string | null
           etapa_id?: string
+          excluida_em?: string | null
+          excluida_por?: string | null
+          external_id?: string | null
           forma_pagamento?:
             | Database["public"]["Enums"]["forma_pagamento"]
             | null
+          formulario_id?: string | null
           funil_id: string
           id?: string
+          motivo_arquivamento?: string | null
+          motivo_exclusao?: string | null
           motivo_perda?: string | null
+          nicho_id?: string | null
           objecao_principal?: string | null
+          origem?: Database["public"]["Enums"]["origem_negociacao"]
           owner_id: string
           posicao?: number
           temperatura?:
@@ -999,19 +1195,29 @@ export type Database = {
           valor_proposta?: number | null
         }
         Update: {
+          arquivada_em?: string | null
+          atribuicao?: Json | null
           cliente_id?: string
           created_at?: string
           data_entrada_etapa?: string
           data_primeira_reuniao?: string | null
           data_proposta?: string | null
           etapa_id?: string
+          excluida_em?: string | null
+          excluida_por?: string | null
+          external_id?: string | null
           forma_pagamento?:
             | Database["public"]["Enums"]["forma_pagamento"]
             | null
+          formulario_id?: string | null
           funil_id?: string
           id?: string
+          motivo_arquivamento?: string | null
+          motivo_exclusao?: string | null
           motivo_perda?: string | null
+          nicho_id?: string | null
           objecao_principal?: string | null
+          origem?: Database["public"]["Enums"]["origem_negociacao"]
           owner_id?: string
           posicao?: number
           temperatura?:
@@ -1045,6 +1251,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "negociacoes_excluida_por_fkey"
+            columns: ["excluida_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "negociacoes_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "negociacoes_funil_id_fkey"
             columns: ["funil_id"]
             isOneToOne: false
@@ -1052,10 +1272,88 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "negociacoes_nicho_id_fkey"
+            columns: ["nicho_id"]
+            isOneToOne: false
+            referencedRelation: "nichos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "negociacoes_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nichos: {
+        Row: {
+          ativo: boolean
+          cor: Database["public"]["Enums"]["cor_etapa"]
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+          slug: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor: Database["public"]["Enums"]["cor_etapa"]
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+          slug: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: Database["public"]["Enums"]["cor_etapa"]
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          slug?: string
+        }
+        Relationships: []
+      }
+      perguntas: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          formulario_id: string
+          id: string
+          opcoes: Json | null
+          ordem: number
+          texto: string
+          tipo: Database["public"]["Enums"]["tipo_pergunta"]
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          formulario_id: string
+          id?: string
+          opcoes?: Json | null
+          ordem?: number
+          texto: string
+          tipo: Database["public"]["Enums"]["tipo_pergunta"]
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          formulario_id?: string
+          id?: string
+          opcoes?: Json | null
+          ordem?: number
+          texto?: string
+          tipo?: Database["public"]["Enums"]["tipo_pergunta"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perguntas_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
             referencedColumns: ["id"]
           },
         ]
@@ -1170,6 +1468,55 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      respostas_lead: {
+        Row: {
+          created_at: string
+          id: string
+          negociacao_id: string
+          pergunta_id: string
+          resposta_opcao: string | null
+          resposta_texto: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          negociacao_id: string
+          pergunta_id: string
+          resposta_opcao?: string | null
+          resposta_texto?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          negociacao_id?: string
+          pergunta_id?: string
+          resposta_opcao?: string | null
+          resposta_texto?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "respostas_lead_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "funil_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "respostas_lead_negociacao_id_fkey"
+            columns: ["negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "respostas_lead_pergunta_id_fkey"
+            columns: ["pergunta_id"]
+            isOneToOne: false
+            referencedRelation: "perguntas"
             referencedColumns: ["id"]
           },
         ]
@@ -1320,16 +1667,25 @@ export type Database = {
       }
       funil_cards: {
         Row: {
+          atribuicao: Json | null
           cliente_empresa: string | null
           cliente_id: string | null
           cliente_nome: string | null
+          cliente_telefone: string | null
           data_entrada_etapa: string | null
           etapa_cor: Database["public"]["Enums"]["cor_etapa"] | null
           etapa_id: string | null
           etapa_nome: string | null
           etapa_tipo: Database["public"]["Enums"]["tipo_etapa"] | null
+          formulario_id: string | null
+          formulario_nome: string | null
           funil_id: string | null
+          funil_nome: string | null
           id: string | null
+          nicho_cor: Database["public"]["Enums"]["cor_etapa"] | null
+          nicho_id: string | null
+          nicho_nome: string | null
+          origem: Database["public"]["Enums"]["origem_negociacao"] | null
           owner_id: string | null
           posicao: number | null
           proxima_acao_data: string | null
@@ -1356,6 +1712,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "negociacoes_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "negociacoes_funil_id_fkey"
             columns: ["funil_id"]
             isOneToOne: false
@@ -1363,10 +1726,132 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "negociacoes_nicho_id_fkey"
+            columns: ["nicho_id"]
+            isOneToOne: false
+            referencedRelation: "nichos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "negociacoes_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mensagens_visiveis: {
+        Row: {
+          arquivo_duracao_segundos: number | null
+          arquivo_mime: string | null
+          arquivo_nome: string | null
+          arquivo_path: string | null
+          arquivo_tamanho: number | null
+          autor_id: string | null
+          conteudo: string | null
+          conversa_id: string | null
+          created_at: string | null
+          direcao: Database["public"]["Enums"]["direcao_mensagem"] | null
+          encaminhada_de_id: string | null
+          id: string | null
+          resposta_a_conteudo: string | null
+          resposta_a_direcao:
+            | Database["public"]["Enums"]["direcao_mensagem"]
+            | null
+          resposta_a_id: string | null
+          resposta_a_tipo: Database["public"]["Enums"]["tipo_mensagem"] | null
+          status: Database["public"]["Enums"]["status_mensagem"] | null
+          tipo: Database["public"]["Enums"]["tipo_mensagem"] | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          arquivo_duracao_segundos?: number | null
+          arquivo_mime?: string | null
+          arquivo_nome?: string | null
+          arquivo_path?: string | null
+          arquivo_tamanho?: number | null
+          autor_id?: string | null
+          conteudo?: string | null
+          conversa_id?: string | null
+          created_at?: string | null
+          direcao?: Database["public"]["Enums"]["direcao_mensagem"] | null
+          encaminhada_de_id?: string | null
+          id?: string | null
+          resposta_a_conteudo?: string | null
+          resposta_a_direcao?:
+            | Database["public"]["Enums"]["direcao_mensagem"]
+            | null
+          resposta_a_id?: string | null
+          resposta_a_tipo?: Database["public"]["Enums"]["tipo_mensagem"] | null
+          status?: Database["public"]["Enums"]["status_mensagem"] | null
+          tipo?: Database["public"]["Enums"]["tipo_mensagem"] | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          arquivo_duracao_segundos?: number | null
+          arquivo_mime?: string | null
+          arquivo_nome?: string | null
+          arquivo_path?: string | null
+          arquivo_tamanho?: number | null
+          autor_id?: string | null
+          conteudo?: string | null
+          conversa_id?: string | null
+          created_at?: string | null
+          direcao?: Database["public"]["Enums"]["direcao_mensagem"] | null
+          encaminhada_de_id?: string | null
+          id?: string | null
+          resposta_a_conteudo?: string | null
+          resposta_a_direcao?:
+            | Database["public"]["Enums"]["direcao_mensagem"]
+            | null
+          resposta_a_id?: string | null
+          resposta_a_tipo?: Database["public"]["Enums"]["tipo_mensagem"] | null
+          status?: Database["public"]["Enums"]["status_mensagem"] | null
+          tipo?: Database["public"]["Enums"]["tipo_mensagem"] | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_encaminhada_de_id_fkey"
+            columns: ["encaminhada_de_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_encaminhada_de_id_fkey"
+            columns: ["encaminhada_de_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_visiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_resposta_a_id_fkey"
+            columns: ["resposta_a_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_resposta_a_id_fkey"
+            columns: ["resposta_a_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens_visiveis"
             referencedColumns: ["id"]
           },
         ]
@@ -1453,6 +1938,7 @@ export type Database = {
           p_cpf?: string
           p_email?: string
           p_empresa?: string
+          p_instagram?: string
           p_nome: string
           p_observacoes?: string
           p_owner_id?: string
@@ -1485,6 +1971,7 @@ export type Database = {
         Args: {
           p_cliente_id: string
           p_funil_id: string
+          p_origem?: Database["public"]["Enums"]["origem_negociacao"]
           p_temperatura?: Database["public"]["Enums"]["temperatura_negociacao"]
           p_valor_estimado?: number
         }
@@ -1548,6 +2035,10 @@ export type Database = {
           quantidade: number
           valor: number
         }[]
+      }
+      definir_etapa_inicial: {
+        Args: { p_etapa_id: string }
+        Returns: undefined
       }
       duplicar_funil: {
         Args: { p_funil_id: string; p_novo_nome: string }
@@ -1620,6 +2111,25 @@ export type Database = {
           negociacoes_atuais: number
         }[]
       }
+      ingerir_lead_formulario: {
+        Args: {
+          p_atribuicao?: Json
+          p_email?: string
+          p_empresa?: string
+          p_external_id: string
+          p_formulario_slug: string
+          p_instagram?: string
+          p_nicho_slug: string
+          p_nome: string
+          p_respostas?: Json
+          p_telefone?: string
+        }
+        Returns: {
+          cliente_id: string
+          criado: boolean
+          negociacao_id: string
+        }[]
+      }
       is_gerente: { Args: never; Returns: boolean }
       metas_progresso: {
         Args: { p_mes: string }
@@ -1672,6 +2182,7 @@ export type Database = {
       forma_pagamento: "avista" | "boleto_3x" | "cartao_12x"
       frequencia_recorrencia: "diaria" | "semanal" | "mensal"
       origem_evento: "crm" | "google"
+      origem_negociacao: "whatsapp" | "formulario" | "manual"
       status_conexao_whatsapp: "desconectado" | "conectando" | "conectado"
       status_evento:
         | "agendado"
@@ -1693,6 +2204,7 @@ export type Database = {
       tipo_etapa: "aberta" | "ganha" | "perdida"
       tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao" | "outro"
       tipo_mensagem: "texto" | "imagem" | "documento" | "audio" | "video"
+      tipo_pergunta: "texto_livre" | "escolha_unica" | "escolha_multipla"
       user_role: "gerente" | "closer"
     }
     CompositeTypes: {
@@ -1840,6 +2352,7 @@ export const Constants = {
       forma_pagamento: ["avista", "boleto_3x", "cartao_12x"],
       frequencia_recorrencia: ["diaria", "semanal", "mensal"],
       origem_evento: ["crm", "google"],
+      origem_negociacao: ["whatsapp", "formulario", "manual"],
       status_conexao_whatsapp: ["desconectado", "conectando", "conectado"],
       status_evento: [
         "agendado",
@@ -1863,6 +2376,7 @@ export const Constants = {
       tipo_etapa: ["aberta", "ganha", "perdida"],
       tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao", "outro"],
       tipo_mensagem: ["texto", "imagem", "documento", "audio", "video"],
+      tipo_pergunta: ["texto_livre", "escolha_unica", "escolha_multipla"],
       user_role: ["gerente", "closer"],
     },
   },

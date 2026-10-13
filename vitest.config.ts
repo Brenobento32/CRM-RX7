@@ -3,8 +3,8 @@ import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 /**
- * Roda só os testes de lógica pura (`lib/utils/calendario.ts`): sem React,
- * sem Next — o ambiente node padrão do Vitest basta.
+ * Roda só os testes de lógica pura (`lib/utils/calendario.ts`, scripts de
+ * importação): sem React, sem Next — o ambiente node padrão do Vitest basta.
  */
 export default defineConfig({
   resolve: {
@@ -13,6 +13,6 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['lib/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'scripts/**/*.test.mts'],
   },
 })

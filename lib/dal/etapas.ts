@@ -16,6 +16,8 @@ export type Etapa = EtapaKanban & {
   ativo: boolean
   /** true = zona de recuperação (depois de ganha/perdida). false = fluxo comercial normal. */
   posFechamento: boolean
+  /** Etapa onde leads automáticos (formulário) e reativação entram. No máximo uma por funil. */
+  etapaInicial: boolean
 }
 
 export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean }
@@ -23,7 +25,7 @@ export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean 
 /** Distância padrão entre etapas quando não há vizinho de um dos lados. */
 const PASSO = 1000
 
-const COLUNAS = 'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento'
+const COLUNAS = 'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento, etapa_inicial'
 
 function paraEtapa(e: {
   id: string
@@ -36,6 +38,7 @@ function paraEtapa(e: {
   chave: string | null
   ativo: boolean
   pos_fechamento: boolean
+  etapa_inicial: boolean
 }): Etapa {
   return {
     id: e.id,
@@ -48,6 +51,7 @@ function paraEtapa(e: {
     chave: e.chave,
     ativo: e.ativo,
     posFechamento: e.pos_fechamento,
+    etapaInicial: e.etapa_inicial,
   }
 }
 

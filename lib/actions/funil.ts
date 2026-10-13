@@ -10,6 +10,12 @@ import {
   type ResultadoFunil,
 } from '@/lib/dal/funil'
 import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
+import {
+  listarRespostasLead,
+  obterDetalhesLeadNegociacao,
+  type DetalhesLeadNegociacao,
+  type RespostaLead,
+} from '@/lib/dal/negociacoes'
 import { fechamentoSchema, moverSchema, perdaSchema } from '@/lib/validations/funil'
 import type { LinhaHistoricoBruta } from '@/lib/utils/historico'
 
@@ -101,4 +107,16 @@ export async function marcarPerdidaAction(
 export async function obterHistoricoNegociacaoAction(negociacaoId: string): Promise<LinhaHistoricoBruta[]> {
   if (!z.uuid().safeParse(negociacaoId).success) return []
   return listarHistoricoDaNegociacao(negociacaoId)
+}
+
+/** Qualificação (pergunta/resposta) pro modal de ficha do cliente e pro painel lateral, no Kanban. */
+export async function obterRespostasLeadAction(negociacaoId: string): Promise<RespostaLead[]> {
+  if (!z.uuid().safeParse(negociacaoId).success) return []
+  return listarRespostasLead(negociacaoId)
+}
+
+/** E-mail/Instagram do cliente + valor da proposta — campos do painel lateral que `CardFunil` não traz. */
+export async function obterDetalhesLeadAction(negociacaoId: string): Promise<DetalhesLeadNegociacao | null> {
+  if (!z.uuid().safeParse(negociacaoId).success) return null
+  return obterDetalhesLeadNegociacao(negociacaoId)
 }

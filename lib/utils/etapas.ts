@@ -8,8 +8,13 @@ export type TipoEtapa = Enums['tipo_etapa']
 /** O que as telas precisam de uma etapa para exibi-la. */
 export type EtapaVisual = { nome: string; cor: CorEtapa }
 
-/** Uma coluna do Kanban. */
-export type EtapaKanban = EtapaVisual & { id: string; tipo: TipoEtapa }
+/**
+ * Uma coluna do Kanban. `etapaInicial` é a MESMA flag de
+ * `etapas_funil.etapa_inicial` (onde leads automáticos entram) — nunca mais
+ * resolvida pelo nome "Lead Novo" (ver 20261008130000_etapa_inicial_nichos_configuraveis.sql).
+ * Usada para decidir qual coluna ordena por chegada real em vez de `posicao`.
+ */
+export type EtapaKanban = EtapaVisual & { id: string; tipo: TipoEtapa; etapaInicial: boolean }
 
 export const CORES_ETAPA = Constants.public.Enums.cor_etapa
 
@@ -62,6 +67,40 @@ export function corDeFundoAgenda(cor: CorEtapa | null): string {
 export function classeTextoAgenda(cor: CorEtapa | null): string {
   const contraste = cor ? TEXTO_SOBRE_COR[cor] : 'claro'
   return contraste === 'escuro' ? 'text-zinc-900' : 'text-white'
+}
+
+/**
+ * Cor do nicho como TEXTO (não fundo) — os tons 500 da paleta já são
+ * legíveis em claro e escuro (ver comentário de `PALETA_ETAPAS`), por isso
+ * aqui não precisa de um `TEXTO_SOBRE_COR` como `corDeFundoAgenda`. Mesma
+ * fonte de verdade de `nichos.cor` (nunca uma cor hardcoded por nicho);
+ * "Outros"/sem nicho usa o cinza da paleta, nunca fica sem cor.
+ */
+export function corDeNicho(cor: CorEtapa | null): string {
+  return PALETA_ETAPAS[cor ?? 'cinza'].hex
+}
+
+/**
+ * Padrão de data do export do Respondi (`YYYY-MM-DD[ HH:MM:SS]`) — também
+ * aceito pelo `Date` do Node sem ambiguidade de timezone na comparação
+ * usada aqui (ordenação, nunca exibição).
+ */
+const PADRAO_DATA_ISO_OU_RESPONDI = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}:\d{2})?/
+
+/**
+ * Data de chegada REAL de um lead, para ordenar a etapa inicial do funil
+ * (nunca para exibir). `dataFormulario` (`negociacoes.atribuicao.data_formulario`,
+ * do Respondi) manda quando existir e for uma data válida — é a única data
+ * que sobrevive a uma importação histórica feita hoje. Sem ela (ex.: lead
+ * de WhatsApp, sem formulário), cai em `criadoEm` (`negociacoes.created_at`,
+ * sempre existente) — fallback documentado, nunca inventa uma data nova.
+ */
+export function calcularDataChegada(dataFormulario: string | null | undefined, criadoEm: string): string {
+  if (dataFormulario && PADRAO_DATA_ISO_OU_RESPONDI.test(dataFormulario.trim())) {
+    const ms = new Date(dataFormulario.trim()).getTime()
+    if (!Number.isNaN(ms)) return new Date(ms).toISOString()
+  }
+  return criadoEm
 }
 
 export const ROTULO_TIPO_ETAPA: Record<TipoEtapa, string> = {

@@ -56,12 +56,26 @@ function compararCards(a: CardFunil, b: CardFunil): number {
   return a.posicao - b.posicao || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 }
 
+/**
+ * Etapa inicial do funil (`etapa.etapaInicial` — onde leads automáticos
+ * entram, nunca mais resolvida pelo nome "Lead Novo"): mais recente
+ * primeiro, por `card.dataChegada` (não por `posicao` — um lead importado
+ * hoje não deve "subir" por ter sido gravado hoje). Nunca grava nada; é só
+ * a ordem inicial de exibição, recalculada a cada carregamento do quadro.
+ */
+function compararChegada(a: CardFunil, b: CardFunil): number {
+  const diff = new Date(b.dataChegada).getTime() - new Date(a.dataChegada).getTime()
+  return diff !== 0 ? diff : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+}
+
 function agrupar(cards: CardFunil[], etapas: EtapaKanban[]): Colunas {
   const colunas: Colunas = Object.fromEntries(etapas.map((e) => [e.id, [] as CardFunil[]]))
   // Etapa desativada nunca tem cards (o banco impede); se aparecer um card
   // sem coluna, ele simplesmente não é exibido.
   for (const card of cards) colunas[card.etapaId]?.push(card)
-  for (const lista of Object.values(colunas)) lista.sort(compararCards)
+  for (const etapa of etapas) {
+    colunas[etapa.id]?.sort(etapa.etapaInicial ? compararChegada : compararCards)
+  }
   return colunas
 }
 
