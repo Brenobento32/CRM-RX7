@@ -21,8 +21,6 @@ type Props = {
   onEditar: (card: CardFunil) => void
   onMover: (id: string, etapaId: string) => void
   onAbrirConversa: (card: CardFunil) => void
-  onAbrirFicha: (card: CardFunil) => void
-  onDesqualificar: (card: CardFunil) => void
 }
 
 /**
@@ -43,8 +41,6 @@ export function DrawerNegociacao({
   onEditar,
   onMover,
   onAbrirConversa,
-  onAbrirFicha,
-  onDesqualificar,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const [historico, setHistorico] = useState<LinhaHistoricoBruta[] | null>(null)
@@ -189,25 +185,6 @@ export function DrawerNegociacao({
               className="w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               Editar negociação
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onAbrirFicha(card)}
-              className="block w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-            >
-              Ver ficha do cliente
-            </button>
-
-            <button
-              type="button"
-              // Não fecha o drawer: ModalDesqualificar abre por cima (mesma
-              // pilha nativa do PainelConversa) — fechar/concluir o modal
-              // revela o drawer de novo sozinho.
-              onClick={() => onDesqualificar(card)}
-              className="block w-full rounded-md border border-red-300 px-3 py-2 text-left text-sm text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
-            >
-              Desqualificar lead
             </button>
 
             {etapas.length > 1 && (

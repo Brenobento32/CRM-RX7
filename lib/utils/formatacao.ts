@@ -37,9 +37,23 @@ export function formatarDataHoraCompleta(iso: string): string {
   return formatInTimeZone(iso, FUSO_HORARIO, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
 }
 
+/**
+ * "hoje, 10:30" quando `iso` cai no dia de hoje em São Paulo; senão
+ * `formatarDataHora` ("dd/MM às HH:mm") — usado no card do Kanban (última
+ * atividade), onde "hoje" é mais rápido de ler do que a data completa.
+ */
+export function formatarDataRelativaHora(iso: string): string {
+  return diaEmSaoPaulo(iso) === hojeSaoPaulo() ? `hoje, ${formatarHora(iso)}` : formatarDataHora(iso)
+}
+
 /** Hoje em São Paulo, no formato de `<input type="date">` (AAAA-MM-DD). */
 export function hojeSaoPaulo(): string {
   return formatInTimeZone(new Date(), FUSO_HORARIO, 'yyyy-MM-dd')
+}
+
+/** Amanhã em São Paulo, mesmo formato de {@link hojeSaoPaulo}. */
+export function amanhaSaoPaulo(): string {
+  return formatInTimeZone(addDays(new Date(), 1), FUSO_HORARIO, 'yyyy-MM-dd')
 }
 
 /** Agora em São Paulo, no formato de `<input type="datetime-local">`. */

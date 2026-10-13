@@ -167,3 +167,10 @@ export const perdaSchema = z.object({
 })
 
 export type PerdaInput = z.output<typeof perdaSchema>
+
+/** Rótulo da origem da negociação — card e painel lateral do Kanban. */
+export const ROTULO_ORIGEM: Record<Enums['origem_negociacao'], string> = {
+  formulario: 'Formulário',
+  whatsapp: 'WhatsApp',
+  manual: 'Manual',
+}

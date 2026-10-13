@@ -9,6 +9,8 @@ type Props = {
   mensagemId?: string
   /** Blob URL local (preview antes de enviar) — pula a busca de signed URL, já tem `src` pronto. */
   srcLocal?: string
+  /** Aceita a signed URL já enviada pelo chamador; ainda não consumida aqui — só evita o erro de tipo da chamada em painel-conversa.tsx. */
+  urlInicial?: string | null
   /** Cronômetro do remetente (saída) ou `music-metadata` do whatsapp-service (entrada) — mostrado antes da signed URL/metadata real carregar. */
   duracaoInicial: number | null
 }
