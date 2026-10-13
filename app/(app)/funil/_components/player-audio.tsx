@@ -9,7 +9,13 @@ type Props = {
   mensagemId?: string
   /** Blob URL local (preview antes de enviar) — pula a busca de signed URL, já tem `src` pronto. */
   srcLocal?: string
-  /** Aceita a signed URL já enviada pelo chamador; ainda não consumida aqui — só evita o erro de tipo da chamada em painel-conversa.tsx. */
+  /**
+   * Signed URL já obtida na carga da conversa (`obterConversaDoCliente` já
+   * assina áudio igual a imagem/documento) — reaproveitada em vez de pedir
+   * uma nova ao Storage. `null`/ausente só quando a mensagem chegou crua
+   * pelo Realtime (sem signed URL no payload); nesse caso cai no fallback de
+   * busca por `mensagemId` de qualquer forma, igual já funcionava.
+   */
   urlInicial?: string | null
   /** Cronômetro do remetente (saída) ou `music-metadata` do whatsapp-service (entrada) — mostrado antes da signed URL/metadata real carregar. */
   duracaoInicial: number | null
@@ -52,20 +58,30 @@ function IconeCarregando({ className = 'size-4' }: { className?: string }) {
 /**
  * Player customizado — `<audio controls>` nativo variava demais entre
  * navegadores pro nosso caso (Chrome/Edge/Firefox tocam webm/opus bruto só
- * a partir de signed URL; Safari não garante o mesmo). A signed URL só é
- * buscada no primeiro play (nunca pré-carregada e cacheada por minutos): o
- * TTL é de 5 min (`TTL_URL_ASSINADA` na DAL), e uma URL pedida na carga da
- * conversa expira bem antes de alguém realmente clicar em play numa
- * conversa longa. Buscar sob demanda, aqui, elimina essa janela de
- * expiração por completo. Funciona igual pra áudio enviado pelo CRM ou
- * recebido do WhatsApp — a Action já é agnóstica de direção/tipo.
+ * a partir de signed URL; Safari não garante o mesmo). Reaproveita a signed
+ * URL já trazida por `urlInicial` (gerada uma vez na carga da conversa) em
+ * vez de pedir outra ao Storage; só busca uma nova por `mensagemId` quando
+ * não há nenhuma ainda (mensagem chegada crua pelo Realtime) ou quando a
+ * reaproveitada já expirou (TTL de 5 min — `TTL_URL_ASSINADA` na DAL) e o
+ * `<audio>` falha ao carregá-la (`urlReutilizadaRef`, abaixo). Funciona
+ * igual pra áudio enviado pelo CRM ou recebido do WhatsApp — a Action já é
+ * agnóstica de direção/tipo.
  */
-export function PlayerAudio({ mensagemId, srcLocal, duracaoInicial }: Props) {
+export function PlayerAudio({ mensagemId, srcLocal, urlInicial, duracaoInicial }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   /** Play foi pedido antes de ter `src` — toca assim que o `<audio>` carregar a URL nova. */
   const tocarQuandoCarregarRef = useRef(false)
+  /**
+   * `true` enquanto `src` for a URL reaproveitada de `urlInicial` (nunca
+   * confirmada fresca por uma busca nossa) — só nesse caso uma falha de
+   * carregamento/reprodução dispara UMA busca nova por `mensagemId` antes de
+   * desistir e mostrar erro. Falsa assim que uma busca nossa resolve `src`
+   * (`buscarUrl`), pra nunca entrar em loop de retry numa URL genuinamente
+   * quebrada (formato não suportado, arquivo removido etc.).
+   */
+  const urlReutilizadaRef = useRef(Boolean(!srcLocal && urlInicial))
 
-  const [src, setSrc] = useState<string | null>(srcLocal ?? null)
+  const [src, setSrc] = useState<string | null>(srcLocal ?? urlInicial ?? null)
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<'busca' | 'reproducao' | null>(null)
   const [tocando, setTocando] = useState(false)
@@ -74,6 +90,7 @@ export function PlayerAudio({ mensagemId, srcLocal, duracaoInicial }: Props) {
 
   async function buscarUrl(): Promise<string | null> {
     if (!mensagemId) return null // só `srcLocal` — nunca precisa buscar
+    urlReutilizadaRef.current = false // a partir daqui `src` é sempre uma URL buscada por nós, nunca mais a reaproveitada
     setCarregando(true)
     setErro(null)
     const url = await obterUrlAnexoAction(mensagemId)
@@ -84,6 +101,13 @@ export function PlayerAudio({ mensagemId, srcLocal, duracaoInicial }: Props) {
     }
     setSrc(url)
     return url
+  }
+
+  /** Falha carregando/tocando a URL reaproveitada: tenta buscar uma nova (uma única vez) antes de desistir. */
+  function tentarRenovarUrlReutilizada(): boolean {
+    if (!urlReutilizadaRef.current || !mensagemId) return false
+    void buscarUrl()
+    return true
   }
 
   // Assim que uma URL nova é aplicada ao <audio>, toca se foi um play pendente
@@ -113,6 +137,9 @@ export function PlayerAudio({ mensagemId, srcLocal, duracaoInicial }: Props) {
     try {
       await audio.play()
     } catch {
+      tocarQuandoCarregarRef.current = true
+      if (tentarRenovarUrlReutilizada()) return
+      tocarQuandoCarregarRef.current = false
       setErro('reproducao')
     }
   }
@@ -180,7 +207,14 @@ export function PlayerAudio({ mensagemId, srcLocal, duracaoInicial }: Props) {
             const real = e.currentTarget.duration
             if (Number.isFinite(real) && real > 0) setDuracao(real)
           }}
-          onError={() => setErro('reproducao')}
+          onError={() => {
+            // Erro ao carregar a URL reaproveitada (ex.: expirou) — tenta renovar
+            // uma vez; se a reprodução já tinha começado/sido pedida, retoma sozinha
+            // assim que a nova URL chegar (ver `tocarQuandoCarregarRef`, acima).
+            if (tocando) tocarQuandoCarregarRef.current = true
+            if (tentarRenovarUrlReutilizada()) return
+            setErro('reproducao')
+          }}
           className="hidden"
         />
       )}

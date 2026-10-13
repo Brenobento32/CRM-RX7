@@ -21,6 +21,11 @@ const ITENS_GERENTE: Item[] = [
     descricao: 'Criar funis, configurar etapas, cores e a ordem das colunas.',
   },
   {
+    href: '/configuracoes/nichos',
+    titulo: 'Nichos',
+    descricao: 'Segmentos de mercado dos leads: nome, cor e ordem. Decide a borda do card.',
+  },
+  {
     href: '/configuracoes/servicos',
     titulo: 'Serviços',
     descricao: 'Catálogo de serviços das negociações. Criar, categorizar e desativar.',
@@ -38,6 +43,11 @@ const ITENS_GERENTE: Item[] = [
 ]
 
 const ITENS_CLOSER: Item[] = [
+  {
+    href: '/configuracoes/nichos',
+    titulo: 'Nichos',
+    descricao: 'Nichos disponíveis para os leads (consulta).',
+  },
   {
     href: '/configuracoes/servicos',
     titulo: 'Serviços',

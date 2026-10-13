@@ -13,8 +13,10 @@ import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
 import {
   arquivarNegociacao,
   atualizarDadosComerciaisNegociacao,
+  excluirNegociacaoPermanente,
   listarRespostasLead,
   obterDetalhesLeadNegociacao,
+  reativarNegociacao,
   type DetalhesLeadNegociacao,
   type RespostaLead,
 } from '@/lib/dal/negociacoes'
@@ -22,6 +24,7 @@ import { listarNichosAtivos, type Nicho } from '@/lib/dal/nichos'
 import {
   dadosComerciaisSchema,
   desqualificarSchema,
+  excluirLeadSchema,
   fechamentoSchema,
   moverSchema,
   perdaSchema,
@@ -151,6 +154,19 @@ export async function arquivarNegociacaoAction(
   return { ok: true }
 }
 
+/** Botão "Reativar" em /funil/leads (aba Arquivados) — sem estado pra ler, só revalida. */
+export async function reativarNegociacaoAction(id: string): Promise<void> {
+  if (!z.uuid().safeParse(id).success) return
+
+  const resultado = await reativarNegociacao(id)
+  if (!resultado.ok) {
+    console.warn('Reativar negociação:', resultado.mensagem)
+    return
+  }
+  revalidatePath('/funil')
+  revalidatePath('/funil/leads')
+}
+
 /** Seletor de nicho da ficha do cliente (item 3 do refinamento) — só nichos ativos. */
 export async function listarNichosAtivosAction(): Promise<Nicho[]> {
   return listarNichosAtivos()
@@ -180,6 +196,28 @@ export async function atualizarDadosComerciaisAction(
     temperatura: parsed.data.temperatura,
     valorEstimado: parsed.data.valor_estimado,
   })
+  if (!resultado.ok) return { erro: resultado.mensagem }
+
+  revalidatePath('/funil')
+  revalidatePath('/funil/leads')
+  return { ok: true }
+}
+
+/**
+ * "Excluir lead" — modal visual próprio em /funil/leads (`ModalExcluirLead`,
+ * `useActionState`), nunca `confirm()` nativo. Exclusão lógica, nunca
+ * `DELETE` físico — ver `excluirNegociacaoPermanente`.
+ */
+export async function excluirLeadAction(
+  _estado: EstadoModalFunil | undefined,
+  formData: FormData,
+): Promise<EstadoModalFunil> {
+  const parsed = excluirLeadSchema.safeParse(lerCampos(formData, ['negociacao_id', 'motivo']))
+  if (!parsed.success) {
+    return { campos: z.flattenError(parsed.error).fieldErrors }
+  }
+
+  const resultado = await excluirNegociacaoPermanente(parsed.data.negociacao_id, parsed.data.motivo)
   if (!resultado.ok) return { erro: resultado.mensagem }
 
   revalidatePath('/funil')

@@ -96,15 +96,24 @@ export function MenuMoverPara({
         popoverTarget={`${id}-menu`}
         aria-haspopup="menu"
         aria-label={`Mover ${nomeCliente} para outra etapa`}
-        title="Mover para"
+        title="Mover"
         onClick={(e) => e.stopPropagation()}
-        className="-mt-0.5 -mr-1 shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        className="-mt-0.5 -mr-1 shrink-0 cursor-pointer rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         {...pararArraste}
       >
-        <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
-          <circle cx="5" cy="12" r="1.8" />
-          <circle cx="12" cy="12" r="1.8" />
-          <circle cx="19" cy="12" r="1.8" />
+        {/* Ícone de "mover" (setas nas 4 direções) — item 5: nunca o "..." de menu genérico. */}
+        <svg
+          viewBox="0 0 24 24"
+          className="size-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M12 3v18M3 12h18" />
+          <path d="M6 7 3 10l3 3M18 7l3 3-3 3M9 5l3-2 3 2M9 19l3 2 3-2" />
         </svg>
       </button>
 

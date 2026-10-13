@@ -289,6 +289,23 @@ export async function definirAtivoEtapa(id: string, ativo: boolean): Promise<Res
   return data ? { ok: true } : { ok: false, mensagem: 'Etapa não encontrada.' }
 }
 
+/**
+ * Marca `id` como a etapa inicial do funil (onde leads automáticos e
+ * reativação entram), desmarcando a anterior — `definir_etapa_inicial` faz
+ * as duas UPDATEs na mesma transação (o índice único por funil exige essa
+ * ordem). Nunca mais resolvido pelo nome "Lead Novo".
+ */
+export async function definirEtapaInicial(id: string): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('definir_etapa_inicial', { p_etapa_id: id })
+  if (error) {
+    if (error.code === 'P0002') return { ok: false, mensagem: 'Etapa não encontrada.' }
+    return traduzirErro(error)
+  }
+  return { ok: true }
+}
+
 export async function excluirEtapa(id: string): Promise<ResultadoEtapa> {
   await exigirGerente()
   const supabase = await createClient()

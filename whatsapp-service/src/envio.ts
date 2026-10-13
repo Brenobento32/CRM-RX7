@@ -1,10 +1,43 @@
-import { getAudioDuration, type AnyMessageContent, type WASocket } from '@whiskeysockets/baileys'
+import { getAudioDuration, type AnyMessageContent, type WASocket, type proto } from '@whiskeysockets/baileys'
 
 import { baixarMidia, converterParaOggOpus } from './midia.js'
 import { supabase } from './supabase.js'
 
 /** Intervalo do polling de segurança — cobre o caso de o Realtime cair sem o processo notar. */
 const INTERVALO_POLLING_MS = 60_000
+
+/**
+ * Cache em memória das últimas mensagens que ESTE processo relayou —
+ * `proto.IMessage` completo, o mesmo objeto que `sendMessage` devolve depois
+ * de já ter feito upload/criptografia da mídia (ver `processarMensagem`
+ * abaixo). É exatamente o que o `getMessage` do Baileys exige pra responder
+ * a um "retry receipt" (quando o aparelho do destinatário não consegue
+ * decriptar e pede reenvio) — sem isso, o Baileys não tem o que reenviar e o
+ * retry silenciosamente não faz nada (ver `messages-recv.js` da lib:
+ * `sendMessagesAgain` → `getMessage` → se vier `undefined`, só loga "message
+ * not available" e segue). Guarda só os últimos `CACHE_MAX` (mesmo número
+ * que o próprio código-fonte do Baileys sugere em comentário — "cache to
+ * store the last 256 sent messages"). Só cobre mensagens enviadas depois que
+ * este processo subiu — não sobrevive a restart nem cobre o histórico
+ * anterior; isso exigiria persistência (fora do escopo desta etapa).
+ */
+const CACHE_MAX = 256
+const mensagensEnviadasCache = new Map<string, proto.IMessage>()
+
+function guardarParaRetry(id: string | null | undefined, mensagem: proto.IMessage | null | undefined): void {
+  if (!id || !mensagem) return
+  mensagensEnviadasCache.set(id, mensagem)
+  if (mensagensEnviadasCache.size > CACHE_MAX) {
+    const maisAntigo = mensagensEnviadasCache.keys().next().value
+    if (maisAntigo) mensagensEnviadasCache.delete(maisAntigo)
+  }
+}
+
+/** Usado como `getMessage` do socket (ver `index.ts`) — só o que este processo mesmo enviou desde que subiu. */
+export function obterMensagemParaRetry(id: string | null | undefined): proto.IMessage | undefined {
+  if (!id) return undefined
+  return mensagensEnviadasCache.get(id)
+}
 
 type MensagemPendente = {
   id: string
@@ -172,6 +205,7 @@ async function processarMensagem(mensagem: MensagemPendente): Promise<void> {
 
     const conteudo = await montarConteudo(mensagem)
     const enviada = await socket.sendMessage(`${telefone}@s.whatsapp.net`, conteudo)
+    guardarParaRetry(enviada?.key?.id, enviada?.message)
 
     const { error } = await supabase
       .from('mensagens')

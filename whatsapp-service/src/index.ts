@@ -12,18 +12,60 @@ import {
   fetchLatestBaileysVersion,
   makeWASocket,
   useMultiFileAuthState,
+  WAMessageStatus,
   type ConnectionState,
+  type WAMessageUpdate,
 } from '@whiskeysockets/baileys'
 import { pino } from 'pino'
 import qrcodeTerminal from 'qrcode-terminal'
 
 import { atualizarStatusConexao } from './conexao.js'
-import { definirSocketAtivo, iniciarSenderMensagens } from './envio.js'
+import { definirSocketAtivo, iniciarSenderMensagens, obterMensagemParaRetry } from './envio.js'
 import { salvarMensagemRecebida } from './mensagens.js'
 
 const PASTA_CREDENCIAIS = 'auth_info_baileys'
 
-const logger = pino({ level: 'silent' })
+/**
+ * `info` dá conexão/envio/retry (ex.: "sent retry receipt") sem o volume de
+ * `debug`/`trace` do protocolo interno (handshake, keepalive, decrypt de
+ * cada frame). `warn`/`error` cobrem o que importa de sessão/retry/decrypt
+ * (ex.: "received error in ack", "error in sending message again").
+ *
+ * Isto NÃO silencia os dumps de `SessionEntry` de "Removing old closed
+ * session" — eles vêm de `console.info` direto dentro do pacote `libsignal`
+ * (node_modules/libsignal/src/session_record.js), nunca passam por este
+ * logger, e não têm como ser filtrados por nível nenhum daqui.
+ */
+const logger = pino({ level: 'info' })
+
+/** Rótulo legível de `proto.WebMessageInfo.Status` — só pra log, nunca persistido. */
+const ROTULO_STATUS_ACK: Record<number, string> = {
+  [WAMessageStatus.ERROR]: 'ERROR',
+  [WAMessageStatus.PENDING]: 'PENDING',
+  [WAMessageStatus.SERVER_ACK]: 'SERVER_ACK',
+  [WAMessageStatus.DELIVERY_ACK]: 'DELIVERY_ACK',
+  [WAMessageStatus.READ]: 'READ',
+  [WAMessageStatus.PLAYED]: 'PLAYED',
+}
+
+/**
+ * Log-only: ACK real do WhatsApp por mensagem (`messages.update`), pelo
+ * `whatsapp_message_id` (`key.id`) — é a confirmação de entrega/leitura que
+ * `processarMensagem` (`envio.ts`) nunca teve, porque ele só olha o retorno
+ * do `sendMessage` (= servidor aceitou, não = chegou no aparelho). Só
+ * diagnóstico por enquanto: NUNCA escreve no banco (nem reafirma `enviado`,
+ * nem inventa `entregue`/`lido` — isso exigiria migration, fora desta
+ * etapa) e nunca insere/duplica mensagem nenhuma.
+ */
+function logarAtualizacoesDeStatus(updates: WAMessageUpdate[]): void {
+  for (const { key, update } of updates) {
+    if (update.status === undefined || update.status === null) continue
+    const rotulo = ROTULO_STATUS_ACK[update.status] ?? `desconhecido(${update.status})`
+    const linha = `[ack] whatsapp_message_id=${key.id ?? '?'} status=${rotulo}`
+    if (update.status === WAMessageStatus.ERROR) console.warn(linha)
+    else console.log(linha)
+  }
+}
 
 async function iniciar() {
   const { state, saveCreds } = await useMultiFileAuthState(PASTA_CREDENCIAIS)
@@ -33,9 +75,16 @@ async function iniciar() {
     version,
     auth: state,
     logger,
+    // Sem isto, o Baileys não tem como responder a um "retry receipt" (pedido
+    // de reenvio do aparelho do destinatário quando ele não consegue
+    // decriptar) — o default da lib é `async () => undefined`, que faz o
+    // retry não fazer nada (ver `obterMensagemParaRetry` em `envio.ts`).
+    getMessage: async (key) => obterMensagemParaRetry(key.id),
   })
 
   socket.ev.on('creds.update', saveCreds)
+
+  socket.ev.on('messages.update', logarAtualizacoesDeStatus)
 
   socket.ev.on('connection.update', (update: Partial<ConnectionState>) => {
     const { connection, lastDisconnect, qr } = update

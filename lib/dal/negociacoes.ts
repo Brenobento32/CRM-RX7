@@ -140,6 +140,68 @@ export async function salvarNegociacao(id: string, n: EdicaoNegociacaoInput): Pr
   return error ? traduzirErro(error) : { ok: true }
 }
 
+export type NegociacaoArquivada = {
+  id: string
+  clienteId: string
+  clienteNome: string
+  clienteEmpresa: string | null
+  nichoNome: string | null
+  origem: Enums['origem_negociacao']
+  responsavel: string | null
+  motivoArquivamento: string
+  arquivadaEm: string
+  temperatura: Temperatura | null
+}
+
+/**
+ * Leads arquivados (desqualificados) visíveis ao usuário — RLS decide, sem
+ * filtro de dono aqui. `funilId` filtra pela mesma coluna já denormalizada
+ * em `negociacoes` — uma consulta só, nunca N por linha.
+ */
+export async function listarNegociacoesArquivadas(funilId?: string | null): Promise<NegociacaoArquivada[]> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('negociacoes')
+    .select(
+      `id, cliente_id, motivo_arquivamento, arquivada_em, temperatura, origem,
+       cliente:clientes!negociacoes_cliente_id_fkey(nome, empresa),
+       nicho:nichos(nome),
+       responsavel:profiles!negociacoes_owner_id_fkey(nome)`,
+    )
+    .not('arquivada_em', 'is', null)
+    .is('excluida_em', null)
+    .order('arquivada_em', { ascending: false })
+
+  if (funilId) query = query.eq('funil_id', funilId)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error('Não foi possível carregar os leads arquivados.', { cause: error })
+  }
+
+  return data.flatMap((n) =>
+    n.cliente && n.motivo_arquivamento && n.arquivada_em
+      ? [
+          {
+            id: n.id,
+            clienteId: n.cliente_id,
+            clienteNome: n.cliente.nome,
+            clienteEmpresa: n.cliente.empresa,
+            nichoNome: n.nicho?.nome ?? null,
+            origem: n.origem,
+            responsavel: n.responsavel?.nome ?? null,
+            motivoArquivamento: n.motivo_arquivamento,
+            arquivadaEm: n.arquivada_em,
+            temperatura: n.temperatura,
+          },
+        ]
+      : [],
+  )
+}
+
 export type ResultadoArquivarNegociacao = { ok: true } | { ok: false; mensagem: string }
 
 /**
@@ -176,6 +238,118 @@ export async function arquivarNegociacao(id: string, motivo: string): Promise<Re
   }
 
   return data ? { ok: true } : { ok: false, mensagem: 'Lead não encontrado ou já está arquivado.' }
+}
+
+/**
+ * Reativa: volta explicitamente para a etapa INICIAL do MESMO funil — pela
+ * flag `etapa_inicial`, nunca mais pelo nome "Lead Novo" (produto
+ * configurável: cada funil tem a sua, com o nome que quiser). Sem fallback:
+ * se o funil não tiver etapa inicial ativa, a reativação falha com mensagem
+ * clara em vez de mover o lead pra outra coluna silenciosamente. Dois passos
+ * (achar a etapa, depois `update`) em vez de uma função SQL: é lógica de uma
+ * tabela só, mesmo estilo de `marcarPerdida` em lib/dal/funil.ts.
+ */
+export async function reativarNegociacao(id: string): Promise<ResultadoArquivarNegociacao> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data: negociacao, error: erroNegociacao } = await supabase
+    .from('negociacoes')
+    .select('funil_id, arquivada_em')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (erroNegociacao) {
+    console.error('Erro ao reativar negociação', erroNegociacao)
+    return { ok: false, mensagem: 'Não foi possível reativar o lead. Tente novamente.' }
+  }
+  if (!negociacao || !negociacao.arquivada_em) {
+    return { ok: false, mensagem: 'Lead não encontrado ou não está arquivado.' }
+  }
+
+  const { data: etapa, error: erroEtapa } = await supabase
+    .from('etapas_funil')
+    .select('id, nome')
+    .eq('funil_id', negociacao.funil_id)
+    .eq('etapa_inicial', true)
+    .eq('ativo', true)
+    .limit(1)
+    .maybeSingle()
+
+  if (erroEtapa) {
+    console.error('Erro ao reativar negociação', erroEtapa)
+    return { ok: false, mensagem: 'Não foi possível reativar o lead. Tente novamente.' }
+  }
+  if (!etapa) {
+    return {
+      ok: false,
+      mensagem: 'O funil não tem uma etapa inicial ativa para receber o lead reativado.',
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('negociacoes')
+    .update({ arquivada_em: null, motivo_arquivamento: null, etapa_id: etapa.id, posicao: 1000 })
+    .eq('id', id)
+    .not('arquivada_em', 'is', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    console.error('Erro ao reativar negociação', error)
+    return { ok: false, mensagem: 'Não foi possível reativar o lead. Tente novamente.' }
+  }
+
+  return data ? { ok: true } : { ok: false, mensagem: 'Lead não encontrado ou já está ativo.' }
+}
+
+/**
+ * Exclusão com auditoria — nunca `DELETE` físico: `fechamentos` e
+ * `historico_etapas` têm FK `on delete cascade` a partir de `negociacoes`,
+ * então um DELETE real apagaria venda e histórico de etapas. Só grava se o
+ * lead já estiver arquivado (o botão também só existe lá, a DAL confere de
+ * novo). Nunca toca `clientes`, `conversas` nem mensagens.
+ */
+export async function excluirNegociacaoPermanente(
+  id: string,
+  motivo: string,
+): Promise<ResultadoArquivarNegociacao> {
+  const motivoLimpo = motivo.trim()
+  if (!motivoLimpo) return { ok: false, mensagem: 'Informe o motivo da exclusão.' }
+
+  const usuario = await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('negociacoes')
+    .update({
+      excluida_em: new Date().toISOString(),
+      excluida_por: usuario.id,
+      motivo_exclusao: motivoLimpo,
+    })
+    .eq('id', id)
+    .not('arquivada_em', 'is', null)
+    .is('excluida_em', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    if (error.code === '23514') {
+      return { ok: false, mensagem: 'Informe o motivo da exclusão.' }
+    }
+    console.error('Erro ao excluir negociação', error)
+    return { ok: false, mensagem: 'Não foi possível excluir o lead. Tente novamente.' }
+  }
+
+  return data
+    ? { ok: true }
+    : { ok: false, mensagem: 'Lead precisa estar arquivado para ser excluído permanentemente.' }
 }
 
 export type DadosComerciaisInput = {

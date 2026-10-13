@@ -7,14 +7,19 @@ import {
   enviarMensagemAudioAction,
   enviarMensagemDocumentoAction,
   enviarMensagemImagemAction,
+  excluirMensagensParaMimAction,
   obterConversaAction,
   obterMensagensAntigasAction,
+  obterReacoesDaConversaAction,
   obterStatusMensagemAction,
   obterUrlAnexoAction,
+  obterUsuarioAtualIdAction,
+  reagirMensagemAction,
   reenviarMensagemMidiaAction,
+  removerReacaoAction,
   type EstadoEnvioMensagem,
 } from '@/lib/actions/conversas'
-import type { MensagemConversa } from '@/lib/dal/conversas'
+import type { MensagemConversa, MensagemEncaminhada, ReacaoMensagem } from '@/lib/dal/conversas'
 import { createClient } from '@/lib/supabase/client'
 import {
   diaEmSaoPaulo,
@@ -27,6 +32,8 @@ import {
 
 import { AnexoMenu } from './anexo-menu'
 import { EmojiPopover } from './emoji-popover'
+import { MenuMensagem } from './menu-mensagem'
+import { ModalEncaminhar } from './modal-encaminhar'
 import { PlayerAudio } from './player-audio'
 
 /** Textarea cresce com o texto até esse limite; depois disso, rola por dentro. */
@@ -50,6 +57,8 @@ type Props = {
 type Estado =
   | { status: 'carregando' }
   | { status: 'sem-conversa' }
+  /** Carga inicial (`obterConversaAction`) rejeitou — nunca fica preso em `carregando` silenciosamente; `tentarCarregarNovamente` refaz a mesma busca. */
+  | { status: 'erro'; mensagem: string }
   | {
       status: 'pronto'
       conversaId: string
@@ -69,6 +78,11 @@ type LinhaMensagem = {
   arquivo_nome: string | null
   arquivo_duracao_segundos: number | null
   created_at: string
+  resposta_a_id: string | null
+  resposta_a_tipo: MensagemConversa['tipo'] | null
+  resposta_a_conteudo: string | null
+  resposta_a_direcao: MensagemConversa['direcao'] | null
+  encaminhada_de_id: string | null
 }
 
 /**
@@ -87,6 +101,15 @@ function paraMensagem(linha: LinhaMensagem): MensagemConversa {
     arquivoNome: linha.arquivo_nome,
     arquivoDuracaoSegundos: linha.arquivo_duracao_segundos,
     arquivoUrl: null,
+    respostaA: linha.resposta_a_id
+      ? {
+          id: linha.resposta_a_id,
+          tipo: linha.resposta_a_tipo as MensagemConversa['tipo'],
+          conteudo: linha.resposta_a_conteudo,
+          direcao: linha.resposta_a_direcao as MensagemConversa['direcao'],
+        }
+      : null,
+    encaminhada: linha.encaminhada_de_id !== null,
   }
 }
 
@@ -113,6 +136,59 @@ function IconeMicrofone({ className = 'size-5' }: { className?: string }) {
       <rect x="9" y="2" width="6" height="12" rx="3" />
       <path d="M5 11v1a7 7 0 0 0 14 0v-1" />
       <path d="M12 19v3M8 22h8" />
+    </svg>
+  )
+}
+
+/** Mesmo traço (2px) dos outros ícones locais — seta encurvada, mesmo símbolo do WhatsApp Web pra "encaminhar"/"encaminhada". */
+function IconeEncaminhar({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`shrink-0 ${className}`}
+    >
+      <path d="m14 5 6 6-6 6" />
+      <path d="M4 5v4a4 4 0 0 0 4 4h12" />
+    </svg>
+  )
+}
+
+function IconeLixeira({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`shrink-0 ${className}`}
+    >
+      <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.8 12.1a2 2 0 0 1-2 1.9H9.8a2 2 0 0 1-2-1.9L7 7" />
+    </svg>
+  )
+}
+
+function IconeCheck({ className = 'size-3' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`shrink-0 ${className}`}
+    >
+      <path d="M5 12.5 9.5 17 19 7" />
     </svg>
   )
 }
@@ -284,6 +360,44 @@ function mesclarMensagem(atual: MensagemConversa[], nova: MensagemConversa, inse
   return copia
 }
 
+/** Linha crua do Realtime pra `mensagem_reacoes` — sem `conversa_id` (schema mínimo, ver migration 20261007160000). */
+type LinhaReacao = {
+  mensagem_id: string
+  usuario_id: string
+  emoji: string
+}
+
+/**
+ * Upsert local de uma reação vinda do Realtime (INSERT ou UPDATE — troca de
+ * emoji é só um UPDATE na mesma linha) — substitui a reação anterior dessa
+ * pessoa nessa mensagem, nunca duplica. O payload cru não traz o nome do
+ * usuário (só a carga em lote inicial faz esse join) — reaproveita o nome
+ * já conhecido de outra reação da mesma pessoa nesta conversa, se houver.
+ */
+function mesclarReacao(atual: ReacaoMensagem[], linha: LinhaReacao): ReacaoMensagem[] {
+  const nomeConhecido = atual.find((r) => r.usuarioId === linha.usuario_id)?.usuarioNome ?? 'Alguém'
+  const semAntiga = atual.filter((r) => !(r.mensagemId === linha.mensagem_id && r.usuarioId === linha.usuario_id))
+  return [...semAntiga, { mensagemId: linha.mensagem_id, usuarioId: linha.usuario_id, usuarioNome: nomeConhecido, emoji: linha.emoji }]
+}
+
+type GrupoReacao = { emoji: string; contagem: number; nomes: string[]; minha: boolean }
+
+/** Agrupa reações cruas por emoji pra exibir embaixo da bolha — pura, recalculada no render a partir de `reacoesPorMensagem`. */
+function agruparReacoes(lista: ReacaoMensagem[], usuarioAtualId: string | null): GrupoReacao[] {
+  const grupos = new Map<string, GrupoReacao>()
+  for (const r of lista) {
+    const grupo = grupos.get(r.emoji)
+    if (grupo) {
+      grupo.contagem += 1
+      grupo.nomes.push(r.usuarioNome)
+      if (r.usuarioId === usuarioAtualId) grupo.minha = true
+    } else {
+      grupos.set(r.emoji, { emoji: r.emoji, contagem: 1, nomes: [r.usuarioNome], minha: r.usuarioId === usuarioAtualId })
+    }
+  }
+  return [...grupos.values()]
+}
+
 /**
  * Prependa um lote de mensagens antigas (já em ordem cronológica) no início
  * do array — nunca no fim, nunca via `mesclarMensagem` (que é pra update
@@ -371,6 +485,26 @@ export function PainelConversa({ card, onFechar }: Props) {
   }, [estado])
   const sentinelaTopoRef = useRef<HTMLDivElement>(null)
   const [carregandoAntigas, setCarregandoAntigas] = useState(false)
+  /** Reações de TODA a conversa (nunca por página) — buscada uma vez na carga inicial, mantida via Realtime (ver efeito do canal). */
+  const [reacoes, setReacoes] = useState<ReacaoMensagem[]>([])
+  /** Mensagem sendo respondida no composer — `null` fora do modo resposta. */
+  const [respostaAtiva, setRespostaAtiva] = useState<MensagemConversa | null>(null)
+  const [modoSelecao, setModoSelecao] = useState(false)
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set())
+  /** Id da mensagem com o feedback "Copiado" visível agora — `null` a maior parte do tempo. */
+  const [copiadoId, setCopiadoId] = useState<string | null>(null)
+  const timeoutCopiadoRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [modalEncaminhar, setModalEncaminhar] = useState<{ mensagemIds: string[] } | null>(null)
+  /** Só pra saber se uma reação já carregada é a própria (destacar/remover com 1 clique) — nunca usado pra autorização. */
+  const [usuarioAtualId, setUsuarioAtualId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let ativo = true
+    void obterUsuarioAtualIdAction().then((id) => ativo && setUsuarioAtualId(id))
+    return () => {
+      ativo = false
+    }
+  }, [])
   /** Guarda de concorrência lida de dentro do observer — `carregandoAntigas` (estado) não está disponível ali sem recriar o observer a cada render. */
   const carregandoAntigasRef = useRef(false)
   /** Scroll a restaurar depois que um lote de mensagens antigas prependar — consumido e limpo no `useLayoutEffect` de scroll, abaixo. */
@@ -396,27 +530,56 @@ export function PainelConversa({ card, onFechar }: Props) {
     }
   }, [])
 
+  /** Incrementado por `tentarCarregarNovamente` — só existe pra forçar o efeito de carga abaixo a rodar de novo sem depender de trocar de card. */
+  const [tentativaCarga, setTentativaCarga] = useState(0)
+
   // O painel desmonta e remonta a cada card (troca via `{conversa && <PainelConversa .../>}`
-  // no Kanban), então `estado` já nasce 'carregando' — sem precisar resetar aqui.
+  // no Kanban), então `estado` já nasceria 'carregando' nesse caso — mas numa
+  // nova tentativa (retry manual, mesmo card) o painel NÃO remonta, então o
+  // reset pra 'carregando' precisa ser explícito aqui também.
   useEffect(() => {
     let ativo = true
-    void obterConversaAction(card.clienteId).then((conversa) => {
-      if (!ativo) return
-      setEstado(
-        conversa
-          ? {
-              status: 'pronto',
-              conversaId: conversa.id,
-              mensagens: conversa.mensagens,
-              temMensagensAntigas: conversa.temMensagensAntigas,
-            }
-          : { status: 'sem-conversa' },
-      )
-    })
+    void obterConversaAction(card.clienteId)
+      .then((conversa) => {
+        if (!ativo) return
+        setEstado(
+          conversa
+            ? {
+                status: 'pronto',
+                conversaId: conversa.id,
+                mensagens: conversa.mensagens,
+                temMensagensAntigas: conversa.temMensagensAntigas,
+              }
+            : { status: 'sem-conversa' },
+        )
+        // Reações da conversa inteira, numa chamada só — nunca por página nem
+        // por mensagem (ver `obterReacoesDaConversa`). Mensagem antiga ainda
+        // não carregada pela paginação já tem a reação disponível assim que
+        // entrar, sem precisar buscar de novo.
+        if (conversa) void obterReacoesDaConversaAction(conversa.id).then((r) => ativo && setReacoes(r))
+      })
+      .catch((erro: unknown) => {
+        // Antes, uma falha aqui (ex.: tabela/coluna ainda sem migration
+        // aplicada) deixava `estado` parado pra sempre em 'carregando' — a
+        // Promise rejeitava e nada chamava `setEstado`. Agora qualquer
+        // rejeição vira um estado visível, nunca falha silenciosa.
+        if (!ativo) return
+        console.error('[painel-conversa] falha ao carregar a conversa:', erro)
+        setEstado({ status: 'erro', mensagem: 'Não foi possível carregar a conversa.' })
+      })
     return () => {
       ativo = false
     }
-  }, [card.clienteId])
+  }, [card.clienteId, tentativaCarga])
+
+  function tentarCarregarNovamente() {
+    // Setado aqui (evento de clique), nunca no corpo do efeito — um
+    // `setState` síncrono direto no corpo de um `useEffect` dispara render
+    // em cascata, o que o lint de hooks já acusa. Bumping `tentativaCarga`
+    // é só o gatilho pro efeito rodar de novo com o mesmo `card.clienteId`.
+    setEstado({ status: 'carregando' })
+    setTentativaCarga((t) => t + 1)
+  }
 
   const conversaId = estado.status === 'pronto' ? estado.conversaId : null
 
@@ -469,6 +632,7 @@ export function PainelConversa({ card, onFechar }: Props) {
       const resultado = await enviarMensagemAction(conversaId, _anterior, formData)
       if (resultado.ok && resultado.id && resultado.createdAt) {
         setTexto('')
+        setRespostaAtiva(null)
         // Mostra a própria mensagem na hora — não espera o Realtime (que
         // só chega de volta depois). `mesclarMensagem` descarta por id se o
         // evento do Realtime também chegar depois, então não duplica.
@@ -482,6 +646,8 @@ export function PainelConversa({ card, onFechar }: Props) {
           arquivoUrl: null,
           arquivoNome: null,
           arquivoDuracaoSegundos: null,
+          respostaA: resultado.respostaA ?? null,
+          encaminhada: false,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -511,6 +677,7 @@ export function PainelConversa({ card, onFechar }: Props) {
       if (resultado.ok && resultado.id && resultado.createdAt) {
         setTexto('')
         setImagemSelecionada(null)
+        setRespostaAtiva(null)
         const nova: MensagemConversa = {
           id: resultado.id,
           direcao: 'saida',
@@ -521,6 +688,8 @@ export function PainelConversa({ card, onFechar }: Props) {
           arquivoUrl: resultado.arquivoUrl ?? null,
           arquivoNome: null,
           arquivoDuracaoSegundos: null,
+          respostaA: resultado.respostaA ?? null,
+          encaminhada: false,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -543,6 +712,7 @@ export function PainelConversa({ card, onFechar }: Props) {
       if (resultado.ok && resultado.id && resultado.createdAt) {
         setTexto('')
         setDocumentoSelecionado(null)
+        setRespostaAtiva(null)
         const nova: MensagemConversa = {
           id: resultado.id,
           direcao: 'saida',
@@ -553,6 +723,8 @@ export function PainelConversa({ card, onFechar }: Props) {
           arquivoUrl: resultado.arquivoUrl ?? null,
           arquivoNome: resultado.arquivoNome ?? null,
           arquivoDuracaoSegundos: null,
+          respostaA: resultado.respostaA ?? null,
+          encaminhada: false,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -621,6 +793,7 @@ export function PainelConversa({ card, onFechar }: Props) {
       const resultado = await enviarMensagemAudioAction(conversaId, _anterior, formData)
       if (resultado.ok && resultado.id && resultado.createdAt) {
         setGravacaoAudio(null)
+        setRespostaAtiva(null)
         const nova: MensagemConversa = {
           id: resultado.id,
           direcao: 'saida',
@@ -631,6 +804,8 @@ export function PainelConversa({ card, onFechar }: Props) {
           arquivoUrl: resultado.arquivoUrl ?? null,
           arquivoNome: null,
           arquivoDuracaoSegundos: resultado.arquivoDuracaoSegundos ?? null,
+          respostaA: resultado.respostaA ?? null,
+          encaminhada: false,
         }
         setEstado((atual) => {
           if (atual.status !== 'pronto') return atual
@@ -670,6 +845,8 @@ export function PainelConversa({ card, onFechar }: Props) {
         arquivoUrl: resultado.arquivoUrl ?? null,
         arquivoNome: resultado.arquivoNome ?? null,
         arquivoDuracaoSegundos: resultado.arquivoDuracaoSegundos ?? null,
+        respostaA: resultado.respostaA ?? null,
+        encaminhada: false,
       }
       setEstado((atual) => {
         if (atual.status !== 'pronto') return atual
@@ -864,6 +1041,34 @@ export function PainelConversa({ card, onFechar }: Props) {
             })
           },
         )
+        .on(
+          // `mensagem_reacoes` não tem `conversa_id` (schema mínimo de
+          // propósito — ver migration) — o Postgres Realtime só filtra por
+          // coluna da própria tabela, então esta assinatura recebe reações
+          // de QUALQUER conversa enquanto o painel estiver aberto; o que
+          // nunca pertence a uma mensagem desta conversa simplesmente nunca
+          // é procurado na hora de renderizar (`reacoesPorMensagem`,
+          // abaixo), então não vaza pra UI — só um pouco de tráfego
+          // redundante em troca de reagir sem precisar de outro canal.
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'mensagem_reacoes' },
+          (payload) => setReacoes((atual) => mesclarReacao(atual, payload.new as LinhaReacao)),
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'mensagem_reacoes' },
+          (payload) => setReacoes((atual) => mesclarReacao(atual, payload.new as LinhaReacao)),
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'mensagem_reacoes' },
+          (payload) => {
+            const linha = payload.old as { mensagem_id: string; usuario_id: string }
+            setReacoes((atual) =>
+              atual.filter((r) => !(r.mensagemId === linha.mensagem_id && r.usuarioId === linha.usuario_id)),
+            )
+          },
+        )
         .subscribe((status) => {
           if (minhaGeracao !== geracao) return // canal já substituído — eco do removeChannel acima
 
@@ -963,6 +1168,109 @@ export function PainelConversa({ card, onFechar }: Props) {
     return () => observer.disconnect()
   }, [conversaId])
 
+  /** Copia o texto/legenda — mensagem sem `conteudo` nem mostra a opção no menu (ver `copiavel` no render). */
+  function copiarMensagem(m: MensagemConversa) {
+    if (!m.conteudo) return
+    void navigator.clipboard.writeText(m.conteudo).then(() => {
+      if (timeoutCopiadoRef.current) clearTimeout(timeoutCopiadoRef.current)
+      setCopiadoId(m.id)
+      timeoutCopiadoRef.current = setTimeout(() => setCopiadoId(null), 1500)
+    })
+  }
+
+  useEffect(() => {
+    return () => {
+      if (timeoutCopiadoRef.current) clearTimeout(timeoutCopiadoRef.current)
+    }
+  }, [])
+
+  function iniciarResposta(m: MensagemConversa) {
+    setRespostaAtiva(m)
+    textareaRef.current?.focus()
+  }
+
+  /** Rola até a mensagem original citada, só se ela já estiver entre as carregadas — nunca busca mais páginas só por causa disso. */
+  function irParaMensagem(mensagemId: string) {
+    listaRef.current?.querySelector(`[data-mensagem-id="${mensagemId}"]`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }
+
+  function iniciarSelecao(mensagemId: string) {
+    setModoSelecao(true)
+    setSelecionadas(new Set([mensagemId]))
+  }
+
+  function alternarSelecao(mensagemId: string) {
+    setSelecionadas((atual) => {
+      const copia = new Set(atual)
+      if (copia.has(mensagemId)) copia.delete(mensagemId)
+      else copia.add(mensagemId)
+      return copia
+    })
+  }
+
+  function cancelarSelecao() {
+    setModoSelecao(false)
+    setSelecionadas(new Set())
+  }
+
+  /** "Excluir pra mim" (uma ou várias, sempre em UMA chamada) — some da própria tela na hora; nunca afeta quem mais vê a conversa. */
+  function excluirMensagens(mensagemIds: string[]) {
+    const idsUnicos = [...new Set(mensagemIds)]
+    if (idsUnicos.length === 0) return
+
+    void excluirMensagensParaMimAction(idsUnicos)
+
+    const paraExcluir = new Set(idsUnicos)
+    setEstado((atual) => {
+      if (atual.status !== 'pronto') return atual
+      return { ...atual, mensagens: atual.mensagens.filter((m) => !paraExcluir.has(m.id)) }
+    })
+    setSelecionadas((atual) => {
+      if (idsUnicos.every((id) => !atual.has(id))) return atual
+      const copia = new Set(atual)
+      for (const id of idsUnicos) copia.delete(id)
+      return copia
+    })
+  }
+
+  function excluirSelecionadas() {
+    excluirMensagens([...selecionadas])
+    cancelarSelecao()
+  }
+
+  /** Reagir ou trocar a própria reação — CRM-only, nunca sincroniza com o WhatsApp nesta fase (ver migration). */
+  function reagir(mensagemId: string, emoji: string) {
+    void reagirMensagemAction(mensagemId, emoji)
+  }
+
+  function removerPropriaReacao(mensagemId: string) {
+    void removerReacaoAction(mensagemId)
+  }
+
+  const [avisoEncaminhar, setAvisoEncaminhar] = useState<string | null>(null)
+
+  function abrirEncaminhar(mensagemIds: string[]) {
+    setModalEncaminhar({ mensagemIds: [...new Set(mensagemIds)] })
+  }
+
+  function aoEncaminhado(resultado: { enviadas: MensagemEncaminhada[]; falhas: number }) {
+    cancelarSelecao()
+    const partes = []
+    if (resultado.enviadas.length > 0) {
+      partes.push(
+        resultado.enviadas.length === 1
+          ? '1 mensagem encaminhada'
+          : `${resultado.enviadas.length} mensagens encaminhadas`,
+      )
+    }
+    if (resultado.falhas > 0) partes.push(resultado.falhas === 1 ? '1 falhou' : `${resultado.falhas} falharam`)
+    setAvisoEncaminhar(partes.join(' — '))
+    setTimeout(() => setAvisoEncaminhar(null), 4000)
+  }
+
   // Memoizado: referência só muda quando `estado` muda de fato — o
   // `useLayoutEffect` de scroll (abaixo) depende do array inteiro (pra
   // comparar o id da última mensagem), não só do tamanho, e sem isso
@@ -970,6 +1278,17 @@ export function PainelConversa({ card, onFechar }: Props) {
   // `carregando`/`sem-conversa`.
   const mensagens = useMemo(() => (estado.status === 'pronto' ? estado.mensagens : []), [estado])
   const itensHistorico = construirItensHistorico(mensagens)
+
+  /** Reações agrupadas por mensagem — recalculado só quando `reacoes` muda, nunca por mensagem na hora do render. */
+  const reacoesPorMensagem = useMemo(() => {
+    const mapa = new Map<string, ReacaoMensagem[]>()
+    for (const r of reacoes) {
+      const lista = mapa.get(r.mensagemId)
+      if (lista) lista.push(r)
+      else mapa.set(r.mensagemId, [r])
+    }
+    return mapa
+  }, [reacoes])
 
   /** Ids com busca de signed URL em andamento — evita repetir a mesma chamada a cada render. */
   const buscandoUrlRef = useRef<Set<string>>(new Set())
@@ -1045,6 +1364,7 @@ export function PainelConversa({ card, onFechar }: Props) {
   }, [mensagens])
 
   return (
+    <>
     <dialog
       ref={ref}
       aria-labelledby="painel-conversa-titulo"
@@ -1056,41 +1376,99 @@ export function PainelConversa({ card, onFechar }: Props) {
     >
       <div className="flex h-full flex-col">
         <header className="flex items-start justify-between gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
-              <span aria-hidden>●</span> WhatsApp
-            </p>
-            {card.clienteEmpresa && (
-              <p className="truncate text-base font-semibold" title={card.clienteEmpresa}>
-                {card.clienteEmpresa}
+          {modoSelecao ? (
+            <>
+              <p id="painel-conversa-titulo" className="self-center text-sm font-medium">
+                {selecionadas.size} selecionada{selecionadas.size === 1 ? '' : 's'}
               </p>
-            )}
-            <p
-              id="painel-conversa-titulo"
-              className={`truncate ${card.clienteEmpresa ? 'text-sm text-zinc-500' : 'text-base font-semibold'}`}
-              title={card.clienteNome}
-            >
-              {card.clienteNome}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            aria-label="Fechar conversa"
-            className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-          >
-            <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
-              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
-            </svg>
-          </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => abrirEncaminhar([...selecionadas])}
+                  disabled={selecionadas.size === 0}
+                  aria-label="Encaminhar selecionadas"
+                  title="Encaminhar"
+                  className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  <IconeEncaminhar className="size-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={excluirSelecionadas}
+                  disabled={selecionadas.size === 0}
+                  aria-label="Excluir selecionadas para mim"
+                  title="Excluir para mim"
+                  className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  <IconeLixeira className="size-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelarSelecao}
+                  className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400">
+                  <span aria-hidden>●</span> WhatsApp
+                </p>
+                {card.clienteEmpresa && (
+                  <p className="truncate text-base font-semibold" title={card.clienteEmpresa}>
+                    {card.clienteEmpresa}
+                  </p>
+                )}
+                <p
+                  id="painel-conversa-titulo"
+                  className={`truncate ${card.clienteEmpresa ? 'text-sm text-zinc-500' : 'text-base font-semibold'}`}
+                  title={card.clienteNome}
+                >
+                  {card.clienteNome}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onFechar}
+                aria-label="Fechar conversa"
+                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
+                  <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
+                </svg>
+              </button>
+            </>
+          )}
         </header>
+
+        {avisoEncaminhar && (
+          <p role="status" className="border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+            {avisoEncaminhar}
+          </p>
+        )}
 
         <div ref={listaRef} className="flex-1 overflow-y-auto p-4">
           {estado.status === 'carregando' && (
             <p className="text-center text-sm text-zinc-500">Carregando…</p>
           )}
 
-          {estado.status !== 'carregando' && mensagens.length === 0 && (
+          {estado.status === 'erro' && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+              <p className="text-sm text-zinc-500">{estado.mensagem}</p>
+              <button
+                type="button"
+                onClick={tentarCarregarNovamente}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+          {(estado.status === 'sem-conversa' || estado.status === 'pronto') && mensagens.length === 0 && (
             <div className="flex h-full items-center justify-center">
               <p className="text-center text-sm text-zinc-500">Nenhuma mensagem ainda.</p>
             </div>
@@ -1118,20 +1496,69 @@ export function PainelConversa({ card, onFechar }: Props) {
                 }
 
                 const m = item.mensagem
+                const gruposReacao = agruparReacoes(reacoesPorMensagem.get(m.id) ?? [], usuarioAtualId)
+                const selecionada = selecionadas.has(m.id)
                 return (
                   <li
                     key={m.id}
-                    className={`flex ${m.direcao === 'saida' ? 'justify-end' : 'justify-start'} ${
+                    data-mensagem-id={m.id}
+                    className={`flex items-end gap-1.5 ${m.direcao === 'saida' ? 'justify-end' : 'justify-start'} ${
                       item.primeiroDoGrupo ? 'mt-3 first:mt-0' : 'mt-0.5'
                     }`}
                   >
+                    {modoSelecao && (
+                      <button
+                        type="button"
+                        onClick={() => alternarSelecao(m.id)}
+                        aria-pressed={selecionada}
+                        aria-label={selecionada ? 'Remover da seleção' : 'Selecionar mensagem'}
+                        className={`mb-1 flex size-5 shrink-0 items-center justify-center rounded-full border transition ${
+                          selecionada
+                            ? 'border-green-600 bg-green-600 text-white'
+                            : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900'
+                        }`}
+                      >
+                        {selecionada && <IconeCheck />}
+                      </button>
+                    )}
+                    <div className="relative max-w-[80%]">
                     <div
-                      className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                      onClick={modoSelecao ? () => alternarSelecao(m.id) : undefined}
+                      className={`rounded-lg px-3 py-2 text-sm ${modoSelecao ? 'cursor-pointer' : ''} ${
                         m.direcao === 'saida'
                           ? `bg-green-600 text-white ${item.primeiroDoGrupo ? 'rounded-tr-sm' : ''}`
                           : `bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 ${item.primeiroDoGrupo ? 'rounded-tl-sm' : ''}`
                       }`}
                     >
+                    {m.encaminhada && (
+                      <p
+                        className={`mb-1 flex items-center gap-1 text-[11px] italic ${
+                          m.direcao === 'saida' ? 'text-green-100/80' : 'text-zinc-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        <IconeEncaminhar className="size-3" />
+                        Encaminhada
+                      </p>
+                    )}
+                    {m.respostaA && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          irParaMensagem(m.respostaA!.id)
+                        }}
+                        className={`mb-1.5 block w-full rounded border-l-4 px-2 py-1 text-left text-xs transition ${
+                          m.direcao === 'saida'
+                            ? 'border-green-200 bg-black/10 hover:bg-black/15'
+                            : 'border-zinc-400 bg-black/5 hover:bg-black/10 dark:border-zinc-500 dark:bg-white/10 dark:hover:bg-white/15'
+                        }`}
+                      >
+                        <span className="block truncate font-medium opacity-90">
+                          {m.respostaA.direcao === 'saida' ? 'Você' : card.clienteNome}
+                        </span>
+                        <span className="block truncate opacity-70">{m.respostaA.conteudo ?? '…'}</span>
+                      </button>
+                    )}
                     {m.tipo === 'imagem' &&
                       (m.arquivoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- bucket privado, signed URL com token e TTL curtos; não é um candidato a next/image
@@ -1205,6 +1632,48 @@ export function PainelConversa({ card, onFechar }: Props) {
                         </button>
                       )}
                     </div>
+
+                    {gruposReacao.length > 0 && (
+                      <div className={`mt-0.5 flex flex-wrap gap-1 ${m.direcao === 'saida' ? 'justify-end' : 'justify-start'}`}>
+                        {gruposReacao.map((grupo) => (
+                          <button
+                            key={grupo.emoji}
+                            type="button"
+                            onClick={() => (grupo.minha ? removerPropriaReacao(m.id) : reagir(m.id, grupo.emoji))}
+                            title={grupo.nomes.join(', ')}
+                            className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs transition ${
+                              grupo.minha
+                                ? 'border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-950'
+                                : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                            }`}
+                          >
+                            <span>{grupo.emoji}</span>
+                            {grupo.contagem > 1 && <span className="tabular-nums">{grupo.contagem}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {copiadoId === m.id && (
+                      <span className="absolute -top-2 right-1 rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-white shadow dark:bg-zinc-100 dark:text-zinc-900">
+                        Copiado
+                      </span>
+                    )}
+
+                    {!modoSelecao && (
+                      <div className={`absolute -top-1.5 ${m.direcao === 'saida' ? '-left-1.5' : '-right-1.5'}`}>
+                        <MenuMensagem
+                          copiavel={Boolean(m.conteudo)}
+                          onCopiar={() => copiarMensagem(m)}
+                          onResponder={() => iniciarResposta(m)}
+                          onReagir={(emoji) => reagir(m.id, emoji)}
+                          onEncaminhar={() => abrirEncaminhar([m.id])}
+                          onSelecionar={() => iniciarSelecao(m.id)}
+                          onExcluir={() => excluirMensagens([m.id])}
+                        />
+                      </div>
+                    )}
+                    </div>
                   </li>
                 )
               })}
@@ -1218,6 +1687,7 @@ export function PainelConversa({ card, onFechar }: Props) {
           onSubmit={(e) => {
             e.preventDefault()
             const formData = new FormData(e.currentTarget)
+            if (respostaAtiva) formData.set('respostaAId', respostaAtiva.id)
             if (imagemSelecionada) {
               formData.set('arquivo', imagemSelecionada.arquivo)
               startTransition(() => formActionImagem(formData))
@@ -1246,6 +1716,35 @@ export function PainelConversa({ card, onFechar }: Props) {
             <p role="alert" className="text-xs text-red-600 dark:text-red-400">
               {estadoEnvio?.erro ?? estadoEnvioImagem?.erro ?? estadoEnvioDocumento?.erro ?? estadoEnvioAudio?.erro ?? erroGravacao}
             </p>
+          )}
+          {respostaAtiva && (
+            <div className="flex items-center gap-2 rounded-md border border-zinc-200 border-l-4 border-l-green-600 p-2 dark:border-zinc-700">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-green-700 dark:text-green-400">
+                  {respostaAtiva.direcao === 'saida' ? 'Você' : card.clienteNome}
+                </p>
+                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                  {respostaAtiva.conteudo ??
+                    (respostaAtiva.tipo === 'imagem'
+                      ? 'Imagem'
+                      : respostaAtiva.tipo === 'documento'
+                        ? 'Documento'
+                        : respostaAtiva.tipo === 'audio'
+                          ? 'Áudio'
+                          : '')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRespostaAtiva(null)}
+                aria-label="Cancelar resposta"
+                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
+                  <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
+                </svg>
+              </button>
+            </div>
           )}
           {imagemSelecionada && (
             <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
@@ -1391,5 +1890,14 @@ export function PainelConversa({ card, onFechar }: Props) {
         </form>
       </div>
     </dialog>
+    {modalEncaminhar && conversaId && (
+      <ModalEncaminhar
+        mensagemIds={modalEncaminhar.mensagemIds}
+        conversaAtualId={conversaId}
+        onFechar={() => setModalEncaminhar(null)}
+        onEncaminhado={aoEncaminhado}
+      />
+    )}
+    </>
   )
 }

@@ -35,6 +35,7 @@ const MENU: (ItemSimples | Grupo)[] = [
     filhos: [
       { href: '/funil', rotulo: 'Kanban' },
       { href: '/funil/metricas', rotulo: 'Métricas' },
+      { href: '/funil/leads', rotulo: 'Leads' },
     ],
   },
   { href: '/clientes', rotulo: 'Clientes', Icone: IconeClientes },
@@ -65,6 +66,7 @@ const MENU: (ItemSimples | Grupo)[] = [
     filhos: [
       { href: '/configuracoes/usuarios', rotulo: 'Usuários', somenteGerente: true },
       { href: '/configuracoes/etapas', rotulo: 'Etapas', somenteGerente: true },
+      { href: '/configuracoes/nichos', rotulo: 'Nichos' },
       { href: '/configuracoes/servicos', rotulo: 'Serviços' },
       { href: '/configuracoes/agenda', rotulo: 'Agenda Google', somenteGerente: true },
     ],

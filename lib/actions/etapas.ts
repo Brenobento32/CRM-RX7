@@ -7,6 +7,7 @@ import { z } from 'zod'
 import {
   criarEtapa,
   definirAtivoEtapa,
+  definirEtapaInicial,
   editarEtapa,
   excluirEtapa,
   moverEtapa,
@@ -98,4 +99,9 @@ export async function definirAtivoEtapaAction(funilId: string, id: string, ativo
 export async function excluirEtapaAction(funilId: string, id: string): Promise<void> {
   if (!uuid.safeParse(id).success) return
   await concluir(funilId, await excluirEtapa(id))
+}
+
+export async function definirEtapaInicialAction(funilId: string, id: string): Promise<void> {
+  if (!uuid.safeParse(id).success) return
+  await concluir(funilId, await definirEtapaInicial(id))
 }

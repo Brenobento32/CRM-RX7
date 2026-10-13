@@ -4,6 +4,7 @@ import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import {
   definirAtivoEtapaAction,
+  definirEtapaInicialAction,
   excluirEtapaAction,
   moverEtapaAction,
 } from '@/lib/actions/etapas'
@@ -67,6 +68,14 @@ export function TabelaEtapas({
                         recuperação
                       </span>
                     )}
+                    {e.etapaInicial && (
+                      <span
+                        title="Leads automáticos (formulário) e reativação de lead arquivado entram por aqui"
+                        className="rounded bg-sky-100 px-1.5 py-0.5 text-xs font-normal text-sky-700 dark:bg-sky-950 dark:text-sky-400"
+                      >
+                        inicial
+                      </span>
+                    )}
                   </span>
                 </td>
                 <td className="px-4 py-3">{ROTULO_TIPO_ETAPA[e.tipo]}</td>
@@ -103,6 +112,17 @@ export function TabelaEtapas({
                 </td>
                 <td className="px-4 py-3">
                   <span className="flex justify-end gap-2">
+                    {e.tipo === 'aberta' && e.ativo && !e.etapaInicial && (
+                      <form action={definirEtapaInicialAction.bind(null, funilId, e.id)}>
+                        <button
+                          type="submit"
+                          title="Leads automáticos e reativação passam a entrar por esta etapa"
+                          className={botaoSecundarioClass}
+                        >
+                          Definir inicial
+                        </button>
+                      </form>
+                    )}
                     <Link href={`/configuracoes/funis/${funilId}/etapas/${e.id}/editar`} className={botaoSecundarioClass}>
                       {e.sistema ? 'Cor' : 'Editar'}
                     </Link>

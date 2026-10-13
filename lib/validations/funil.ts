@@ -168,13 +168,6 @@ export const perdaSchema = z.object({
 
 export type PerdaInput = z.output<typeof perdaSchema>
 
-/** Rótulo da origem da negociação — card e painel lateral do Kanban. */
-export const ROTULO_ORIGEM: Record<Enums['origem_negociacao'], string> = {
-  formulario: 'Formulário',
-  whatsapp: 'WhatsApp',
-  manual: 'Manual',
-}
-
 /** Modal "Desqualificar lead" (drawer do Kanban) — motivo obrigatório. */
 export const desqualificarSchema = z.object({
   negociacao_id: z.uuid(),
@@ -187,10 +180,28 @@ export const desqualificarSchema = z.object({
 
 export type DesqualificarInput = z.output<typeof desqualificarSchema>
 
+/** Modal "Excluir lead" (tela de Leads, aba Arquivados) — motivo obrigatório. */
+export const excluirLeadSchema = z.object({
+  negociacao_id: z.uuid(),
+  motivo: z
+    .string()
+    .trim()
+    .min(3, 'Descreva o motivo da exclusão.')
+    .max(2000, 'Máximo de 2000 caracteres.'),
+})
+
+export type ExcluirLeadInput = z.output<typeof excluirLeadSchema>
+
 /** Campo vazio de `<select>` (ex.: "Outros"/"Não avaliada") vira `null`. */
 const vazioParaNulo = (v: string) => (v.trim() === '' ? null : v.trim())
 
 export const ORIGENS_NEGOCIACAO = Constants.public.Enums.origem_negociacao
+
+export const ROTULO_ORIGEM: Record<Enums['origem_negociacao'], string> = {
+  formulario: 'Formulário',
+  whatsapp: 'WhatsApp',
+  manual: 'Manual',
+}
 
 /**
  * "Dados comerciais" editáveis na ficha do cliente (item 3/4 do refinamento):
