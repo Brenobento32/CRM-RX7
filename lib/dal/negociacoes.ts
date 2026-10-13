@@ -140,6 +140,95 @@ export async function salvarNegociacao(id: string, n: EdicaoNegociacaoInput): Pr
   return error ? traduzirErro(error) : { ok: true }
 }
 
+export type ResultadoArquivarNegociacao = { ok: true } | { ok: false; mensagem: string }
+
+/**
+ * "Desqualificar lead" — soft delete (`arquivada_em`), nunca apaga a
+ * negociação, o cliente, conversas ou histórico. O card some do Kanban
+ * porque `funil_cards` filtra `arquivada_em is null`. Motivo obrigatório
+ * (pedido explícito do fluxo do drawer); o banco também recusa
+ * (`negociacoes_motivo_arquivamento_obrigatorio`).
+ */
+export async function arquivarNegociacao(id: string, motivo: string): Promise<ResultadoArquivarNegociacao> {
+  const motivoLimpo = motivo.trim()
+  if (!motivoLimpo) return { ok: false, mensagem: 'Informe o motivo da desqualificação.' }
+
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('negociacoes')
+    .update({ arquivada_em: new Date().toISOString(), motivo_arquivamento: motivoLimpo })
+    .eq('id', id)
+    .is('arquivada_em', null)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+    }
+    if (error.code === '23514') {
+      return { ok: false, mensagem: 'Informe o motivo da desqualificação.' }
+    }
+    console.error('Erro ao arquivar negociação', error)
+    return { ok: false, mensagem: 'Não foi possível desqualificar o lead. Tente novamente.' }
+  }
+
+  return data ? { ok: true } : { ok: false, mensagem: 'Lead não encontrado ou já está arquivado.' }
+}
+
+export type DadosComerciaisInput = {
+  negociacaoId: string
+  nichoId: string | null
+  origem: Enums['origem_negociacao']
+  temperatura: Temperatura | null
+  valorEstimado: string | null
+}
+
+export type ResultadoDadosComerciais = { ok: true } | { ok: false; mensagem: string }
+
+/**
+ * "Dados comerciais" da ficha (item 3/4 do refinamento) — nicho, origem,
+ * temperatura e proposta/valor num único UPDATE. `valor_estimado` e
+ * `temperatura` são recusados pelo banco (trigger
+ * `negociacoes_encerrada_somente_leitura`) quando a negociação já está
+ * encerrada (ganha/perdida); a ficha também desabilita esses dois campos
+ * nesse caso, então chegar aqui com eles alterados só acontece se o usuário
+ * contornar a UI — o banco é quem garante a regra de qualquer forma.
+ */
+export async function atualizarDadosComerciaisNegociacao(
+  input: DadosComerciaisInput,
+): Promise<ResultadoDadosComerciais> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('negociacoes')
+    .update({
+      nicho_id: input.nichoId,
+      origem: input.origem,
+      temperatura: input.temperatura,
+      valor_estimado: input.valorEstimado === null ? null : Number(input.valorEstimado),
+    })
+    .eq('id', input.negociacaoId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    if (error.code === '42501') {
+      return { ok: false, mensagem: 'Você não tem permissão para editar esta negociação.' }
+    }
+    if (error.code === '23514' && error.message.startsWith('Negociação encerrada')) {
+      return { ok: false, mensagem: NEGOCIACAO_ENCERRADA }
+    }
+    console.error('Erro ao salvar dados comerciais', error)
+    return { ok: false, mensagem: 'Não foi possível salvar os dados comerciais. Tente novamente.' }
+  }
+
+  return data ? { ok: true } : { ok: false, mensagem: 'Negociação não encontrada.' }
+}
+
 export type DetalhesLeadNegociacao = {
   clienteEmail: string | null
   clienteInstagram: string | null

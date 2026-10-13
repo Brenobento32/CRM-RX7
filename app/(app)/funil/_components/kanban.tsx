@@ -33,8 +33,10 @@ import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
 
 import { CardArrastavel, CardConteudo } from './card-negociacao'
 import { DrawerNegociacao } from './drawer-negociacao'
+import { ModalDesqualificar } from './modal-desqualificar'
 import { ModalEdicaoRapida } from './modal-edicao-rapida'
 import { ModalFechamento } from './modal-fechamento'
+import { ModalFichaCliente } from './modal-ficha-cliente'
 import { ModalPerda } from './modal-perda'
 import { PainelConversa } from './painel-conversa'
 import { useRolagemHorizontal } from './rolagem-horizontal'
@@ -155,6 +157,8 @@ export function Kanban({
   const [edicaoRapida, setEdicaoRapida] = useState<CardFunil | null>(null)
   const [drawer, setDrawer] = useState<CardFunil | null>(null)
   const [conversa, setConversa] = useState<CardFunil | null>(null)
+  const [ficha, setFicha] = useState<CardFunil | null>(null)
+  const [desqualificar, setDesqualificar] = useState<CardFunil | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, startTransition] = useTransition()
   const inicioArraste = useRef<{ colunas: Colunas; etapa: string } | null>(null)
@@ -401,10 +405,27 @@ export function Kanban({
           onEditar={setEdicaoRapida}
           onMover={moverPara}
           onAbrirConversa={setConversa}
+          onAbrirFicha={setFicha}
+          onDesqualificar={setDesqualificar}
         />
       )}
 
       {conversa && <PainelConversa card={conversa} onFechar={() => setConversa(null)} />}
+
+      {ficha && <ModalFichaCliente card={ficha} etapas={etapas} onFechar={() => setFicha(null)} />}
+
+      {desqualificar && (
+        <ModalDesqualificar
+          card={desqualificar}
+          onCancelar={() => setDesqualificar(null)}
+          onConcluido={() => {
+            setDesqualificar(null)
+            // O lead some do Kanban (funil_cards filtra arquivada_em) —
+            // manter o drawer aberto mostraria um card que já não existe mais ali.
+            setDrawer(null)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -31,6 +31,7 @@ export type ClienteDetalhe = ClienteResumo & {
   cnpj: string | null
   responsavel: string | null
   cargo: string | null
+  instagram: string | null
   observacoes: string | null
   owner_id: string
   updated_at: string
@@ -119,7 +120,7 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
     .from('clientes')
     .select(
       `id, tipo_cliente, nome, empresa, cpf, cnpj, telefone, whatsapp, email,
-       responsavel, cargo, observacoes, owner_id, created_at, updated_at,
+       responsavel, cargo, instagram, observacoes, owner_id, created_at, updated_at,
        dono:profiles!clientes_owner_id_fkey(nome),
        negociacoes(
          id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento,
@@ -208,6 +209,7 @@ export async function criarCliente(input: ClienteInput): Promise<ResultadoEscrit
     p_cargo: input.cargo ?? undefined,
     p_observacoes: input.observacoes ?? undefined,
     p_owner_id: ownerId,
+    p_instagram: input.instagram ?? undefined,
   })
 
   if (error) return traduzirErro(error)

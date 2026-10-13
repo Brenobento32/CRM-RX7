@@ -68,6 +68,7 @@ export const clienteSchema = z
       .transform((v) => (v === '' ? null : v)),
     responsavel: textoOpcional(200),
     cargo: textoOpcional(120),
+    instagram: textoOpcional(120),
     observacoes: textoOpcional(5000),
     owner_id: z
       .string()
@@ -109,6 +110,7 @@ export const CAMPOS_CLIENTE = [
   'email',
   'responsavel',
   'cargo',
+  'instagram',
   'observacoes',
   'owner_id',
 ] as const

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 
 import type { EstadoFormCliente } from '@/lib/actions/clientes'
 import {
@@ -12,16 +12,27 @@ import {
 
 type Valores = Partial<Record<CampoCliente, string>>
 
+type EstadoComOk = EstadoFormCliente & { ok?: boolean }
+
 type Props = {
   action: (
     estado: EstadoFormCliente | undefined,
     formData: FormData,
-  ) => Promise<EstadoFormCliente>
+  ) => Promise<EstadoComOk>
   valoresIniciais: Valores
   /** Só preenchido para gerente: permite escolher a carteira do cliente. */
   responsaveis: { id: string; nome: string; role: string }[]
   rotuloEnviar: string
-  cancelarHref: string
+  /** Página de destino do "Cancelar" — ausente quando `onCancelar` é usado (ficha dentro de um `<dialog>`). */
+  cancelarHref?: string
+  /** "Cancelar" fecha o diálogo em vez de navegar — usado dentro do modal de ficha no Kanban. */
+  onCancelar?: () => void
+  /**
+   * Chamado quando a action devolve `ok: true` sem redirecionar — só a
+   * variante "rápida" (modal de ficha) faz isso; a página própria de
+   * edição usa `redirect()` na action e nunca passa por aqui.
+   */
+  onSucesso?: () => void
 }
 
 const inputClass =
@@ -33,9 +44,16 @@ export function ClienteForm({
   responsaveis,
   rotuloEnviar,
   cancelarHref,
+  onCancelar,
+  onSucesso,
 }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores ?? valoresIniciais
+
+  // Só a variante "rápida" (modal de ficha) devolve `ok: true` sem redirecionar.
+  useEffect(() => {
+    if (estado?.ok) onSucesso?.()
+  }, [estado, onSucesso])
 
   // O tipo muda quais campos aparecem, então é o único campo controlado.
   const [tipo, setTipo] = useState(valores.tipo_cliente || 'pessoa_fisica')
@@ -126,6 +144,9 @@ export function ClienteForm({
           {campo('whatsapp', 'WhatsApp', { type: 'tel', placeholder: '(11) 99999-8888' })}
           {campo('email', 'E-mail', { type: 'email' })}
         </div>
+        <div className="grid gap-5 sm:grid-cols-3">
+          {campo('instagram', 'Instagram', { placeholder: '@usuario' })}
+        </div>
       </section>
 
       <div className="space-y-1.5">
@@ -178,12 +199,22 @@ export function ClienteForm({
         >
           {pendente ? 'Salvando…' : rotuloEnviar}
         </button>
-        <Link
-          href={cancelarHref}
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-        >
-          Cancelar
-        </Link>
+        {onCancelar ? (
+          <button
+            type="button"
+            onClick={onCancelar}
+            className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          >
+            Cancelar
+          </button>
+        ) : (
+          <Link
+            href={cancelarHref ?? '#'}
+            className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          >
+            Cancelar
+          </Link>
+        )}
       </div>
     </form>
   )

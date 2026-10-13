@@ -11,12 +11,21 @@ import {
 } from '@/lib/dal/funil'
 import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
 import {
+  arquivarNegociacao,
+  atualizarDadosComerciaisNegociacao,
   listarRespostasLead,
   obterDetalhesLeadNegociacao,
   type DetalhesLeadNegociacao,
   type RespostaLead,
 } from '@/lib/dal/negociacoes'
-import { fechamentoSchema, moverSchema, perdaSchema } from '@/lib/validations/funil'
+import { listarNichosAtivos, type Nicho } from '@/lib/dal/nichos'
+import {
+  dadosComerciaisSchema,
+  desqualificarSchema,
+  fechamentoSchema,
+  moverSchema,
+  perdaSchema,
+} from '@/lib/validations/funil'
 import type { LinhaHistoricoBruta } from '@/lib/utils/historico'
 
 export type EstadoModalFunil = {
@@ -119,4 +128,61 @@ export async function obterRespostasLeadAction(negociacaoId: string): Promise<Re
 export async function obterDetalhesLeadAction(negociacaoId: string): Promise<DetalhesLeadNegociacao | null> {
   if (!z.uuid().safeParse(negociacaoId).success) return null
   return obterDetalhesLeadNegociacao(negociacaoId)
+}
+
+/**
+ * "Desqualificar lead" — modal visual próprio no drawer (`ModalDesqualificar`,
+ * `useActionState`), nunca `prompt()`/`confirm()` nativo.
+ */
+export async function arquivarNegociacaoAction(
+  _estado: EstadoModalFunil | undefined,
+  formData: FormData,
+): Promise<EstadoModalFunil> {
+  const parsed = desqualificarSchema.safeParse(lerCampos(formData, ['negociacao_id', 'motivo']))
+  if (!parsed.success) {
+    return { campos: z.flattenError(parsed.error).fieldErrors }
+  }
+
+  const resultado = await arquivarNegociacao(parsed.data.negociacao_id, parsed.data.motivo)
+  if (!resultado.ok) return { erro: resultado.mensagem }
+
+  revalidatePath('/funil')
+  revalidatePath('/funil/leads')
+  return { ok: true }
+}
+
+/** Seletor de nicho da ficha do cliente (item 3 do refinamento) — só nichos ativos. */
+export async function listarNichosAtivosAction(): Promise<Nicho[]> {
+  return listarNichosAtivos()
+}
+
+/**
+ * "Dados comerciais" da ficha do cliente (nicho/origem/temperatura/proposta)
+ * — mesma pilha `useActionState` do resto do funil. Salvar fecha a ficha e
+ * revalida `/funil` (a borda do card, que é o nicho, atualiza sem reload);
+ * falhar mantém a ficha aberta com o erro.
+ */
+export async function atualizarDadosComerciaisAction(
+  _estado: EstadoModalFunil | undefined,
+  formData: FormData,
+): Promise<EstadoModalFunil> {
+  const parsed = dadosComerciaisSchema.safeParse(
+    lerCampos(formData, ['negociacao_id', 'nicho_id', 'origem', 'temperatura', 'valor_estimado']),
+  )
+  if (!parsed.success) {
+    return { campos: z.flattenError(parsed.error).fieldErrors }
+  }
+
+  const resultado = await atualizarDadosComerciaisNegociacao({
+    negociacaoId: parsed.data.negociacao_id,
+    nichoId: parsed.data.nicho_id,
+    origem: parsed.data.origem,
+    temperatura: parsed.data.temperatura,
+    valorEstimado: parsed.data.valor_estimado,
+  })
+  if (!resultado.ok) return { erro: resultado.mensagem }
+
+  revalidatePath('/funil')
+  revalidatePath('/funil/leads')
+  return { ok: true }
 }
