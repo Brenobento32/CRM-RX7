@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "setup": "node scripts/setup.mts",
     "db:types": "node scripts/gerar-tipos.mts",
     "db:types:local": "node scripts/gerar-tipos.mts --local",
     "importar:planilha": "node scripts/importar-planilha.mts",
