@@ -7,7 +7,14 @@ import Link from 'next/link'
 import type { CardFunil } from '@/lib/dal/funil'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { corDeNicho, type EtapaKanban } from '@/lib/utils/etapas'
-import { amanhaSaoPaulo, formatarDataRelativaHora, formatarDia, formatarMoeda, hojeSaoPaulo } from '@/lib/utils/formatacao'
+import {
+  amanhaSaoPaulo,
+  formatarDataRelativaHora,
+  formatarDia,
+  formatarMoeda,
+  formatarTempoParado,
+  hojeSaoPaulo,
+} from '@/lib/utils/formatacao'
 import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
@@ -31,13 +38,6 @@ const PILL_ORIGEM: Record<CardFunil['origem'], string> = {
 function resumoCampanha(atribuicao: CardFunil['atribuicao']): string | null {
   if (!atribuicao) return null
   return atribuicao.campaign_name || atribuicao.campaign_id || null
-}
-
-/** "Parado hoje" / "Parado há 1 dia" / "Parado há N dias" — item 1.5, mesmo `diasNaEtapa` do resto do CRM. */
-function textoParado(dias: number): string {
-  if (dias <= 0) return 'Parado hoje'
-  if (dias === 1) return 'Parado há 1 dia'
-  return `Parado há ${dias} dias`
 }
 
 /**
@@ -183,13 +183,13 @@ export function CardConteudo({
         )}
       </div>
 
-      {/* 5: tempo parado — sempre visível, mesmo `diasNaEtapa` do resto do CRM (item 1.5). */}
+      {/* 5: tempo parado — sempre visível, calculado a partir de `data_entrada_etapa` (item 1.5). */}
       <p
         className={`mt-2 flex items-center gap-1 text-xs ${
           card.parado ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-zinc-500 dark:text-zinc-400'
         }`}
       >
-        <span aria-hidden>⏱</span> {textoParado(card.diasNaEtapa)}
+        <span aria-hidden>⏱</span> {formatarTempoParado(card.msNaEtapa)}
       </p>
 
       {/* 6: telefone — só quando existir (item 1.6). */}

@@ -131,6 +131,25 @@ export function formatarTamanhoArquivo(bytes: number): string {
   return `${mb.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`
 }
 
+/**
+ * Milissegundos desde a entrada na etapa atual → "Parado há 10 min" / "Parado
+ * há 1h" / "Parado há 2 dias" — card do Kanban. Unidade (ms) e arredondamento
+ * (sempre para baixo, mínimo "1 min") são propositalmente diferentes de
+ * `formatarDuracao` (segundos, "3,2 dias") e `formatarDuracaoHistorico`
+ * (lib/utils/historico.ts, "2d 5h20") — cada um serve um lugar diferente do
+ * CRM, não reaproveitar entre eles.
+ */
+export function formatarTempoParado(ms: number): string {
+  const minutos = Math.floor(Math.max(0, ms) / 60_000)
+  if (minutos < 60) return `Parado há ${Math.max(minutos, 1)} min`
+
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `Parado há ${horas}h`
+
+  const dias = Math.floor(horas / 24)
+  return `Parado há ${dias} ${dias === 1 ? 'dia' : 'dias'}`
+}
+
 /** Duração em segundos → "menos de 1 h", "5 h", "3,2 dias". */
 export function formatarDuracao(segundos: number): string {
   const horas = segundos / 3600

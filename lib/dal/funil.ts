@@ -73,8 +73,8 @@ export type CardFunil = {
   formularioNome: string | null
   funilNome: string | null
   atribuicao: AtribuicaoCampanha | null
-  /** Dias inteiros na etapa atual, calculados no servidor (sem divergir na hidratação). */
-  diasNaEtapa: number
+  /** Milissegundos desde a entrada na etapa atual (`data_entrada_etapa`), calculados no servidor (sem divergir na hidratação). */
+  msNaEtapa: number
   /** Etapa aberta e há mais de DIAS_PARADO dias nela — mesma regra de `funil_metricas`. */
   parado: boolean
   /** `data` é AAAA-MM-DD (dia, sem hora). */
@@ -110,6 +110,7 @@ function paraCardFunil(r: LinhaFunilCards, agora: number, criadoEm: Map<string, 
   // a consulta em lote abaixo não trouxesse o id por algum motivo — nunca
   // deveria faltar, já que os ids vêm da mesma linha.
   const criadoEmLead = criadoEm.get(r.id) ?? r.data_entrada_etapa
+  const msNaEtapa = agora - new Date(r.data_entrada_etapa).getTime()
 
   return [
     {
@@ -137,10 +138,8 @@ function paraCardFunil(r: LinhaFunilCards, agora: number, criadoEm: Map<string, 
       funilNome: r.funil_nome,
       atribuicao,
       dataChegada: calcularDataChegada(atribuicao?.data_formulario, criadoEmLead),
-      diasNaEtapa: Math.floor((agora - new Date(r.data_entrada_etapa).getTime()) / 86_400_000),
-      parado:
-        r.etapa_tipo === 'aberta' &&
-        agora - new Date(r.data_entrada_etapa).getTime() > DIAS_PARADO * 86_400_000,
+      msNaEtapa,
+      parado: r.etapa_tipo === 'aberta' && msNaEtapa > DIAS_PARADO * 86_400_000,
       proximaAcao:
         r.proxima_acao_titulo && r.proxima_acao_data
           ? { titulo: r.proxima_acao_titulo, data: r.proxima_acao_data }
