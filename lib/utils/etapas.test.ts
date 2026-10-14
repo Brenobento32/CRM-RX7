@@ -7,6 +7,8 @@ import {
   corDeNicho,
   COR_AGENDA_PADRAO,
   PALETA_ETAPAS,
+  podeMoverNegociacaoColaborador,
+  podeVerEtapaColaborador,
   sdrPodeMoverPara,
   TEXTO_SOBRE_COR,
 } from '@/lib/utils/etapas'
@@ -146,5 +148,129 @@ describe('sdrPodeMoverPara', () => {
     // olha o nome/rótulo, só a posição.
     expect(sdrPodeMoverPara(10, 20, 20)).toBe(true)
     expect(sdrPodeMoverPara(20, 30, 20)).toBe(false)
+  })
+})
+
+describe('podeVerEtapaColaborador', () => {
+  it('1. GERENTE vê qualquer etapa, mesmo sem acesso ao funil nem permissão', () => {
+    expect(podeVerEtapaColaborador({ papel: 'gerente', acessoFunil: false, podeVerEtapa: false })).toBe(true)
+  })
+
+  it('7/17. owner_id não é parâmetro desta função — estruturalmente não há como ele conceder bypass (SDR e CLOSER)', () => {
+    // Não existe campo "dono"/"owner"/"responsavel" na assinatura: a única
+    // forma de obter `true` pra SDR/CLOSER é acessoFunil && podeVerEtapa.
+    expect(podeVerEtapaColaborador({ papel: 'sdr', acessoFunil: false, podeVerEtapa: false })).toBe(false)
+    expect(podeVerEtapaColaborador({ papel: 'closer', acessoFunil: false, podeVerEtapa: false })).toBe(false)
+  })
+
+  it('2. SDR/CLOSER sem acesso ao funil não veem, mesmo com a etapa marcada pode_ver', () => {
+    expect(podeVerEtapaColaborador({ papel: 'sdr', acessoFunil: false, podeVerEtapa: true })).toBe(false)
+    expect(podeVerEtapaColaborador({ papel: 'closer', acessoFunil: false, podeVerEtapa: true })).toBe(false)
+  })
+
+  it('3. SDR/CLOSER com acesso ao funil mas SEM pode_ver nesta etapa não veem — acesso ao funil não herda pra etapas', () => {
+    expect(podeVerEtapaColaborador({ papel: 'sdr', acessoFunil: true, podeVerEtapa: false })).toBe(false)
+    expect(podeVerEtapaColaborador({ papel: 'closer', acessoFunil: true, podeVerEtapa: false })).toBe(false)
+  })
+
+  it('4/6. SDR/CLOSER com acesso ao funil E pode_ver na etapa veem', () => {
+    expect(podeVerEtapaColaborador({ papel: 'sdr', acessoFunil: true, podeVerEtapa: true })).toBe(true)
+    expect(podeVerEtapaColaborador({ papel: 'closer', acessoFunil: true, podeVerEtapa: true })).toBe(true)
+  })
+})
+
+describe('podeMoverNegociacaoColaborador', () => {
+  const SEM_HANDOFF = null
+
+  it('13. GERENTE move qualquer etapa, mesmo sem permissão nenhuma', () => {
+    expect(
+      podeMoverNegociacaoColaborador({
+        papel: 'gerente',
+        podeMoverOrigem: false,
+        podeMoverDestino: false,
+        ordemOrigem: 1000,
+        ordemDestino: 5000,
+        ordemLimiteHandoffSdr: 2000,
+      }),
+    ).toBe(true)
+  })
+
+  it('7/8/17. owner_id não é parâmetro — sem pode_mover configurado, SDR/CLOSER nunca movem, mesmo imaginando que "seriam donos"', () => {
+    const base = { ordemOrigem: 1000, ordemDestino: 2000, ordemLimiteHandoffSdr: SEM_HANDOFF }
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'closer', podeMoverOrigem: false, podeMoverDestino: false })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'sdr', podeMoverOrigem: false, podeMoverDestino: false })).toBe(false)
+  })
+
+  it('10. não-gerente sem pode_mover na origem OU no destino não move (SDR e CLOSER)', () => {
+    const base = { ordemOrigem: 1000, ordemDestino: 2000, ordemLimiteHandoffSdr: SEM_HANDOFF }
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'closer', podeMoverOrigem: true, podeMoverDestino: false })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'closer', podeMoverOrigem: false, podeMoverDestino: true })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'sdr', podeMoverOrigem: true, podeMoverDestino: false })).toBe(false)
+  })
+
+  it('9. com pode_mover na origem E no destino, CLOSER move (sem handoff envolvido)', () => {
+    expect(
+      podeMoverNegociacaoColaborador({
+        papel: 'closer',
+        podeMoverOrigem: true,
+        podeMoverDestino: true,
+        ordemOrigem: 3000,
+        ordemDestino: 4000,
+        ordemLimiteHandoffSdr: SEM_HANDOFF,
+      }),
+    ).toBe(true)
+  })
+
+  it('12. CLOSER não é afetado pelo teto do handoff do SDR, mesmo cruzando a mesma ordem', () => {
+    expect(
+      podeMoverNegociacaoColaborador({
+        papel: 'closer',
+        podeMoverOrigem: true,
+        podeMoverDestino: true,
+        ordemOrigem: 1000,
+        ordemDestino: 3000,
+        ordemLimiteHandoffSdr: 2000, // seria o limite SE fosse SDR — closer ignora
+      }),
+    ).toBe(true)
+  })
+
+  it('11. SDR com pode_mover=true nas duas etapas AINDA é bloqueado pelo teto do handoff — permissão não burla a regra comercial', () => {
+    expect(
+      podeMoverNegociacaoColaborador({
+        papel: 'sdr',
+        podeMoverOrigem: true,
+        podeMoverDestino: true, // configurado "errado" de propósito, pra provar que não adianta
+        ordemOrigem: 1000,
+        ordemDestino: 3000,
+        ordemLimiteHandoffSdr: 2000,
+      }),
+    ).toBe(false)
+  })
+
+  it('SDR dentro do teto, com permissão, move normalmente', () => {
+    expect(
+      podeMoverNegociacaoColaborador({
+        papel: 'sdr',
+        podeMoverOrigem: true,
+        podeMoverDestino: true,
+        ordemOrigem: 1000,
+        ordemDestino: 2000,
+        ordemLimiteHandoffSdr: 2000,
+      }),
+    ).toBe(true)
+  })
+
+  it('9. visualizar não concede movimentar — pode_ver não é parâmetro desta função', () => {
+    // podeMoverNegociacaoColaborador nunca recebe podeVerEtapa como parâmetro:
+    // é estruturalmente impossível "ver" virar "mover" por engano aqui.
+    const resultado = podeMoverNegociacaoColaborador({
+      papel: 'closer',
+      podeMoverOrigem: false,
+      podeMoverDestino: false,
+      ordemOrigem: 1000,
+      ordemDestino: 2000,
+      ordemLimiteHandoffSdr: SEM_HANDOFF,
+    })
+    expect(resultado).toBe(false)
   })
 })

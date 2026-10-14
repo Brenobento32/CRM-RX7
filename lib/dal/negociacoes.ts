@@ -3,6 +3,7 @@ import 'server-only'
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { verificarPermissaoMovimento } from '@/lib/dal/funil'
 import type { Servico } from '@/lib/dal/servicos'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
@@ -251,9 +252,15 @@ export async function arquivarNegociacao(id: string, motivo: string): Promise<Re
  * clara em vez de mover o lead pra outra coluna silenciosamente. Dois passos
  * (achar a etapa, depois `update`) em vez de uma função SQL: é lógica de uma
  * tabela só, mesmo estilo de `marcarPerdida` em lib/dal/funil.ts.
+ *
+ * Mesma pré-checagem de `moverNegociacao`/`marcarPerdida`: o UPDATE abaixo
+ * muda etapa_id, então passa pela RLS de sempre (owner_id/gerente) MAIS o
+ * trigger `negociacoes_protege_movimentacao_por_permissao`
+ * (20261014170000) — a pré-checagem aqui só evita o round-trip e dá a
+ * mensagem certa.
  */
 export async function reativarNegociacao(id: string): Promise<ResultadoArquivarNegociacao> {
-  await getUsuarioAtual()
+  const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data: negociacao, error: erroNegociacao } = await supabase
@@ -272,7 +279,7 @@ export async function reativarNegociacao(id: string): Promise<ResultadoArquivarN
 
   const { data: etapa, error: erroEtapa } = await supabase
     .from('etapas_funil')
-    .select('id, nome')
+    .select('id, nome, ordem')
     .eq('funil_id', negociacao.funil_id)
     .eq('etapa_inicial', true)
     .eq('ativo', true)
@@ -288,6 +295,18 @@ export async function reativarNegociacao(id: string): Promise<ResultadoArquivarN
       ok: false,
       mensagem: 'O funil não tem uma etapa inicial ativa para receber o lead reativado.',
     }
+  }
+
+  if (usuario.role !== 'gerente') {
+    const autorizado = await verificarPermissaoMovimento(
+      supabase,
+      usuario,
+      id,
+      negociacao.funil_id,
+      etapa.id,
+      Number(etapa.ordem),
+    )
+    if (!autorizado.ok) return autorizado
   }
 
   const { data, error } = await supabase

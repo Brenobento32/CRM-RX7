@@ -163,3 +163,66 @@ export function sdrPodeMoverPara(
   if (ordemOrigem >= ordemLimite) return false
   return ordemDestino <= ordemLimite
 }
+
+/**
+ * Tipo solto (não importado de `lib/validations/usuario.ts`) pra não criar
+ * import circular — `usuario.ts` já importa `CORES_ETAPA` deste arquivo.
+ */
+type PapelColaborador = 'gerente' | 'closer' | 'sdr'
+
+/**
+ * Decide se o usuário atual pode VER uma etapa — espelha exatamente a
+ * policy de SELECT (`is_gerente() or pode_ver_etapa(...)`) da migration
+ * `20261014160000_permissoes_colaborador.sql`. Pura, só pra UX no Kanban
+ * (esconder coluna/card) — a RLS é a última palavra.
+ *
+ * Gerente sempre vê tudo. Pra qualquer outro papel (SDR/CLOSER), owner_id
+ * NÃO é considerado aqui — de propósito: a tabela de permissões é a ÚNICA
+ * fonte de verdade de acesso pra quem não é gerente. Depende só de
+ * `acessoFunil` (linha `etapa_id is null`) E `podeVerEtapa` (linha daquela
+ * etapa específica) — as duas, nunca uma só; sem nenhuma permissão
+ * configurada, o resultado é sempre `false`.
+ */
+export function podeVerEtapaColaborador(input: {
+  papel: PapelColaborador
+  acessoFunil: boolean
+  podeVerEtapa: boolean
+}): boolean {
+  if (input.papel === 'gerente') return true
+  return input.acessoFunil && input.podeVerEtapa
+}
+
+/**
+ * Decide se o usuário atual pode MOVER uma negociação de uma etapa de
+ * `ordemOrigem` pra uma de `ordemDestino` — espelha o RPC
+ * `mover_negociacao()` da mesma migration, MAIS o teto do handoff SDR
+ * (`sdrPodeMoverPara`), que nunca é relaxado por nenhuma permissão
+ * configurada (mesmo que o gerente libere "pode_mover" numa etapa além do
+ * handoff para um SDR, por engano, o teto continua valendo).
+ *
+ * `podeMoverOrigem`/`podeMoverDestino`: linha de permissão daquela etapa
+ * específica (`pode_mover`), já combinada com o acesso ao funil — quem monta
+ * esses dois booleanos (DAL/RPC) já aplicou a mesma regra de
+ * `podeVerEtapaColaborador` (funil + etapa), só que para `pode_mover`.
+ * Owner_id NÃO entra nesta decisão — mesma mudança de modelo de
+ * `podeVerEtapaColaborador`.
+ */
+export function podeMoverNegociacaoColaborador(input: {
+  papel: PapelColaborador
+  podeMoverOrigem: boolean
+  podeMoverDestino: boolean
+  ordemOrigem: number
+  ordemDestino: number
+  ordemLimiteHandoffSdr: number | null
+}): boolean {
+  if (input.papel === 'gerente') return true
+
+  if (
+    input.papel === 'sdr' &&
+    !sdrPodeMoverPara(input.ordemOrigem, input.ordemDestino, input.ordemLimiteHandoffSdr)
+  ) {
+    return false
+  }
+
+  return input.podeMoverOrigem && input.podeMoverDestino
+}

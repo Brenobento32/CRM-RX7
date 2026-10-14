@@ -4,9 +4,13 @@ import { z } from 'zod'
 
 import { editarUsuarioAction } from '@/lib/actions/usuarios'
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { listarEtapas } from '@/lib/dal/etapas'
+import { listarFunis } from '@/lib/dal/funis'
+import { listarPermissoesDoColaborador } from '@/lib/dal/permissoes'
 import { coresEmUso, obterUsuario } from '@/lib/dal/usuarios'
 import { formatarTelefone } from '@/lib/utils/documentos'
 
+import { PermissoesComerciais } from '../../_components/permissoes-comerciais'
 import { UsuarioForm } from '../../_components/usuario-form'
 
 export const metadata: Metadata = {
@@ -24,6 +28,20 @@ export default async function EditarUsuarioPage({
 
   const [usuario, cores] = await Promise.all([obterUsuario(id), coresEmUso(id)])
   if (!usuario) notFound()
+
+  // Permissões comerciais só fazem sentido pra SDR/CLOSER — gerente já tem
+  // acesso total e o banco nem deixa configurar uma linha para ele.
+  const mostrarPermissoes = usuario.role !== 'gerente'
+  const [funis, permissoesAtuais] = mostrarPermissoes
+    ? await Promise.all([listarFunis(), listarPermissoesDoColaborador(usuario.id)])
+    : [[], []]
+  const etapasPorFunil = mostrarPermissoes
+    ? Object.fromEntries(
+        await Promise.all(
+          funis.map(async (f) => [f.id, await listarEtapas(f.id)] as const),
+        ),
+      )
+    : {}
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -44,6 +62,15 @@ export default async function EditarUsuarioPage({
           ativo: usuario.ativo ? 'sim' : 'nao',
         }}
       />
+
+      {mostrarPermissoes && (
+        <PermissoesComerciais
+          usuarioId={usuario.id}
+          funis={funis}
+          etapasPorFunil={etapasPorFunil}
+          permissoesAtuais={permissoesAtuais}
+        />
+      )}
     </div>
   )
 }

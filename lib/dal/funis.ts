@@ -41,13 +41,38 @@ function paraFunil(f: {
   }
 }
 
-/** Todos os funis, na ordem da lista. Todo usuário logado lê (RLS: select=true). */
+/**
+ * Funis visíveis pro usuário atual, na ordem da lista.
+ *
+ * Gerente: todos (RLS de `funis` é `select = true` pra todo autenticado,
+ * mas a lista que oferecemos pra escolher é filtrada aqui — "não mostrar
+ * funis não autorizados", item do Kanban).
+ *
+ * Closer/SDR: SOMENTE os funis com acesso explícito em
+ * `permissoes_colaborador` (linha `etapa_id is null`) — owner_id NÃO conta
+ * mais pra esta lista; é a mesma mudança de modelo da RLS de `negociacoes`
+ * (permissão é a única fonte de verdade de acesso, owner_id só segue
+ * existindo pra atribuição/responsável). Sem nenhuma permissão, a lista
+ * vem vazia — `resolverFunilSelecionado` trata isso sem quebrar.
+ */
 export async function listarFunis(): Promise<Funil[]> {
-  await getUsuarioAtual()
+  const usuario = await getUsuarioAtual()
   const supabase = await createClient()
   const { data, error } = await supabase.from('funis').select(COLUNAS).order('ordem')
   if (error) throw new Error('Não foi possível carregar os funis.', { cause: error })
-  return data.map(paraFunil)
+  const funis = data.map(paraFunil)
+
+  if (usuario.role === 'gerente') return funis
+
+  const { data: permitidos, error: erroPermitidos } = await supabase
+    .from('permissoes_colaborador')
+    .select('funil_id')
+    .eq('usuario_id', usuario.id)
+    .is('etapa_id', null)
+  if (erroPermitidos) throw new Error('Não foi possível carregar os funis.', { cause: erroPermitidos })
+
+  const visiveis = new Set(permitidos.map((p) => p.funil_id))
+  return funis.filter((f) => visiveis.has(f.id))
 }
 
 export async function obterFunil(id: string): Promise<Funil | null> {
@@ -59,23 +84,29 @@ export async function obterFunil(id: string): Promise<Funil | null> {
 }
 
 /**
- * Resolve qual funil está selecionado: `?funil=` na URL (se ativo e
- * existente) → preferência salva em cookie (idem) → Funil Principal. Nunca
- * falha: se nada bater, cai no padrão — que sempre existe.
+ * Resolve qual funil está selecionado: `?funil=` na URL (se ativo, existente
+ * e VISÍVEL pro usuário) → preferência salva em cookie (idem) → Funil
+ * Principal, se visível → o primeiro funil visível, se houver algum.
+ *
+ * `null`: usuário sem nenhum funil visível (nem carteira própria, nem
+ * permissão configurada em nenhum) — a página decide o que mostrar (nunca
+ * mais lança erro genérico aqui; antes do sistema de permissões, isso era
+ * impossível, porque o Funil Principal sempre aparecia pra todo mundo).
  */
 export async function resolverFunilSelecionado(
   funilParam: unknown,
   cookieFunilId: unknown,
-): Promise<Funil> {
+): Promise<Funil | null> {
   const funis = await listarFunis()
   const ativos = new Map(funis.filter((f) => f.ativo).map((f) => [f.id, f]))
 
   if (typeof funilParam === 'string' && ativos.has(funilParam)) return ativos.get(funilParam)!
   if (typeof cookieFunilId === 'string' && ativos.has(cookieFunilId)) return ativos.get(cookieFunilId)!
 
-  const padrao = funis.find((f) => f.padrao)
-  if (!padrao) throw new Error('Nenhum funil padrão configurado.')
-  return padrao
+  const padrao = funis.find((f) => f.padrao && f.ativo)
+  if (padrao) return padrao
+
+  return [...ativos.values()][0] ?? null
 }
 
 // ---------------------------------------------------------------------------

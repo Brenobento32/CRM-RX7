@@ -24,6 +24,18 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
 
   const funilSelecionado = await resolverFunilSelecionado(funilParam, cookieStore.get(COOKIE_FUNIL)?.value)
   const funis = await listarFunis()
+
+  if (!funilSelecionado) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold">Métricas do funil</h1>
+        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          Você ainda não tem acesso a nenhum funil. Peça ao gerente para configurar suas permissões.
+        </p>
+      </div>
+    )
+  }
+
   const metricas = await obterMetricasFunil(periodo, funilSelecionado.id)
 
   return (

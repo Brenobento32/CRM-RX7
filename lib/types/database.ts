@@ -1364,6 +1364,71 @@ export type Database = {
           },
         ]
       }
+      permissoes_colaborador: {
+        Row: {
+          created_at: string
+          criado_por: string
+          etapa_id: string | null
+          funil_id: string
+          id: string
+          pode_mover: boolean | null
+          pode_ver: boolean | null
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string
+          etapa_id?: string | null
+          funil_id: string
+          id?: string
+          pode_mover?: boolean | null
+          pode_ver?: boolean | null
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          etapa_id?: string | null
+          funil_id?: string
+          id?: string
+          pode_mover?: boolean | null
+          pode_ver?: boolean | null
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permissoes_colaborador_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_colaborador_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "etapas_funil"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_colaborador_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_colaborador_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ativo: boolean
@@ -2154,6 +2219,10 @@ export type Database = {
           valor_meta_tcv: number
         }[]
       }
+      mover_negociacao: {
+        Args: { p_etapa_id: string; p_negociacao_id: string; p_posicao: number }
+        Returns: undefined
+      }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
       nomes_de_usuarios: {
         Args: { p_ids: string[] }
@@ -2162,6 +2231,8 @@ export type Database = {
           nome: string
         }[]
       }
+      pode_mover_etapa: { Args: { p_etapa_id: string; p_funil_id: string }; Returns: boolean }
+      pode_ver_etapa: { Args: { p_etapa_id: string; p_funil_id: string }; Returns: boolean }
       salvar_negociacao: {
         Args: {
           p_data_primeira_reuniao: string
@@ -2174,6 +2245,10 @@ export type Database = {
           p_valor_estimado: number
           p_valor_proposta: number
         }
+        Returns: undefined
+      }
+      salvar_permissoes_colaborador: {
+        Args: { p_permissoes: Json; p_usuario_id: string }
         Returns: undefined
       }
     }

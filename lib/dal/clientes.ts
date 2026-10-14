@@ -109,7 +109,31 @@ export async function listarClientes({
 }
 
 /**
- * `null` quando o cliente não existe ou não pertence à carteira do usuário.
+ * `null` quando o cliente não existe, foi excluído, ou — pra SDR/CLOSER,
+ * desde `20261014160000_permissoes_colaborador.sql` — quando a RLS de
+ * `clientes` não encontra nenhuma negociação visível dele
+ * (`pode_ver_etapa`, nunca mais `owner_id`).
+ *
+ * LIMITAÇÃO CONHECIDA E ACEITA (documentada, não contornada): `clientes` não
+ * tem nenhuma coluna de funil/origem (confirmado: `tipo_cliente, nome,
+ * empresa, cpf, cnpj, telefone, whatsapp, email, responsavel, cargo,
+ * instagram, observacoes, owner_id, created_at, updated_at, deleted_at` —
+ * `origem` é texto livre, não uma referência a funil). Por isso, se um
+ * cliente algum dia chegar a ter ZERO negociações, não há nenhum dado pra
+ * inferir "em qual funil ele deveria aparecer" e decidir uma permissão —
+ * continuaria indisponível pra SDR/CLOSER (nunca pra gerente) até ganhar
+ * uma negociação visível. NÃO abrir uma exceção de acesso global pra esse
+ * caso, e NÃO voltar a usar owner_id como bypass aqui — a instrução
+ * explícita foi documentar a limitação, não inventar uma regra nova.
+ *
+ * Na prática isso quase nunca acontece: `criar_cliente` (cadastro manual) e
+ * `criar_cliente_whatsapp` (webhook) sempre criam cliente + a negociação
+ * inicial na MESMA transação — nunca existe um cliente "órfão" recém-criado
+ * por esses caminhos. A única forma de um cliente ficar com zero
+ * negociações seria um hard delete de todas elas fora do fluxo normal
+ * (`excluirNegociacaoPermanente` é soft-delete — a linha continua existindo
+ * e `pode_ver_etapa` continua valendo pra ela normalmente).
+ *
  * Em `cache` porque `generateMetadata` e a página pedem o mesmo cliente.
  */
 export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | null> => {

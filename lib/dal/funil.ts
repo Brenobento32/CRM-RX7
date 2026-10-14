@@ -3,10 +3,16 @@ import 'server-only'
 import type { PostgrestError } from '@supabase/supabase-js'
 import { subDays } from 'date-fns'
 
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { getUsuarioAtual, type UsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { calcularDataChegada, DIAS_PARADO, sdrPodeMoverPara, tipoExigeModal } from '@/lib/utils/etapas'
+import {
+  calcularDataChegada,
+  DIAS_PARADO,
+  podeMoverNegociacaoColaborador,
+  sdrPodeMoverPara,
+  tipoExigeModal,
+} from '@/lib/utils/etapas'
 import type { AtualizarFechamentoInput, FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 import type { NovaNegociacaoInput } from '@/lib/validations/funis'
 
@@ -63,6 +69,7 @@ export type CardFunil = {
   /** Serviços já vinculados (`negociacao_servicos`) — nunca `null`, `[]` quando não há nenhum. */
   servicoIds: string[]
   temperatura: Enums['temperatura_negociacao'] | null
+  /** Nome do responsável (`negociacoes.owner_id` → `profiles.nome`) — só atribuição/exibição. Nunca usado para decidir visualização/movimentação de SDR/CLOSER (isso é só `permissoes_colaborador`). */
   responsavel: string | null
   clienteTelefone: string | null
   nichoId: string | null
@@ -241,47 +248,90 @@ const NAO_ENCONTRADA: ResultadoFunil = {
 
 /**
  * "SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve
- * assumir este lead." — regra comercial (item 4). A trava de verdade é o
- * trigger `negociacoes_valida_handoff_sdr` no banco (backstop contra chamada
- * direta na API do Supabase, fora da Server Action); esta checagem só evita
- * a viagem ao banco e devolve a MESMA mensagem de forma amigável.
+ * assumir este lead." — regra comercial, nunca relaxada por nenhuma
+ * permissão configurada (item "regra SDR" da Fase de permissões
+ * configuráveis). A trava de verdade é o trigger
+ * `negociacoes_valida_handoff_sdr` no banco (backstop contra chamada direta
+ * na API do Supabase, fora da Server Action); esta checagem só evita a
+ * viagem ao banco e devolve a MESMA mensagem de forma amigável.
  */
 const MSG_HANDOFF_SDR = 'SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
 
+const MSG_SEM_PERMISSAO_MOVER = 'Você não tem permissão para mover esta negociação.'
+
 /**
- * Para quem é SDR: confere se mover para `ordemDestino` (na etapa `funilId`)
- * é permitido a partir da ordem atual da negociação. Nunca olha o NOME da
- * etapa — só `ordem`/`chave` de `etapas_funil`, mesma função pura usada no
- * Kanban (`sdrPodeMoverPara`, lib/utils/etapas.ts) e no trigger do banco.
+ * Para quem NÃO é gerente: confere se a negociação pode ser movida da etapa
+ * atual até `etapaDestinoId`/`ordemDestino` — SOMENTE permissão configurada
+ * (`permissoes_colaborador`, 20261014160000_permissoes_colaborador.sql) nas
+ * DUAS etapas (origem e destino, mesmo funil); owner_id NÃO concede mais
+ * nada aqui. Nunca além do handoff quando quem move é SDR, mesmo com
+ * permissão liberada por engano. Mesma decisão de
+ * `podeMoverNegociacaoColaborador` (lib/utils/etapas.ts, pura e testada) —
+ * usada aqui só pra dar a mensagem certa sem round-trip; o RPC
+ * `mover_negociacao` (chamado depois) é quem tem a última palavra, e o
+ * trigger de handoff dispara nele como em qualquer UPDATE de etapa_id.
  */
-async function verificarHandoffSdr(
+export async function verificarPermissaoMovimento(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  usuario: UsuarioAtual,
   negociacaoId: string,
   funilId: string,
+  etapaDestinoId: string,
   ordemDestino: number,
 ): Promise<ResultadoFunil> {
+  // Esta leitura já passa pela RLS normal de `negociacoes` — sem
+  // `pode_ver_etapa` na etapa atual (ou sem ser gerente), vem vazia, e a
+  // negociação é tratada como inexistente. owner_id não entra mais aqui.
   const { data: negociacao, error: erroNegociacao } = await supabase
     .from('negociacoes')
-    .select('etapa:etapas_funil!negociacoes_etapa_id_fkey(ordem)')
+    .select('etapa:etapas_funil!negociacoes_etapa_id_fkey(id, ordem)')
     .eq('id', negociacaoId)
     .maybeSingle()
   if (erroNegociacao) return traduzirErro(erroNegociacao)
   if (!negociacao) return NAO_ENCONTRADA
 
-  const { data: limite, error: erroLimite } = await supabase
-    .from('etapas_funil')
-    .select('ordem')
-    .eq('funil_id', funilId)
-    .eq('chave', 'reuniao_realizada')
-    .maybeSingle()
-  if (erroLimite) return traduzirErro(erroLimite)
-
-  const ordemLimite = limite ? Number(limite.ordem) : null
+  const etapaOrigemId = negociacao.etapa.id
   const ordemOrigem = Number(negociacao.etapa.ordem)
 
-  return sdrPodeMoverPara(ordemOrigem, ordemDestino, ordemLimite)
-    ? { ok: true }
-    : { ok: false, mensagem: MSG_HANDOFF_SDR }
+  let ordemLimiteHandoffSdr: number | null = null
+  if (usuario.role === 'sdr') {
+    const { data: limite, error: erroLimite } = await supabase
+      .from('etapas_funil')
+      .select('ordem')
+      .eq('funil_id', funilId)
+      .eq('chave', 'reuniao_realizada')
+      .maybeSingle()
+    if (erroLimite) return traduzirErro(erroLimite)
+    ordemLimiteHandoffSdr = limite ? Number(limite.ordem) : null
+  }
+
+  const { data: permissoes, error: erroPermissoes } = await supabase
+    .from('permissoes_colaborador')
+    .select('etapa_id, pode_mover')
+    .eq('usuario_id', usuario.id)
+    .eq('funil_id', funilId)
+  if (erroPermissoes) return traduzirErro(erroPermissoes)
+
+  let podeMoverOrigem = false
+  let podeMoverDestino = false
+  if (permissoes.some((p) => p.etapa_id === null)) {
+    podeMoverOrigem = permissoes.some((p) => p.etapa_id === etapaOrigemId && p.pode_mover === true)
+    podeMoverDestino = permissoes.some((p) => p.etapa_id === etapaDestinoId && p.pode_mover === true)
+  }
+
+  const autorizado = podeMoverNegociacaoColaborador({
+    papel: usuario.role,
+    podeMoverOrigem,
+    podeMoverDestino,
+    ordemOrigem,
+    ordemDestino,
+    ordemLimiteHandoffSdr,
+  })
+  if (autorizado) return { ok: true }
+
+  const bloqueadoPeloHandoff =
+    usuario.role === 'sdr' && !sdrPodeMoverPara(ordemOrigem, ordemDestino, ordemLimiteHandoffSdr)
+  return { ok: false, mensagem: bloqueadoPeloHandoff ? MSG_HANDOFF_SDR : MSG_SEM_PERMISSAO_MOVER }
 }
 
 /**
@@ -293,14 +343,19 @@ async function verificarHandoffSdr(
  * checagem falhasse, o banco recusaria ganha sem fechamento e perdida sem
  * motivo, e também etapa desativada.
  *
- * Closer só move o que é dele: a RLS esconde a linha e o UPDATE afeta 0.
+ * Trocar de etapa aberta passa pelo RPC `mover_negociacao` — único caminho
+ * de escrita aqui, e só em `etapa_id`/`posicao` (nunca UPDATE geral).
+ * Gerente passa direto; qualquer outro papel é pré-checado aqui
+ * (`verificarPermissaoMovimento`, só permissão configurada — owner_id não
+ * conta) pra dar a mensagem certa sem round-trip; o RPC decide de verdade.
  *
- * SDR: antes de qualquer UPDATE, confere o handoff (`verificarHandoffSdr`).
- * Gerente e closer nunca passam por essa checagem.
+ * Reposição dentro de ganha/perdida (sem troca de etapa) continua pelo
+ * UPDATE direto de sempre, só dono/gerente (RLS de `negociacoes`, inalterada).
  *
  * `reposicionar` traz os outros cards da coluna quando ela foi renumerada.
  * Esses UPDATEs mudam só a posição e só de cards que já estão na etapa —
- * nunca servem para trocar a etapa de ninguém.
+ * nunca servem para trocar a etapa de ninguém, e continuam pelo caminho
+ * antigo (dono/gerente) — falha aqui é só cosmética (ver comentário abaixo).
  */
 export async function moverNegociacao(
   id: string,
@@ -319,19 +374,36 @@ export async function moverNegociacao(
   if (erroEtapa) return traduzirErro(erroEtapa)
   if (!etapa || !etapa.ativo) return { ok: false, mensagem: 'Etapa não encontrada ou desativada.' }
 
-  if (usuario.role === 'sdr') {
-    const handoff = await verificarHandoffSdr(supabase, id, etapa.funil_id, Number(etapa.ordem))
-    if (!handoff.ok) return handoff
+  if (tipoExigeModal(etapa.tipo)) {
+    const { data, error } = await supabase
+      .from('negociacoes')
+      .update({ posicao })
+      .eq('id', id)
+      .eq('etapa_id', etapaId)
+      .select('id')
+      .maybeSingle()
+    if (error) return traduzirErro(error)
+    if (!data) return NAO_ENCONTRADA
+  } else {
+    if (usuario.role !== 'gerente') {
+      const autorizado = await verificarPermissaoMovimento(
+        supabase,
+        usuario,
+        id,
+        etapa.funil_id,
+        etapaId,
+        Number(etapa.ordem),
+      )
+      if (!autorizado.ok) return autorizado
+    }
+
+    const { error } = await supabase.rpc('mover_negociacao', {
+      p_negociacao_id: id,
+      p_etapa_id: etapaId,
+      p_posicao: posicao,
+    })
+    if (error) return traduzirErro(error)
   }
-
-  const query = tipoExigeModal(etapa.tipo)
-    ? supabase.from('negociacoes').update({ posicao }).eq('id', id).eq('etapa_id', etapaId)
-    : supabase.from('negociacoes').update({ etapa_id: etapaId, posicao }).eq('id', id)
-
-  const { data, error } = await query.select('id').maybeSingle()
-
-  if (error) return traduzirErro(error)
-  if (!data) return NAO_ENCONTRADA
 
   const outros = reposicionar.filter((r) => r.id !== id)
   if (outros.length > 0) {
@@ -348,10 +420,46 @@ export async function moverNegociacao(
   return { ok: true }
 }
 
-/** Fechamento + mudança de etapa numa transação (`public.fechar_negociacao`). */
+/**
+ * Fechamento + mudança de etapa numa transação (`public.fechar_negociacao`).
+ *
+ * `fechar_negociacao` não é SECURITY DEFINER: o UPDATE de etapa_id lá dentro
+ * passa pela RLS/trigger de sempre. Pré-checar aqui (mesmo padrão de
+ * `moverNegociacao`) só evita o round-trip e dá a mensagem certa — o trigger
+ * `negociacoes_protege_movimentacao_por_permissao` (20261014170000) é quem
+ * tem a última palavra, pra quem for direto na API.
+ */
 export async function fecharNegociacao(f: FechamentoInput): Promise<ResultadoFunil> {
-  await getUsuarioAtual()
+  const usuario = await getUsuarioAtual()
   const supabase = await createClient()
+
+  if (usuario.role !== 'gerente') {
+    const { data: negociacao, error: erroNegociacao } = await supabase
+      .from('negociacoes')
+      .select('funil_id')
+      .eq('id', f.negociacao_id)
+      .maybeSingle()
+    if (erroNegociacao) return traduzirErro(erroNegociacao)
+    if (!negociacao) return NAO_ENCONTRADA
+
+    const { data: ganha, error: erroEtapa } = await supabase
+      .from('etapas_funil')
+      .select('id, ordem')
+      .eq('funil_id', negociacao.funil_id)
+      .eq('tipo', 'ganha')
+      .single()
+    if (erroEtapa) return traduzirErro(erroEtapa)
+
+    const autorizado = await verificarPermissaoMovimento(
+      supabase,
+      usuario,
+      f.negociacao_id,
+      negociacao.funil_id,
+      ganha.id,
+      Number(ganha.ordem),
+    )
+    if (!autorizado.ok) return autorizado
+  }
 
   const { error } = await supabase.rpc('fechar_negociacao', {
     p_negociacao_id: f.negociacao_id,
@@ -407,9 +515,14 @@ export async function atualizarFechamento(f: AtualizarFechamentoInput): Promise<
  * funil tem a sua própria (`etapas_funil_tipo_final_unico` garante uma só
  * por funil); sem esse filtro, `.single()` encontra mais de uma linha assim
  * que existe mais de um funil no sistema, e a chamada falha.
+ *
+ * Mesma pré-checagem de `moverNegociacao`/`fecharNegociacao`: o UPDATE abaixo
+ * passa pela RLS de sempre (owner_id/gerente) MAIS o trigger
+ * `negociacoes_protege_movimentacao_por_permissao` (20261014170000), que é
+ * quem de fato bloqueia — isto aqui só evita o round-trip.
  */
 export async function marcarPerdida(p: PerdaInput): Promise<ResultadoFunil> {
-  await getUsuarioAtual()
+  const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data: negociacao, error: erroNegociacao } = await supabase
@@ -422,11 +535,23 @@ export async function marcarPerdida(p: PerdaInput): Promise<ResultadoFunil> {
 
   const { data: perdida, error: erroEtapa } = await supabase
     .from('etapas_funil')
-    .select('id')
+    .select('id, ordem')
     .eq('funil_id', negociacao.funil_id)
     .eq('tipo', 'perdida')
     .single()
   if (erroEtapa) return traduzirErro(erroEtapa)
+
+  if (usuario.role !== 'gerente') {
+    const autorizado = await verificarPermissaoMovimento(
+      supabase,
+      usuario,
+      p.negociacao_id,
+      negociacao.funil_id,
+      perdida.id,
+      Number(perdida.ordem),
+    )
+    if (!autorizado.ok) return autorizado
+  }
 
   const { data, error } = await supabase
     .from('negociacoes')
