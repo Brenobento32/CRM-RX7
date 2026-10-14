@@ -182,9 +182,120 @@ colaborador (este documento, seção dedicada acima) · Proteção de
 movimentação por permissão (trigger de banco, fecha bypass de owner_id) ·
 TCV/MRR · recuperação de senha nativa.
 
+## Decisões de produto registradas — AINDA NÃO IMPLEMENTADAS
+
+Esta seção registra decisões de produto já tomadas, para não se perderem,
+**sem que nenhuma delas tenha sido implementada ainda**. Prioridade e
+sequenciamento em [`SCORPION-ROADMAP.md`](SCORPION-ROADMAP.md); a regra
+matemática de conversão (pendente de especificação) está em
+[`SCORPION-REGRAS-NEGOCIO.md`](SCORPION-REGRAS-NEGOCIO.md).
+
+### Metas (TCV/MRR)
+
+- Metas TCV e MRR são **independentes** entre si (não é uma meta só dividida
+  em dois jeitos de ver).
+- A tela de metas deve ser filtrável por **funil** e por **período**.
+- Boxes e gráficos da tela de metas devem respeitar exatamente os filtros
+  selecionados (nunca mostrar um número e um gráfico calculados com
+  filtros diferentes um do outro).
+- Os cálculos precisam ser baseados em **dados históricos corretos** — nunca
+  simplesmente o estado atual dos cards (ver `SCORPION-REGRAS-NEGOCIO.md`).
+
+### Funil de conversão
+
+- Mostrar quantos leads entraram no funil (no período/funil filtrado).
+- Mostrar quantos avançaram em cada etapa.
+- Mostrar taxa de conversão por etapa.
+- Dinâmico por funil e por período (mesmo requisito de filtro da tela de
+  metas).
+- Evitar duplicidade quando uma negociação entra novamente na mesma etapa
+  (ex.: volta de "Reunião realizada" pra "Reunião agendada" e passa por ela
+  de novo) — isso não pode contar como dois leads/duas entradas.
+- Fonte de verdade: **histórico real de movimentação**
+  (`historico_etapas`), nunca o estado atual das negociações.
+- A regra matemática exata de cohort/conversão ainda **não foi definida** —
+  fica como item de especificação pendente, a ser definida e testada
+  rigorosamente antes de implementar (ver `SCORPION-REGRAS-NEGOCIO.md`).
+
+### Card/Métricas — fonte única de verdade
+
+- Todos os indicadores (dashboard, metas, funil de conversão, qualquer outro
+  box/gráfico) devem usar **uma única fonte de verdade** (uma única
+  camada/função de cálculo).
+- Boxes e gráficos não podem apresentar números calculados por regras
+  diferentes entre si, mesmo que pareçam medir "a mesma coisa".
+
+### Configurações — organização por domínio
+
+Reorganizar `/configuracoes` em três domínios (hoje as páginas existem, mas
+não estão agrupadas assim na navegação):
+
+- **Funil**: etapas do funil, demais configurações relacionadas ao funil.
+- **Clientes**: nichos, serviços, demais configurações relacionadas a
+  clientes.
+- **Configurações gerais**: logo, dados básicos da empresa, usuários,
+  permissões, integrações, demais configurações gerais.
+
+### Permissões administrativas (nova categoria, separada da comercial)
+
+- Hoje só existe permissão **comercial** (`permissoes_colaborador`: ver/
+  mover leads — ver seção "Permissões comerciais" acima).
+- Decisão: criar uma categoria **separada**, permissão **administrativa**
+  (acessar/configurar os módulos de Configurações).
+- GERENTE continua com controle total das configurações.
+- GERENTE pode conceder acesso administrativo a SDR/CLOSER
+  **individualmente** (não é um nível de papel fixo — é concedido pessoa a
+  pessoa, do mesmo jeito que a permissão comercial hoje é por colaborador).
+- As duas permissões (comercial e administrativa) são **independentes**: ter
+  uma não implica nem afeta a outra.
+
+### UX — padrão consistente
+
+- Princípio do produto: **"uma mesma ação deve se comportar da mesma forma
+  em todo o CRM."**
+- Padronizar: abrir, editar, salvar, cancelar, fechar, ESC, mensagens de
+  sucesso, mensagens de erro, estado de carregamento — em botões, painéis e
+  modais de todas as telas.
+- Priorizar simplicidade e baixa curva de aprendizado — a experiência
+  precisa funcionar bem para usuários com níveis de conhecimento técnico
+  bem diferentes entre si (gerente, SDR, closer).
+
+### Integrações — menu dedicado
+
+Criar um menu **"Integrações"** (hoje não existe como agrupamento próprio):
+
+- **WhatsApp**: integração já existente (conexão por QR Code) — continua
+  funcional exatamente como está; só passa a aparecer dentro desse menu.
+- **Google Sheets**: item reservado no menu, integração futura — nada
+  implementado ainda.
+- **Respondi**: item reservado no menu; o webhook atual
+  (`docs/GOOGLE-APPS-SCRIPT-LEADS.md` → Edge Function `ingestao-lead`)
+  continua sendo a integração de verdade; no futuro, permitir
+  gerenciar/configurar essa integração pelo próprio CRM em vez de só pelo
+  Apps Script.
+- **Meta Ads**: integração futura — objetivo é devolver eventos/conversões
+  do CRM para o Meta (lead recebido, lead qualificado, reunião realizada,
+  venda), para permitir otimização de campanha com dados reais do funil.
+- **Google Ads**: integração futura — mesmo objetivo do Meta Ads, devolvendo
+  eventos/conversões reais do CRM para o Google Ads.
+
+Nenhuma dessas integrações novas (Google Sheets, Meta Ads, Google Ads, nem a
+configuração de Respondi pelo CRM) foi implementada — são só reservas de
+espaço no menu e de intenção de produto.
+
+### SaaS / multiempresa (visão futura, não iniciada)
+
+Todas as decisões acima já foram tomadas pensando na futura transformação do
+Scorpion em um produto SaaS multiempresa — sem que a multiempresa em si
+tenha sido implementada ainda. A arquitetura futura deverá permitir isolar
+por organização: empresa, usuários, logo, configurações, funis, permissões
+e integrações. Ver `SCORPION-ROADMAP.md`.
+
 ## Funcionalidades pendentes (visão rápida)
 
 Ver [`SCORPION-ROADMAP.md`](SCORPION-ROADMAP.md) para prioridades e
-detalhamento. Em aberto, de acordo com `ARQUITETURA.md` e o estado atual:
-relatórios de performance por closer/conversão com export CSV; acabamento
-geral (Realtime, estados vazios, responsivo, auditoria completa de policies).
+detalhamento, e a seção acima ("Decisões de produto registradas") para o
+que já foi decidido mas ainda não implementado. Também em aberto, de acordo
+com `ARQUITETURA.md` e o estado atual: relatórios de performance por
+closer/conversão com export CSV; acabamento geral (Realtime, estados
+vazios, responsivo, auditoria completa de policies).

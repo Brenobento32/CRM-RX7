@@ -5,10 +5,52 @@ Prioridades futuras. Para o que já existe, ver
 históricas (0 a 11E, Agenda A/N1/N2), ver a seção "Roadmap" de
 [`ARQUITETURA.md`](ARQUITETURA.md) — este documento olha só pra frente.
 
+## Prioridades — decisões de produto registradas em `SCORPION-MASTER.md`
+
+Nenhum item abaixo foi implementado. Detalhamento de cada decisão está em
+`SCORPION-MASTER.md`, seção "Decisões de produto registradas — AINDA NÃO
+IMPLEMENTADAS"; a regra matemática de conversão (item 2) está pendente de
+especificação em [`SCORPION-REGRAS-NEGOCIO.md`](SCORPION-REGRAS-NEGOCIO.md).
+
+### Alta
+
+1. Métricas e funil de conversão por funil/período (metas TCV/MRR
+   filtráveis por funil e período; funil de conversão com leads
+   entrados/avançados/taxa por etapa, dinâmico por funil/período).
+2. Definir e testar a matemática de conversão (cohort, entidades únicas,
+   fonte de verdade = histórico de movimentação) — ver
+   `SCORPION-REGRAS-NEGOCIO.md`.
+3. Padronização de UX (abrir/editar/salvar/cancelar/fechar/ESC, mensagens de
+   sucesso/erro, carregamento — consistentes em todo o CRM).
+4. Organização das configurações por domínio (Funil / Clientes /
+   Configurações gerais).
+5. Permissões administrativas (categoria nova, separada da comercial;
+   GERENTE concede acesso administrativo a SDR/CLOSER individualmente).
+
+### Média
+
+6. Logo e dados básicos da empresa (dentro de Configurações gerais).
+7. Central de integrações (menu "Integrações" dedicado).
+8. Tela/configuração de Respondi pelo CRM (o webhook atual continua sendo a
+   integração real; isto é só gerenciar/configurar essa integração pela UI).
+9. Google Sheets (integração futura, item reservado no menu).
+
+### Futuro
+
+10. Meta Ads (devolver eventos/conversões do CRM — lead recebido,
+    qualificado, reunião, venda — para otimização de campanha).
+11. Google Ads (mesmo objetivo do Meta Ads).
+12. Arquitetura SaaS/multiempresa — isolar por organização: empresa,
+    usuários, logo, configurações, funis, permissões e integrações. Todas as
+    decisões de produto acima já foram tomadas pensando nessa direção, mas a
+    multiempresa em si não está iniciada.
+
 ## Pendências conhecidas (vindas de `ARQUITETURA.md`)
 
-1. **Relatórios** — performance por closer, taxa de conversão, export CSV.
-2. **Acabamento geral** — Realtime (hoje o Kanban/dashboard não atualizam
+Numeração própria (não continua a lista de prioridades acima).
+
+A. **Relatórios** — performance por closer, taxa de conversão, export CSV.
+B. **Acabamento geral** — Realtime (hoje o Kanban/dashboard não atualizam
    sozinhos entre abas), estados vazios consistentes em todas as telas,
    responsivo completo, auditoria final de todas as policies de RLS
    (confirmar que cada tabela nova desde a Fase 1 tem exatamente as policies
@@ -16,7 +58,7 @@ históricas (0 a 11E, Agenda A/N1/N2), ver a seção "Roadmap" de
 
 ## Pendências identificadas durante o trabalho de permissões comerciais
 
-3. **Caminhos de escrita que ainda só dependem de `owner_id`** — a auditoria
+C. **Caminhos de escrita que ainda só dependem de `owner_id`** — a auditoria
    da migration `20261014170000_protege_movimentacao_por_permissao`
    encontrou que a policy `negociacoes_update` (`owner_id OR gerente`)
    continua sendo o único portão pros **outros** campos da negociação (tudo
@@ -26,7 +68,7 @@ históricas (0 a 11E, Agenda A/N1/N2), ver a seção "Roadmap" de
    `temperatura`, etc. devem continuar liberados pra qualquer dono
    independente de `pode_ver`/`pode_mover`, ou se devem passar a exigir
    alguma permissão também.
-4. **UX da "Lead Novo" sem permissão configurada** — todo lead novo nasce na
+D. **UX da "Lead Novo" sem permissão configurada** — todo lead novo nasce na
    etapa inicial do funil ("Lead Novo", fora das etapas de chave conhecida
    como `reuniao_agendada`). Se o gerente não conceder `pode_ver` nessa etapa
    especificamente, nem o próprio criador do lead (mesmo sendo o responsável)
@@ -36,7 +78,7 @@ históricas (0 a 11E, Agenda A/N1/N2), ver a seção "Roadmap" de
    `pode_ver` na etapa inicial do funil, e isso vale documentar na própria
    tela de configuração ou validar ali (hoje a tela não avisa se o gerente
    deixar a etapa inicial sem visualização).
-5. **Cliente sem nenhuma negociação** — caso raro e aceito como limitação
+E. **Cliente sem nenhuma negociação** — caso raro e aceito como limitação
    (ver `SCORPION-MASTER.md`), mas caso o produto precise mudar isso no
    futuro, a solução não é reabrir a RLS de `clientes` — seria preciso um
    campo explícito de funil/origem no próprio cliente, decisão de modelo de
