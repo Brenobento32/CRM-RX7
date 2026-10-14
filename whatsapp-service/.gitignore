@@ -1,5 +1,9 @@
 node_modules/
 dist/
 auth_info_baileys/
+# Backups/cópias timestamped da sessão do Baileys (creds.json, pre-key-*.json,
+# app-state-sync-key-*.json) — nunca devem ir pro Git, mesmo com nome diferente
+# da pasta ativa acima.
+auth_info_baileys_*/
 *.log
 .env
