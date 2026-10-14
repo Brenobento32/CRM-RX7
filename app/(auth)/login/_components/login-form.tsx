@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { login } from '@/lib/actions/auth'
@@ -49,9 +50,14 @@ export function LoginForm({ next }: { next: string }) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="senha" className="block text-sm font-medium">
-          Senha
-        </label>
+        <div className="flex items-baseline justify-between">
+          <label htmlFor="senha" className="block text-sm font-medium">
+            Senha
+          </label>
+          <Link href="/esqueci-senha" className="text-sm text-zinc-500 hover:underline dark:text-zinc-400">
+            Esqueci minha senha
+          </Link>
+        </div>
         <input
           id="senha"
           name="senha"

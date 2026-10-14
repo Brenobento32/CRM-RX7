@@ -68,6 +68,7 @@ export async function fecharNegociacaoAction(
     ...lerCampos(formData, [
       'negociacao_id',
       'posicao',
+      'tipo_venda',
       'valor_vendido',
       'data_fechamento',
       'contrato_enviado',

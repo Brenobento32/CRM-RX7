@@ -7,7 +7,7 @@ import { ErroCampo } from '@/components/ui/erro-campo'
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
 import type { EstadoFormMeta } from '@/lib/actions/metas'
 import type { OpcaoAlvo } from '@/lib/dal/metas'
-import type { CampoMeta } from '@/lib/validations/meta'
+import { ROTULO_TIPO_META, TIPOS_META, type CampoMeta } from '@/lib/validations/meta'
 
 type Props = {
   action: (estado: EstadoFormMeta | undefined, formData: FormData) => Promise<EstadoFormMeta>
@@ -35,7 +35,7 @@ export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloE
       )}
 
       {alvos && (
-        <div className="grid max-w-lg gap-4 sm:grid-cols-2">
+        <div className="grid max-w-lg gap-4 sm:grid-cols-3">
           <div>
             <label htmlFor="alvo" className="mb-1.5 block text-sm font-medium">
               Meta de
@@ -54,6 +54,26 @@ export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloE
               ))}
             </select>
             <ErroCampo mensagem={erro('alvo')} />
+          </div>
+
+          <div>
+            <label htmlFor="tipo_meta" className="mb-1.5 block text-sm font-medium">
+              Tipo
+            </label>
+            <select
+              id="tipo_meta"
+              name="tipo_meta"
+              defaultValue={valores.tipo_meta}
+              aria-invalid={erro('tipo_meta') ? true : undefined}
+              className={inputClass}
+            >
+              {TIPOS_META.map((t) => (
+                <option key={t} value={t}>
+                  {ROTULO_TIPO_META[t]}
+                </option>
+              ))}
+            </select>
+            <ErroCampo mensagem={erro('tipo_meta')} />
           </div>
 
           <div>

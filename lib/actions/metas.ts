@@ -31,6 +31,7 @@ export async function criarMetaAction(
 ): Promise<EstadoFormMeta> {
   const valores = {
     alvo: String(formData.get('alvo') ?? ''),
+    tipo_meta: String(formData.get('tipo_meta') ?? ''),
     mes: String(formData.get('mes') ?? ''),
     valor_meta: String(formData.get('valor_meta') ?? ''),
   }

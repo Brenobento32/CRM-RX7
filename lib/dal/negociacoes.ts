@@ -25,6 +25,8 @@ export type FechamentoEdicao = {
   statusPagamento: Enums['status_pagamento']
   statusOnboarding: Enums['status_onboarding']
   observacoes: string | null
+  /** `null` só em fechamentos anteriores à classificação TCV/MRR — "não classificado". */
+  tipoVenda: Enums['tipo_venda'] | null
 }
 
 export type NegociacaoEdicao = {
@@ -63,7 +65,7 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
        cliente:clientes!negociacoes_cliente_id_fkey(nome, deleted_at),
        vinculos:negociacao_servicos(servico:servicos(id, nome, categoria, ativo)),
        fechamento:fechamentos(valor_vendido, data_fechamento, contrato_enviado, contrato_assinado,
-         link_contrato, status_pagamento, status_onboarding, observacoes)`,
+         link_contrato, status_pagamento, status_onboarding, observacoes, tipo_venda)`,
     )
     .eq('id', id)
     .maybeSingle()
@@ -94,6 +96,7 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
           statusPagamento: data.fechamento.status_pagamento,
           statusOnboarding: data.fechamento.status_onboarding,
           observacoes: data.fechamento.observacoes,
+          tipoVenda: data.fechamento.tipo_venda,
         }
       : null,
   }

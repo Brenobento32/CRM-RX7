@@ -54,18 +54,21 @@ const pararArraste = {
 export function CardArrastavel({
   card,
   etapas,
+  travado = false,
   onMover,
   onEditar,
   onAbrirDrawer,
 }: {
   card: CardFunil
   etapas: EtapaKanban[]
+  /** SDR: a negociação já passou do handoff — sem arraste e sem "Mover para" (item 4/UX; a trava real é no servidor). */
+  travado?: boolean
   onMover: (id: string, etapaId: string) => void
   onEditar: (card: CardFunil) => void
   onAbrirDrawer: (card: CardFunil) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: card.id })
+    useSortable({ id: card.id, disabled: travado })
 
   return (
     <li
@@ -81,12 +84,14 @@ export function CardArrastavel({
         onEditar={onEditar}
         onAbrirDrawer={onAbrirDrawer}
         menu={
-          <MenuMoverPara
-            etapaAtual={card.etapaId}
-            etapas={etapas}
-            nomeCliente={card.clienteNome}
-            onEscolher={(etapa) => onMover(card.id, etapa)}
-          />
+          travado ? undefined : (
+            <MenuMoverPara
+              etapaAtual={card.etapaId}
+              etapas={etapas}
+              nomeCliente={card.clienteNome}
+              onEscolher={(etapa) => onMover(card.id, etapa)}
+            />
+          )
         }
       />
     </li>

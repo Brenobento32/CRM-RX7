@@ -11,6 +11,7 @@ export const PAPEIS = Constants.public.Enums.user_role
 export const ROTULO_PAPEL: Record<Papel, string> = {
   gerente: 'Gerente',
   closer: 'Closer',
+  sdr: 'SDR',
 }
 
 /** Igual ao bucket `avatares` (migration de usuários). */

@@ -2,11 +2,20 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import { updateSession } from '@/lib/supabase/proxy'
 
-/** Rotas acessíveis sem sessão. */
+/** Rotas acessíveis sem sessão — redirecionam para a área interna se já houver uma. */
 const ROTAS_PUBLICAS = ['/login']
 
-/** Rotas que qualquer um pode ver, logado ou não. */
-const ROTAS_LIVRES = ['/sem-acesso']
+/**
+ * Rotas que qualquer um pode ver, logado ou não — nunca redirecionam nos dois
+ * sentidos. `/esqueci-senha`: quem já está logado também pode querer
+ * redefinir a senha. `/auth/callback`: troca o código do e-mail de
+ * recuperação por uma sessão (`app/auth/callback/route.ts`) — precisa
+ * executar tanto para quem não tem sessão nenhuma (o caso normal) quanto
+ * para quem já está logado em outra aba (senão a regra de "claims && pública
+ * -> redireciona pra área interna" impediria a troca do código antes mesmo
+ * de o Route Handler rodar).
+ */
+const ROTAS_LIVRES = ['/sem-acesso', '/esqueci-senha', '/auth/callback']
 
 function corresponde(pathname: string, rotas: string[]) {
   return rotas.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`))

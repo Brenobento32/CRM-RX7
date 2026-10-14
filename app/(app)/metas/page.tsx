@@ -1,13 +1,19 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Fragment } from 'react'
 
 import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { removerMetaAction } from '@/lib/actions/metas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { obterProgressoMetas, type ProgressoPessoa } from '@/lib/dal/metas'
+import {
+  obterProgressoMetas,
+  type ProgressoMetaTipo,
+  type ProgressoPessoa,
+  type TipoMeta,
+} from '@/lib/dal/metas'
 import { formatarMoeda } from '@/lib/utils/formatacao'
 import { lerMes, rotuloMes } from '@/lib/utils/periodo'
-import { ALVO_EMPRESA } from '@/lib/validations/meta'
+import { ALVO_EMPRESA, ROTULO_TIPO_META, TIPOS_META } from '@/lib/validations/meta'
 
 import { BarraProgresso, CardMeta, TextoPercentual } from './_components/progresso'
 import { SeletorMes } from './_components/seletor-mes'
@@ -48,14 +54,19 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
       {gerente ? (
         <>
           {empresa && (
-            <CardMeta
-              titulo="Meta da empresa"
-              valorMeta={empresa.valorMeta}
-              realizado={empresa.realizado}
-              percentual={empresa.percentual}
-              semMeta="Não definida"
-              acoes={<AcoesMeta metaId={empresa.metaId} alvo={ALVO_EMPRESA} mes={mes} />}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {TIPOS_META.map((tipo) => (
+                <CardMeta
+                  key={tipo}
+                  titulo={`Meta ${ROTULO_TIPO_META[tipo]} da empresa`}
+                  valorMeta={empresa[tipo].valorMeta}
+                  realizado={empresa[tipo].realizado}
+                  percentual={empresa[tipo].percentual}
+                  semMeta="Não definida"
+                  acoes={<AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} />}
+                />
+              ))}
+            </div>
           )}
           <TabelaPessoas pessoas={pessoas} mes={mes} />
         </>
@@ -68,13 +79,18 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
 
 function MinhaMeta({ pessoa }: { pessoa: ProgressoPessoa | undefined }) {
   return (
-    <CardMeta
-      titulo="Sua meta"
-      valorMeta={pessoa?.valorMeta ?? null}
-      realizado={pessoa?.realizado ?? 0}
-      percentual={pessoa?.percentual ?? null}
-      semMeta="Nenhuma meta definida para este mês"
-    />
+    <div className="grid gap-4 sm:grid-cols-2">
+      {TIPOS_META.map((tipo) => (
+        <CardMeta
+          key={tipo}
+          titulo={`Sua meta ${ROTULO_TIPO_META[tipo]}`}
+          valorMeta={pessoa?.[tipo].valorMeta ?? null}
+          realizado={pessoa?.[tipo].realizado ?? 0}
+          percentual={pessoa?.[tipo].percentual ?? null}
+          semMeta="Nenhuma meta definida para este mês"
+        />
+      ))}
+    </div>
   )
 }
 
@@ -94,11 +110,24 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
             <tr>
-              <th className="px-4 py-3 font-medium">Closer</th>
-              <th className="px-4 py-3 text-right font-medium">Meta</th>
-              <th className="px-4 py-3 text-right font-medium">Vendido</th>
-              <th className="px-4 py-3 font-medium">Atingido</th>
-              <th className="px-4 py-3" />
+              <th className="px-4 py-3 font-medium" rowSpan={2}>
+                Closer
+              </th>
+              {TIPOS_META.map((tipo) => (
+                <th key={tipo} className="px-4 py-2 text-center font-medium" colSpan={3}>
+                  {ROTULO_TIPO_META[tipo]}
+                </th>
+              ))}
+              <th className="px-4 py-3" rowSpan={2} />
+            </tr>
+            <tr>
+              {TIPOS_META.map((tipo) => (
+                <Fragment key={tipo}>
+                  <th className="px-4 py-1.5 text-right font-medium">Meta</th>
+                  <th className="px-4 py-1.5 text-right font-medium">Vendido</th>
+                  <th className="px-4 py-1.5 font-medium">Atingido</th>
+                </Fragment>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -109,24 +138,24 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
                   {p.role !== 'closer' && <Etiqueta>gerente</Etiqueta>}
                   {!p.ativo && <Etiqueta>desativado</Etiqueta>}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums">
-                  {p.valorMeta === null ? <span className="text-zinc-400">Sem meta</span> : formatarMoeda(p.valorMeta)}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">{formatarMoeda(p.realizado)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex min-w-36 items-center gap-3">
-                    <div className="flex-1">
-                      <BarraProgresso percentual={p.percentual} rotulo={`Progresso de ${p.nome}`} />
-                    </div>
-                    <span className="w-14 text-right tabular-nums">
-                      <TextoPercentual percentual={p.percentual} />
-                    </span>
-                  </div>
-                </td>
+                {TIPOS_META.map((tipo) => (
+                  <LinhaTipo key={tipo} dados={p[tipo]} nome={p.nome} />
+                ))}
                 <td className="px-4 py-3">
                   {/* Meta individual só para closer ativo; as demais linhas só mostram o vendido. */}
-                  {p.role === 'closer' && (p.ativo || p.metaId) && (
-                    <AcoesMeta metaId={p.metaId} alvo={p.usuarioId} mes={mes} podeCriar={p.ativo} />
+                  {p.role === 'closer' && (p.ativo || p.tcv.metaId || p.mrr.metaId) && (
+                    <div className="flex flex-col items-end gap-1">
+                      {TIPOS_META.map((tipo) => (
+                        <AcoesMeta
+                          key={tipo}
+                          metaId={p[tipo].metaId}
+                          alvo={p.usuarioId}
+                          tipo={tipo}
+                          mes={mes}
+                          podeCriar={p.ativo}
+                        />
+                      ))}
+                    </div>
                   )}
                 </td>
               </tr>
@@ -138,6 +167,27 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
   )
 }
 
+function LinhaTipo({ dados, nome }: { dados: ProgressoMetaTipo; nome: string }) {
+  return (
+    <>
+      <td className="px-4 py-3 text-right tabular-nums">
+        {dados.valorMeta === null ? <span className="text-zinc-400">Sem meta</span> : formatarMoeda(dados.valorMeta)}
+      </td>
+      <td className="px-4 py-3 text-right tabular-nums">{formatarMoeda(dados.realizado)}</td>
+      <td className="px-4 py-3">
+        <div className="flex min-w-36 items-center gap-3">
+          <div className="flex-1">
+            <BarraProgresso percentual={dados.percentual} rotulo={`Progresso de ${nome}`} />
+          </div>
+          <span className="w-14 text-right tabular-nums">
+            <TextoPercentual percentual={dados.percentual} />
+          </span>
+        </div>
+      </td>
+    </>
+  )
+}
+
 function Etiqueta({ children }: { children: React.ReactNode }) {
   return (
     <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
@@ -146,23 +196,25 @@ function Etiqueta({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Sem meta: "Definir". Com meta: "Editar" e "Remover". */
+/** Sem meta: "Definir [TCV/MRR]". Com meta: "Editar" e "Remover". */
 function AcoesMeta({
   metaId,
   alvo,
+  tipo,
   mes,
   podeCriar = true,
 }: {
   metaId: string | null
   alvo: string
+  tipo: TipoMeta
   mes: string
   podeCriar?: boolean
 }) {
   if (!metaId) {
     return podeCriar ? (
       <span className="flex justify-end">
-        <Link href={`/metas/nova?alvo=${alvo}&mes=${mes}`} className={botaoSecundarioClass}>
-          Definir meta
+        <Link href={`/metas/nova?alvo=${alvo}&tipo=${tipo}&mes=${mes}`} className={botaoSecundarioClass}>
+          Definir {ROTULO_TIPO_META[tipo]}
         </Link>
       </span>
     ) : null
@@ -171,7 +223,7 @@ function AcoesMeta({
   return (
     <span className="flex justify-end gap-2">
       <Link href={`/metas/${metaId}/editar`} className={botaoSecundarioClass}>
-        Editar
+        Editar {ROTULO_TIPO_META[tipo]}
       </Link>
       <form action={removerMetaAction.bind(null, metaId, mes)}>
         <button type="submit" className={`${botaoSecundarioClass} text-red-700 dark:text-red-400`}>

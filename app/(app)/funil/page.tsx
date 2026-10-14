@@ -69,7 +69,16 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
 
       <Kanban
         cards={cardsFiltrados}
-        etapas={etapas.map(({ id, nome, cor, tipo, etapaInicial }) => ({ id, nome, cor, tipo, etapaInicial }))}
+        etapas={etapas.map(({ id, nome, cor, tipo, etapaInicial, ordem, chave }) => ({
+          id,
+          nome,
+          cor,
+          tipo,
+          etapaInicial,
+          ordem,
+          chave,
+        }))}
+        papel={usuario.role}
         servicos={servicos}
         whatsappHabilitado={funilSelecionado.whatsappHabilitado}
       />

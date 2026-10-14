@@ -2,7 +2,7 @@
  * Regras da agenda compartilhadas entre servidor e formulário.
  */
 
-type Pessoa = { id: string; role: 'gerente' | 'closer' }
+type Pessoa = { id: string; role: 'gerente' | 'closer' | 'sdr' }
 
 /**
  * Quem pode ser responsável por um evento do cliente: o dono da carteira e

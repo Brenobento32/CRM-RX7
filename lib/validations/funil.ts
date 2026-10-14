@@ -27,6 +27,19 @@ export const ROTULO_STATUS_PAGAMENTO: Record<Enums['status_pagamento'], string> 
 
 export const STATUS_ONBOARDING = Constants.public.Enums.status_onboarding
 
+/**
+ * TCV ou MRR — mesmo enum que classifica uma meta (`lib/validations/meta.ts`
+ * reaproveita exatamente esta constante, fonte única). Toda venda NOVA exige
+ * um dos dois; vendas antigas ficam "não classificadas" (null), nunca
+ * reclassificadas automaticamente.
+ */
+export const TIPOS_VENDA = Constants.public.Enums.tipo_venda
+
+export const ROTULO_TIPO_VENDA: Record<(typeof TIPOS_VENDA)[number], string> = {
+  tcv: 'TCV',
+  mrr: 'MRR',
+}
+
 export const ROTULO_STATUS_ONBOARDING: Record<Enums['status_onboarding'], string> = {
   nao_iniciado: 'Não iniciado',
   em_andamento: 'Em andamento',
@@ -65,6 +78,8 @@ export const fechamentoSchema = z
   .object({
     negociacao_id: z.uuid(),
     posicao,
+    /** Toda venda NOVA exige o tipo — o banco também recusa (trigger em `fechamentos`). */
+    tipo_venda: z.enum(TIPOS_VENDA, 'Selecione o tipo da venda (TCV ou MRR).'),
     valor_vendido: valorEmReais.pipe(
       z
         .string('Informe o valor vendido.')
@@ -116,6 +131,17 @@ export type FechamentoInput = z.output<typeof fechamentoSchema>
 export const atualizarFechamentoSchema = z
   .object({
     negociacao_id: z.uuid(),
+    /**
+     * Opcional aqui: "" (não mexer no tipo) vira `null`, que a RPC
+     * `atualizar_fechamento` interpreta como "preserva o que já estava
+     * gravado" — nunca reclassifica um histórico sozinho. Só muda se o
+     * gerente escolher ativamente TCV ou MRR.
+     */
+    tipo_venda: z
+      .string()
+      .default('')
+      .transform((v) => (v === '' ? null : v))
+      .pipe(z.enum(TIPOS_VENDA).nullable()),
     valor_vendido: valorEmReais.pipe(
       z
         .string('Informe o valor vendido.')

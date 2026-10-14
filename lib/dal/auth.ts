@@ -3,6 +3,7 @@ import 'server-only'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
 
+import { serverEnv } from '@/lib/env/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 
@@ -102,6 +103,58 @@ export async function entrarComSenha(
 export async function sair() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+}
+
+/**
+ * "Se o e-mail estiver cadastrado, você receberá instruções para redefinir
+ * sua senha." — SEMPRE a mesma mensagem, exista ou não o e-mail (item 2:
+ * nunca revelar se um e-mail existe). `resetPasswordForEmail` do Supabase
+ * Auth já não diferencia isso no retorno; só uma falha operacional (rate
+ * limit) muda a mensagem, e isso não expõe nada sobre a conta.
+ *
+ * `redirectTo` aponta para o Route Handler que troca o código da URL por uma
+ * sessão (`app/auth/callback/route.ts`) — nenhum token passa pela aplicação
+ * além do que o próprio Supabase Auth já gerencia.
+ */
+export type ResultadoRecuperacaoSenha = { ok: true; mensagem: string } | { ok: false; mensagem: string }
+
+const MSG_RECUPERACAO_GENERICA =
+  'Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.'
+
+export async function solicitarRecuperacaoSenha(email: string): Promise<ResultadoRecuperacaoSenha> {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${serverEnv.siteUrl}/auth/callback?next=${encodeURIComponent('/redefinir-senha')}`,
+  })
+
+  if (error && (error.code === 'over_email_send_rate_limit' || error.status === 429)) {
+    return { ok: false, mensagem: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }
+  }
+
+  return { ok: true, mensagem: MSG_RECUPERACAO_GENERICA }
+}
+
+/**
+ * Define a nova senha — exige uma sessão válida (a que o Route Handler de
+ * callback já deixou gravada em cookies ao trocar o código do e-mail). Sem
+ * sessão, o Supabase Auth recusa com `error`; é por isso que `/redefinir-senha`
+ * NUNCA é uma rota pública no `proxy.ts` — só chega até aqui quem clicou o
+ * link de verdade.
+ */
+export type ResultadoRedefinirSenha = { ok: true } | { ok: false; mensagem: string }
+
+export async function redefinirSenha(novaSenha: string): Promise<ResultadoRedefinirSenha> {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password: novaSenha })
+
+  if (error) {
+    return {
+      ok: false,
+      mensagem: 'Não foi possível atualizar a senha. Solicite um novo link e tente de novo.',
+    }
+  }
+
+  return { ok: true }
 }
 
 /**

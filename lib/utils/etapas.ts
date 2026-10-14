@@ -13,8 +13,18 @@ export type EtapaVisual = { nome: string; cor: CorEtapa }
  * `etapas_funil.etapa_inicial` (onde leads automáticos entram) — nunca mais
  * resolvida pelo nome "Lead Novo" (ver 20261008130000_etapa_inicial_nichos_configuraveis.sql).
  * Usada para decidir qual coluna ordena por chegada real em vez de `posicao`.
+ *
+ * `ordem` e `chave` existem aqui (e não só em `Etapa`, a versão de
+ * configuração) porque {@link sdrPodeMoverPara} precisa deles no Kanban —
+ * mesmos campos, mesma fonte (`etapas_funil`).
  */
-export type EtapaKanban = EtapaVisual & { id: string; tipo: TipoEtapa; etapaInicial: boolean }
+export type EtapaKanban = EtapaVisual & {
+  id: string
+  tipo: TipoEtapa
+  etapaInicial: boolean
+  ordem: number
+  chave: string | null
+}
 
 export const CORES_ETAPA = Constants.public.Enums.cor_etapa
 
@@ -119,3 +129,37 @@ export function tipoExigeModal(tipo: TipoEtapa): tipo is 'ganha' | 'perdida' {
  * Precisa bater com o `interval '7 days'` de `public.funil_metricas`.
  */
 export const DIAS_PARADO = 7
+
+/** `etapas_funil.chave` da etapa onde o SDR entrega o lead para o closer. */
+export const CHAVE_HANDOFF_SDR = 'reuniao_realizada'
+
+/**
+ * Decide se um SDR pode mover uma negociação de `ordemOrigem` para
+ * `ordemDestino`, dado o `ordemLimite` (a `ordem` da etapa de chave
+ * {@link CHAVE_HANDOFF_SDR} NO MESMO FUNIL da negociação, ou `null` se esse
+ * funil não tiver essa etapa técnica).
+ *
+ * Mesma função usada no servidor (`moverNegociacao`, última palavra — RLS e
+ * trigger não sabem nada de "SDR vs. closer") e no Kanban (só UX: esconder o
+ * que o SDR não pode fazer). Pura e determinística de propósito — nunca
+ * depende do NOME da etapa, só da `ordem`/`chave` de `etapas_funil`, porque o
+ * nome é editável pelo gerente.
+ *
+ * Regra: uma vez que a negociação alcança (ordem >= limite) a etapa de
+ * handoff, o SDR perde controle total sobre ela — nem pra frente, nem pra
+ * trás. Antes disso, o SDR pode avançar livremente, inclusive ENTRAR na
+ * etapa de handoff (ordemDestino === ordemLimite é permitido), mas nunca
+ * pular direto para além dela.
+ *
+ * `ordemLimite === null` (funil sem a etapa `reuniao_realizada`): a regra
+ * simplesmente não existe nesse funil — nunca inventar um limite novo.
+ */
+export function sdrPodeMoverPara(
+  ordemOrigem: number,
+  ordemDestino: number,
+  ordemLimite: number | null,
+): boolean {
+  if (ordemLimite === null) return true
+  if (ordemOrigem >= ordemLimite) return false
+  return ordemDestino <= ordemLimite
+}

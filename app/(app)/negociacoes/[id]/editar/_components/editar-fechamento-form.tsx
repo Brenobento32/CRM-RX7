@@ -12,8 +12,10 @@ import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import {
   ROTULO_STATUS_ONBOARDING,
   ROTULO_STATUS_PAGAMENTO,
+  ROTULO_TIPO_VENDA,
   STATUS_ONBOARDING,
   STATUS_PAGAMENTO_FECHAMENTO,
+  TIPOS_VENDA,
 } from '@/lib/validations/funil'
 
 type Props = {
@@ -57,6 +59,30 @@ export function EditarFechamentoForm({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
+          <label htmlFor="tipo_venda" className="mb-1.5 block text-sm font-medium">
+            Tipo da venda
+          </label>
+          <select
+            id="tipo_venda"
+            name="tipo_venda"
+            defaultValue={valores?.tipo_venda ?? ''}
+            aria-invalid={erro('tipo_venda') ? true : undefined}
+            aria-describedby="tipo_venda-erro"
+            className={inputClass}
+          >
+            <option value="">
+              {fechamento.tipoVenda ? `Manter (${ROTULO_TIPO_VENDA[fechamento.tipoVenda]})` : 'Manter (não classificado)'}
+            </option>
+            {TIPOS_VENDA.map((t) => (
+              <option key={t} value={t}>
+                {ROTULO_TIPO_VENDA[t]}
+              </option>
+            ))}
+          </select>
+          <ErroCampo id="tipo_venda-erro" mensagem={erro('tipo_venda')} />
+        </div>
+
+        <div>
           <label htmlFor="valor_vendido" className="mb-1.5 block text-sm font-medium">
             Valor vendido (R$)
           </label>
@@ -75,7 +101,9 @@ export function EditarFechamentoForm({
           />
           <ErroCampo id="valor_vendido-erro" mensagem={erro('valor_vendido')} />
         </div>
+      </div>
 
+      <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="data_fechamento" className="mb-1.5 block text-sm font-medium">
             Data de fechamento

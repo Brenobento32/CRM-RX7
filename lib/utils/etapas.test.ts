@@ -7,6 +7,7 @@ import {
   corDeNicho,
   COR_AGENDA_PADRAO,
   PALETA_ETAPAS,
+  sdrPodeMoverPara,
   TEXTO_SOBRE_COR,
 } from '@/lib/utils/etapas'
 
@@ -97,5 +98,53 @@ describe('calcularDataChegada', () => {
     const leadB = { nome: 'B', chegada: calcularDataChegada('2026-10-13 10:00:00', CRIADO_HOJE) }
     const ordenados = [leadA, leadB].sort((x, y) => new Date(y.chegada).getTime() - new Date(x.chegada).getTime())
     expect(ordenados.map((l) => l.nome)).toEqual(['B', 'A'])
+  })
+})
+
+describe('sdrPodeMoverPara', () => {
+  // Mesma numeração de ordem usada pelo Funil Principal: Lead Novo(500) <
+  // MQL(800) < Reunião agendada(1000) < Reunião realizada(2000) < Proposta
+  // enviada(3000) < Negociação(4000). Limite = ordem de "Reunião realizada".
+  const LIMITE = 2000
+
+  it('permite avançar livremente antes do limite (Lead Novo -> MQL)', () => {
+    expect(sdrPodeMoverPara(500, 800, LIMITE)).toBe(true)
+  })
+
+  it('permite avançar até Reunião agendada', () => {
+    expect(sdrPodeMoverPara(800, 1000, LIMITE)).toBe(true)
+  })
+
+  it('permite ENTRAR em Reunião realizada (é o próprio limite, inclusivo)', () => {
+    expect(sdrPodeMoverPara(1000, 2000, LIMITE)).toBe(true)
+  })
+
+  it('impede pular direto de uma etapa anterior para além do limite', () => {
+    expect(sdrPodeMoverPara(1000, 3000, LIMITE)).toBe(false)
+  })
+
+  it('impede mover a negociação já em Reunião realizada, mesmo "pra frente"', () => {
+    expect(sdrPodeMoverPara(2000, 3000, LIMITE)).toBe(false)
+  })
+
+  it('impede mover a negociação já em Reunião realizada "pra trás" também', () => {
+    expect(sdrPodeMoverPara(2000, 800, LIMITE)).toBe(false)
+  })
+
+  it('impede qualquer movimento de uma negociação já além do limite (Proposta enviada)', () => {
+    expect(sdrPodeMoverPara(3000, 4000, LIMITE)).toBe(false)
+  })
+
+  it('CLOSER/gerente não chamam esta função — mas o limite null (funil sem a etapa técnica) libera tudo', () => {
+    expect(sdrPodeMoverPara(500, 999999, null)).toBe(true)
+    expect(sdrPodeMoverPara(999999, 500, null)).toBe(true)
+  })
+
+  it('não depende do texto da etapa — só de números de ordem, nunca de nome', () => {
+    // Mesmos números, "etapas" hipotéticas com nomes completamente diferentes
+    // do Funil Principal — o resultado é idêntico, prova que a regra nunca
+    // olha o nome/rótulo, só a posição.
+    expect(sdrPodeMoverPara(10, 20, 20)).toBe(true)
+    expect(sdrPodeMoverPara(20, 30, 20)).toBe(false)
   })
 })

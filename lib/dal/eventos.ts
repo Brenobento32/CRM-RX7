@@ -288,7 +288,7 @@ export type ResultadoEvento =
 export type ResponsavelAgenda = {
   id: string
   nome: string
-  role: 'gerente' | 'closer'
+  role: 'gerente' | 'closer' | 'sdr'
   cor: CorEtapa | null
 }
 

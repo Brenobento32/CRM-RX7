@@ -9,8 +9,10 @@ import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import {
   ROTULO_STATUS_ONBOARDING,
   ROTULO_STATUS_PAGAMENTO,
+  ROTULO_TIPO_VENDA,
   STATUS_ONBOARDING,
   STATUS_PAGAMENTO_FECHAMENTO,
+  TIPOS_VENDA,
 } from '@/lib/validations/funil'
 
 import { BotoesModal, ErroCampo, ErroGeral, inputClass, Modal } from './modal'
@@ -67,6 +69,8 @@ export function ModalFechamento({ card, posicao, servicos, onCancelar, onConclui
 
         <input type="hidden" name="negociacao_id" value={card.id} />
         <input type="hidden" name="posicao" value={posicao} />
+
+        <TipoVenda erro={erro('tipo_venda')} />
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
@@ -226,6 +230,31 @@ export function ModalFechamento({ card, posicao, servicos, onCancelar, onConclui
         <BotoesModal pendente={pendente} rotulo="Fechar negociação" onCancelar={onCancelar} />
       </form>
     </Modal>
+  )
+}
+
+/**
+ * TCV ou MRR — obrigatório em toda venda NOVA (item "regra de venda"), sem
+ * opção pré-marcada: o vendedor precisa escolher. Mesma mensagem do backend
+ * se tentar concluir sem escolher (`fechamentoSchema`/trigger no banco).
+ */
+function TipoVenda({ erro }: { erro?: string }) {
+  return (
+    <fieldset aria-describedby="tipo_venda-erro">
+      <legend className="mb-1.5 text-sm font-medium">Tipo da venda</legend>
+      <div className="flex gap-2">
+        {TIPOS_VENDA.map((v) => (
+          <label
+            key={v}
+            className="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-zinc-300 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900"
+          >
+            <input type="radio" name="tipo_venda" value={v} className="sr-only" />
+            {ROTULO_TIPO_VENDA[v]}
+          </label>
+        ))}
+      </div>
+      <ErroCampo id="tipo_venda-erro" mensagem={erro} />
+    </fieldset>
   )
 }
 

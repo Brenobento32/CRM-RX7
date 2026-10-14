@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -626,6 +626,7 @@ export type Database = {
           responsavel_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          tipo_venda: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at: string
           valor_vendido: number
         }
@@ -644,6 +645,7 @@ export type Database = {
           responsavel_id: string
           status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          tipo_venda?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           valor_vendido: number
         }
@@ -662,6 +664,7 @@ export type Database = {
           responsavel_id?: string
           status_onboarding?: Database["public"]["Enums"]["status_onboarding"]
           status_pagamento?: Database["public"]["Enums"]["status_pagamento"]
+          tipo_venda?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           valor_vendido?: number
         }
@@ -1048,6 +1051,7 @@ export type Database = {
           criado_por: string
           id: string
           periodo_mes: string
+          tipo_meta: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at: string
           usuario_id: string | null
           valor_meta: number
@@ -1057,6 +1061,7 @@ export type Database = {
           criado_por?: string
           id?: string
           periodo_mes: string
+          tipo_meta?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           usuario_id?: string | null
           valor_meta: number
@@ -1066,6 +1071,7 @@ export type Database = {
           criado_por?: string
           id?: string
           periodo_mes?: string
+          tipo_meta?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           usuario_id?: string | null
           valor_meta?: number
@@ -1922,6 +1928,7 @@ export type Database = {
           p_servico_ids?: string[]
           p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          p_tipo_venda?: Database["public"]["Enums"]["tipo_venda"]
           p_valor_vendido: number
         }
         Returns: undefined
@@ -2083,6 +2090,7 @@ export type Database = {
           p_servico_ids?: string[]
           p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
           p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          p_tipo_venda?: Database["public"]["Enums"]["tipo_venda"]
           p_valor_vendido: number
         }
         Returns: undefined
@@ -2135,12 +2143,15 @@ export type Database = {
         Args: { p_mes: string }
         Returns: {
           ativo: boolean
-          meta_id: string
+          meta_id_mrr: string
+          meta_id_tcv: string
           nome: string
-          realizado: number
+          realizado_mrr: number
+          realizado_tcv: number
           role: Database["public"]["Enums"]["user_role"]
           usuario_id: string
-          valor_meta: number
+          valor_meta_mrr: number
+          valor_meta_tcv: number
         }[]
       }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
@@ -2205,7 +2216,8 @@ export type Database = {
       tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao" | "outro"
       tipo_mensagem: "texto" | "imagem" | "documento" | "audio" | "video"
       tipo_pergunta: "texto_livre" | "escolha_unica" | "escolha_multipla"
-      user_role: "gerente" | "closer"
+      tipo_venda: "tcv" | "mrr"
+      user_role: "gerente" | "closer" | "sdr"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2377,7 +2389,8 @@ export const Constants = {
       tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao", "outro"],
       tipo_mensagem: ["texto", "imagem", "documento", "audio", "video"],
       tipo_pergunta: ["texto_livre", "escolha_unica", "escolha_multipla"],
-      user_role: ["gerente", "closer"],
+      tipo_venda: ["tcv", "mrr"],
+      user_role: ["gerente", "closer", "sdr"],
     },
   },
 } as const

@@ -6,6 +6,7 @@ import { editarMetaAction } from '@/lib/actions/metas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMeta } from '@/lib/dal/metas'
 import { rotuloMes } from '@/lib/utils/periodo'
+import { ROTULO_TIPO_META } from '@/lib/validations/meta'
 
 import { MetaForm } from '../../_components/meta-form'
 
@@ -28,7 +29,7 @@ export default async function EditarMetaPage({ params }: PageProps<'/metas/[id]/
       <div>
         <h1 className="text-2xl font-semibold">Editar meta</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {meta.alvo} · {rotuloMes(meta.mes)}
+          {meta.alvo} · {meta.tipoMeta ? ROTULO_TIPO_META[meta.tipoMeta] : 'Não classificada'} · {rotuloMes(meta.mes)}
         </p>
       </div>
 

@@ -6,7 +6,7 @@ import { subDays } from 'date-fns'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { calcularDataChegada, DIAS_PARADO, tipoExigeModal } from '@/lib/utils/etapas'
+import { calcularDataChegada, DIAS_PARADO, sdrPodeMoverPara, tipoExigeModal } from '@/lib/utils/etapas'
 import type { AtualizarFechamentoInput, FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 import type { NovaNegociacaoInput } from '@/lib/validations/funis'
 
@@ -240,6 +240,51 @@ const NAO_ENCONTRADA: ResultadoFunil = {
 }
 
 /**
+ * "SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve
+ * assumir este lead." — regra comercial (item 4). A trava de verdade é o
+ * trigger `negociacoes_valida_handoff_sdr` no banco (backstop contra chamada
+ * direta na API do Supabase, fora da Server Action); esta checagem só evita
+ * a viagem ao banco e devolve a MESMA mensagem de forma amigável.
+ */
+const MSG_HANDOFF_SDR = 'SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
+
+/**
+ * Para quem é SDR: confere se mover para `ordemDestino` (na etapa `funilId`)
+ * é permitido a partir da ordem atual da negociação. Nunca olha o NOME da
+ * etapa — só `ordem`/`chave` de `etapas_funil`, mesma função pura usada no
+ * Kanban (`sdrPodeMoverPara`, lib/utils/etapas.ts) e no trigger do banco.
+ */
+async function verificarHandoffSdr(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  negociacaoId: string,
+  funilId: string,
+  ordemDestino: number,
+): Promise<ResultadoFunil> {
+  const { data: negociacao, error: erroNegociacao } = await supabase
+    .from('negociacoes')
+    .select('etapa:etapas_funil!negociacoes_etapa_id_fkey(ordem)')
+    .eq('id', negociacaoId)
+    .maybeSingle()
+  if (erroNegociacao) return traduzirErro(erroNegociacao)
+  if (!negociacao) return NAO_ENCONTRADA
+
+  const { data: limite, error: erroLimite } = await supabase
+    .from('etapas_funil')
+    .select('ordem')
+    .eq('funil_id', funilId)
+    .eq('chave', 'reuniao_realizada')
+    .maybeSingle()
+  if (erroLimite) return traduzirErro(erroLimite)
+
+  const ordemLimite = limite ? Number(limite.ordem) : null
+  const ordemOrigem = Number(negociacao.etapa.ordem)
+
+  return sdrPodeMoverPara(ordemOrigem, ordemDestino, ordemLimite)
+    ? { ok: true }
+    : { ok: false, mensagem: MSG_HANDOFF_SDR }
+}
+
+/**
  * Move entre etapas abertas ou reordena dentro da coluna.
  *
  * O tipo da etapa de destino é lido do banco. Em etapa ganha/perdida só a
@@ -249,6 +294,9 @@ const NAO_ENCONTRADA: ResultadoFunil = {
  * motivo, e também etapa desativada.
  *
  * Closer só move o que é dele: a RLS esconde a linha e o UPDATE afeta 0.
+ *
+ * SDR: antes de qualquer UPDATE, confere o handoff (`verificarHandoffSdr`).
+ * Gerente e closer nunca passam por essa checagem.
  *
  * `reposicionar` traz os outros cards da coluna quando ela foi renumerada.
  * Esses UPDATEs mudam só a posição e só de cards que já estão na etapa —
@@ -260,16 +308,21 @@ export async function moverNegociacao(
   posicao: number,
   reposicionar: { id: string; posicao: number }[] = [],
 ): Promise<ResultadoFunil> {
-  await getUsuarioAtual()
+  const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data: etapa, error: erroEtapa } = await supabase
     .from('etapas_funil')
-    .select('tipo, ativo')
+    .select('tipo, ativo, ordem, funil_id')
     .eq('id', etapaId)
     .maybeSingle()
   if (erroEtapa) return traduzirErro(erroEtapa)
   if (!etapa || !etapa.ativo) return { ok: false, mensagem: 'Etapa não encontrada ou desativada.' }
+
+  if (usuario.role === 'sdr') {
+    const handoff = await verificarHandoffSdr(supabase, id, etapa.funil_id, Number(etapa.ordem))
+    if (!handoff.ok) return handoff
+  }
 
   const query = tipoExigeModal(etapa.tipo)
     ? supabase.from('negociacoes').update({ posicao }).eq('id', id).eq('etapa_id', etapaId)
@@ -312,6 +365,7 @@ export async function fecharNegociacao(f: FechamentoInput): Promise<ResultadoFun
     p_status_onboarding: f.status_onboarding,
     p_servico_ids: f.servico_ids,
     p_observacoes: f.observacoes ?? undefined,
+    p_tipo_venda: f.tipo_venda,
   })
 
   if (error) return traduzirErro(error)
@@ -340,6 +394,7 @@ export async function atualizarFechamento(f: AtualizarFechamentoInput): Promise<
     p_status_onboarding: f.status_onboarding,
     p_servico_ids: f.servico_ids,
     p_observacoes: f.observacoes ?? undefined,
+    p_tipo_venda: f.tipo_venda ?? undefined,
   })
 
   if (error) return traduzirErro(error)
@@ -422,7 +477,12 @@ function traduzirErro(error: PostgrestError): ResultadoFunil {
     case 'P0002':
       return NAO_ENCONTRADA
     case '42501':
-      return { ok: false, mensagem: 'Você não tem permissão para mover esta negociação.' }
+      // Backstop do trigger `negociacoes_valida_handoff_sdr` — mesma mensagem
+      // exata que a checagem em TypeScript já deveria ter devolvido antes de
+      // chegar aqui; só sobra pra quem for direto na API, ignorando a Server Action.
+      return error.message.includes('CLOSER deve assumir')
+        ? { ok: false, mensagem: error.message }
+        : { ok: false, mensagem: 'Você não tem permissão para mover esta negociação.' }
     case '23514':
       // Constraints e triggers de regra de negócio (fechamento, motivo, datas).
       return { ok: false, mensagem: 'Os dados não atendem às regras da negociação.' }

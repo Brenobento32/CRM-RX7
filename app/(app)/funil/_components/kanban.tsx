@@ -28,8 +28,12 @@ import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { moverNegociacaoAction } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
 import type { Servico } from '@/lib/dal/servicos'
-import { tipoExigeModal, type EtapaKanban } from '@/lib/utils/etapas'
+import { CHAVE_HANDOFF_SDR, sdrPodeMoverPara, tipoExigeModal, type EtapaKanban } from '@/lib/utils/etapas'
 import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
+import type { Papel } from '@/lib/validations/usuario'
+
+/** "SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead." — mesma mensagem do backend (lib/dal/funil.ts). Checagem aqui é só UX: a trava real é no servidor. */
+const MSG_HANDOFF_SDR = 'SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
 
 import { CardArrastavel, CardConteudo } from './card-negociacao'
 import { DrawerNegociacao } from './drawer-negociacao'
@@ -128,11 +132,14 @@ function renumerar(coluna: CardFunil[]): CardFunil[] {
 export function Kanban({
   cards,
   etapas,
+  papel,
   servicos,
   whatsappHabilitado,
 }: {
   cards: CardFunil[]
   etapas: EtapaKanban[]
+  /** Dono da trava real é o servidor; aqui só decide o que esconder/desabilitar pro SDR (item 4/UX). */
+  papel: Papel
   servicos: Servico[]
   whatsappHabilitado: boolean
 }) {
@@ -141,6 +148,19 @@ export function Kanban({
   const quadroRef = useRef<HTMLDivElement>(null)
   const rolagem = useRolagemHorizontal(quadroRef)
   const [colunas, setColunas] = useState(() => agrupar(cards, etapas))
+
+  const souSdr = papel === 'sdr'
+  // `null` quando o funil não tem a etapa técnica "reuniao_realizada" — a
+  // trava simplesmente não existe nele (mesma regra do backend).
+  const ordemLimiteSdr = etapas.find((e) => e.chave === CHAVE_HANDOFF_SDR)?.ordem ?? null
+  const ordemDe = (etapaId: string) => etapas.find((e) => e.id === etapaId)?.ordem ?? 0
+
+  /** Etapas que o SDR pode escolher no "Mover para"/drawer a partir de `etapaOrigemId` — as demais nem aparecem. */
+  function etapasPermitidas(etapaOrigemId: string): EtapaKanban[] {
+    if (!souSdr) return etapas
+    const ordemOrigem = ordemDe(etapaOrigemId)
+    return etapas.filter((e) => e.id === etapaOrigemId || sdrPodeMoverPara(ordemOrigem, e.ordem, ordemLimiteSdr))
+  }
 
   // Quando o servidor manda dados novos (após uma action), o quadro é
   // reconstruído a partir deles — a fonte da verdade é o banco.
@@ -268,6 +288,16 @@ export function Kanban({
     antes: Colunas
   }) {
     const etapaId = card.etapaId
+
+    // UX: evita o round-trip quando o próprio frontend já sabe que o
+    // servidor vai recusar (o servidor confere de novo, sempre — ver
+    // moverNegociacao em lib/dal/funil.ts).
+    if (souSdr && etapaId !== origem && !sdrPodeMoverPara(ordemDe(origem), ordemDe(etapaId), ordemLimiteSdr)) {
+      setColunas(antes)
+      setErro(MSG_HANDOFF_SDR)
+      return
+    }
+
     const tipo = tipoDe(etapaId)
     if (tipoExigeModal(tipo) && etapaId !== origem) {
       setPendente({ card, tipo, posicao, antes })
@@ -357,8 +387,10 @@ export function Kanban({
             <Coluna
               key={etapa.id}
               etapa={etapa}
-              etapas={etapas}
+              etapasPermitidas={etapasPermitidas(etapa.id)}
               cards={colunas[etapa.id] ?? []}
+              travadaParaSdr={souSdr && ordemLimiteSdr !== null && etapa.ordem > ordemLimiteSdr}
+              cardTravado={(card) => souSdr && ordemLimiteSdr !== null && ordemDe(card.etapaId) >= ordemLimiteSdr}
               onMover={moverPara}
               onEditar={setEdicaoRapida}
               onAbrirDrawer={setDrawer}
@@ -399,7 +431,7 @@ export function Kanban({
       {drawer && (
         <DrawerNegociacao
           card={drawer}
-          etapas={etapas}
+          etapas={etapasPermitidas(drawer.etapaId)}
           whatsappHabilitado={whatsappHabilitado}
           onFechar={() => setDrawer(null)}
           onEditar={setEdicaoRapida}
@@ -432,15 +464,22 @@ export function Kanban({
 
 function Coluna({
   etapa,
-  etapas,
+  etapasPermitidas,
   cards,
+  travadaParaSdr,
+  cardTravado,
   onMover,
   onEditar,
   onAbrirDrawer,
 }: {
   etapa: EtapaKanban
-  etapas: EtapaKanban[]
+  /** Já filtrada pra esta coluna (origem = `etapa.id`) — ver `etapasPermitidas` em `Kanban`. */
+  etapasPermitidas: EtapaKanban[]
   cards: CardFunil[]
+  /** SDR: esta coluna já está além do handoff — só informativo (item 4/UX), a trava real é no servidor. */
+  travadaParaSdr: boolean
+  /** Por card: a negociação já passou do handoff — arraste desabilitado pro SDR. */
+  cardTravado: (card: CardFunil) => boolean
   onMover: (id: string, etapaId: string) => void
   onEditar: (card: CardFunil) => void
   onAbrirDrawer: (card: CardFunil) => void
@@ -469,6 +508,14 @@ function Coluna({
           <span className="rounded-full bg-white px-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
             {cards.length}
           </span>
+          {travadaParaSdr && (
+            <span
+              title="A partir daqui, só o CLOSER movimenta o lead."
+              className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+            >
+              Somente CLOSER
+            </span>
+          )}
         </h2>
         {total > 0 && (
           <span className="text-xs text-zinc-500 tabular-nums">{formatarMoedaCompacta(total)}</span>
@@ -481,7 +528,8 @@ function Coluna({
             <CardArrastavel
               key={card.id}
               card={card}
-              etapas={etapas}
+              etapas={etapasPermitidas}
+              travado={cardTravado(card)}
               onMover={onMover}
               onEditar={onEditar}
               onAbrirDrawer={onAbrirDrawer}

@@ -80,6 +80,7 @@ type CampoFechamentoTexto =
   | 'status_pagamento'
   | 'status_onboarding'
   | 'observacoes'
+  | 'tipo_venda'
 
 const CAMPOS_FECHAMENTO_TEXTO: CampoFechamentoTexto[] = [
   'valor_vendido',
@@ -90,6 +91,7 @@ const CAMPOS_FECHAMENTO_TEXTO: CampoFechamentoTexto[] = [
   'status_pagamento',
   'status_onboarding',
   'observacoes',
+  'tipo_venda',
 ]
 
 export type EstadoFormFechamento = {

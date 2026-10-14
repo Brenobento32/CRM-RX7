@@ -4,6 +4,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual, type UserRole } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/types/database'
 import { primeiroDiaDoMes } from '@/lib/utils/periodo'
 import {
   ALVO_EMPRESA,
@@ -12,13 +13,17 @@ import {
   type EditarMetaInput,
 } from '@/lib/validations/meta'
 
-export type ProgressoEmpresa = {
+export type TipoMeta = Database['public']['Enums']['tipo_venda']
+
+export type ProgressoMetaTipo = {
   metaId: string | null
   valorMeta: number | null
   realizado: number
   /** Realizado ÷ meta. Passa de 1 quando a meta é batida. `null` sem meta. */
   percentual: number | null
 }
+
+export type ProgressoEmpresa = { tcv: ProgressoMetaTipo; mrr: ProgressoMetaTipo }
 
 export type ProgressoPessoa = ProgressoEmpresa & {
   usuarioId: string
@@ -39,7 +44,8 @@ export function percentualMeta(realizado: number, meta: number | null): number |
 }
 
 /**
- * Meta × realizado do mês (AAAA-MM). O que cada um enxerga é decidido em
+ * Meta × realizado do mês (AAAA-MM), TCV e MRR nunca somados — são dois
+ * totais independentes por alvo. O que cada um enxerga é decidido em
  * `metas_progresso`, no banco: o gerente recebe a empresa e a equipe, o
  * closer só a própria linha.
  */
@@ -54,15 +60,26 @@ export async function obterProgressoMetas(mes: string): Promise<ProgressoMetas> 
   const pessoas: ProgressoPessoa[] = []
 
   // Os tipos gerados marcam as colunas como não nulas; na linha da empresa
-  // usuario_id, nome, role e ativo vêm nulos, e valor_meta é nulo sem meta.
+  // usuario_id, nome, role e ativo vêm nulos, e os valor_meta_* são nulos
+  // sem meta definida para aquele tipo.
   for (const linha of data) {
-    const valorMeta = linha.valor_meta === null ? null : Number(linha.valor_meta)
-    const realizado = Number(linha.realizado)
-    const base = {
-      metaId: (linha.meta_id as string | null) ?? null,
-      valorMeta,
-      realizado,
-      percentual: percentualMeta(realizado, valorMeta),
+    const valorMetaTcv = linha.valor_meta_tcv === null ? null : Number(linha.valor_meta_tcv)
+    const valorMetaMrr = linha.valor_meta_mrr === null ? null : Number(linha.valor_meta_mrr)
+    const realizadoTcv = Number(linha.realizado_tcv)
+    const realizadoMrr = Number(linha.realizado_mrr)
+    const base: ProgressoEmpresa = {
+      tcv: {
+        metaId: (linha.meta_id_tcv as string | null) ?? null,
+        valorMeta: valorMetaTcv,
+        realizado: realizadoTcv,
+        percentual: percentualMeta(realizadoTcv, valorMetaTcv),
+      },
+      mrr: {
+        metaId: (linha.meta_id_mrr as string | null) ?? null,
+        valorMeta: valorMetaMrr,
+        realizado: realizadoMrr,
+        percentual: percentualMeta(realizadoMrr, valorMetaMrr),
+      },
     }
 
     if ((linha.usuario_id as string | null) === null) {
@@ -92,6 +109,8 @@ export type Meta = {
   usuarioId: string | null
   /** Nome do closer, ou "Empresa". */
   alvo: string
+  /** `null` só em metas criadas antes desta funcionalidade — nunca em uma nova. */
+  tipoMeta: TipoMeta | null
   /** AAAA-MM */
   mes: string
   valorMeta: number
@@ -103,7 +122,7 @@ export async function obterMeta(id: string): Promise<Meta | null> {
 
   const { data, error } = await supabase
     .from('metas')
-    .select('id, usuario_id, periodo_mes, valor_meta, usuario:profiles!metas_usuario_id_fkey(nome)')
+    .select('id, usuario_id, periodo_mes, valor_meta, tipo_meta, usuario:profiles!metas_usuario_id_fkey(nome)')
     .eq('id', id)
     .maybeSingle()
 
@@ -114,6 +133,7 @@ export async function obterMeta(id: string): Promise<Meta | null> {
     id: data.id,
     usuarioId: data.usuario_id,
     alvo: data.usuario_id === null ? 'Empresa' : (data.usuario?.nome ?? 'Closer'),
+    tipoMeta: data.tipo_meta,
     mes: data.periodo_mes.slice(0, 7),
     valorMeta: Number(data.valor_meta),
   }
@@ -148,6 +168,7 @@ export async function criarMeta(input: CriarMetaInput): Promise<ResultadoMeta> {
 
   const { error } = await supabase.from('metas').insert({
     usuario_id: input.alvo === ALVO_EMPRESA ? null : input.alvo,
+    tipo_meta: input.tipo_meta,
     periodo_mes: primeiroDiaDoMes(input.mes),
     valor_meta: Number(input.valor_meta),
   })
@@ -180,7 +201,11 @@ export async function removerMeta(id: string): Promise<ResultadoMeta> {
 function traduzirErro(error: PostgrestError): Extract<ResultadoMeta, { ok: false }> {
   switch (error.code) {
     case '23505':
-      return { ok: false, campo: 'alvo', mensagem: 'Já existe uma meta para este alvo neste mês. Edite a existente.' }
+      return {
+        ok: false,
+        campo: 'alvo',
+        mensagem: 'Já existe uma meta deste tipo (TCV/MRR) para este alvo neste mês. Edite a existente.',
+      }
     case '23514':
       // Mensagens dos triggers de `metas` já são para o usuário.
       return { ok: false, mensagem: error.message }
