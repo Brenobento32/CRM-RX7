@@ -82,3 +82,78 @@ export function somarMeses(mes: string, meses: number): string {
 export function rotuloMes(mes: string): string {
   return `${MESES[Number(mes.slice(5)) - 1]} de ${mes.slice(0, 4)}`
 }
+
+// ---------------------------------------------------------------------------
+// Período do funil (Métricas do funil) — atalhos próprios, independentes dos
+// de {@link PERIODOS} (dashboard/propostas): 7/30/90 dias, este ano, e um
+// período personalizado (início/fim escolhidos pelo usuário). Nunca reaproveita
+// 'mes'/'mes_anterior'/'15d' — são atalhos de outra tela, com outro propósito.
+// ---------------------------------------------------------------------------
+
+export const PERIODOS_FUNIL = ['7d', '30d', '90d', 'ano', 'personalizado'] as const
+
+export type ChavePeriodoFunil = (typeof PERIODOS_FUNIL)[number]
+
+export const ROTULO_PERIODO_FUNIL: Record<ChavePeriodoFunil, string> = {
+  '7d': '7 dias',
+  '30d': '30 dias',
+  '90d': '90 dias',
+  ano: 'Este ano',
+  personalizado: 'Personalizado',
+}
+
+export type PeriodoFunil = { chave: ChavePeriodoFunil; inicio: string; fim: string }
+
+/**
+ * true só quando o período começa exatamente no dia 1 do mês informado e
+ * termina dentro dele — único caso em que "Atingido %" contra uma meta
+ * MENSAL faz sentido. Nenhum dos atalhos 7d/30d/90d/ano bate com isso por
+ * acaso (30 dias é janela rolante, nunca o calendário do mês); só
+ * "Personalizado" ajustado manualmente para o mês inteiro (ou até hoje)
+ * passa. Comparar uma janela diferente contra a meta do mês seria
+ * enganoso — por isso a checagem é estrita, não "aproximada".
+ */
+export function periodoCorrespondeAoMes(periodo: { inicio: string; fim: string }, mes: string): boolean {
+  return periodo.inicio === primeiroDiaDoMes(mes) && periodo.fim.slice(0, 7) === mes
+}
+
+export function chavePeriodoFunil(valor: unknown): ChavePeriodoFunil {
+  return (PERIODOS_FUNIL as readonly unknown[]).includes(valor) ? (valor as ChavePeriodoFunil) : '30d'
+}
+
+function dataValida(valor: unknown): valor is string {
+  return typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor) && !Number.isNaN(Date.parse(valor))
+}
+
+/**
+ * Resolve o período do funil. `personalizado` só existe com `inicio`/`fim`
+ * explícitos (da URL) — datas inválidas ou ausentes caem no padrão de 30
+ * dias; `inicio` depois de `fim` é trocado automaticamente, nunca um
+ * intervalo invertido.
+ */
+export function resolverPeriodoFunil(
+  chave: ChavePeriodoFunil,
+  personalizado: { inicio?: unknown; fim?: unknown } = {},
+  hoje = hojeSaoPaulo(),
+): PeriodoFunil {
+  switch (chave) {
+    case '7d':
+      return { chave, inicio: somarDias(hoje, -6), fim: hoje }
+    case '30d':
+      return { chave, inicio: somarDias(hoje, -29), fim: hoje }
+    case '90d':
+      return { chave, inicio: somarDias(hoje, -89), fim: hoje }
+    case 'ano':
+      return { chave, inicio: `${hoje.slice(0, 4)}-01-01`, fim: hoje }
+    case 'personalizado': {
+      if (!dataValida(personalizado.inicio) || !dataValida(personalizado.fim)) {
+        return { chave, inicio: somarDias(hoje, -29), fim: hoje }
+      }
+      const [inicio, fim] =
+        personalizado.inicio <= personalizado.fim
+          ? [personalizado.inicio, personalizado.fim]
+          : [personalizado.fim, personalizado.inicio]
+      return { chave, inicio, fim }
+    }
+  }
+}

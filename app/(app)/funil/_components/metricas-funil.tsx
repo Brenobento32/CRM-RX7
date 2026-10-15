@@ -18,6 +18,11 @@ export function MetricasFunilPainel({ metricas }: { metricas: MetricasFunil }) {
 
   const cards = [
     {
+      rotulo: 'Total entraram',
+      valor: String(resumo.totalEntraram),
+      detalhe: 'Negociações criadas no período (coorte)',
+    },
+    {
       rotulo: 'Oportunidades',
       valor: String(resumo.oportunidades),
       detalhe: 'Negociações em etapas abertas, agora',
@@ -52,7 +57,7 @@ export function MetricasFunilPainel({ metricas }: { metricas: MetricasFunil }) {
 
   return (
     <div className="space-y-4">
-      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
           <div
             key={c.rotulo}
@@ -75,7 +80,7 @@ export function MetricasFunilPainel({ metricas }: { metricas: MetricasFunil }) {
       </dl>
 
       <details open className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Métricas por etapa</summary>
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Tabela detalhada por etapa</summary>
         <div className="overflow-x-auto border-t border-zinc-200 dark:border-zinc-800">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900">
@@ -83,6 +88,7 @@ export function MetricasFunilPainel({ metricas }: { metricas: MetricasFunil }) {
                 <th className="px-4 py-2 text-left font-medium">Etapa</th>
                 <th className="px-4 py-2 text-right font-medium">Cards</th>
                 <th className="px-4 py-2 text-right font-medium">Valor</th>
+                <th className="px-4 py-2 text-right font-medium">Desde a entrada</th>
                 <th className="px-4 py-2 text-left font-medium">Avançam para a próxima</th>
                 <th className="px-4 py-2 text-right font-medium">Tempo médio na etapa</th>
                 <th className="px-4 py-2 text-right font-medium">Cards atuais, em média há</th>
@@ -101,7 +107,24 @@ export function MetricasFunilPainel({ metricas }: { metricas: MetricasFunil }) {
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-right">{e.quantidade}</td>
-                    <td className="px-4 py-2.5 text-right whitespace-nowrap">{formatarMoeda(e.valor)}</td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      {e.tipo === 'perdida' ? (
+                        <span title="Valor estimado atual das negociações perdidas — o campo não guarda histórico, é aproximado, não o valor real no momento da perda">
+                          ≈ {formatarMoeda(e.valor)}
+                        </span>
+                      ) : (
+                        formatarMoeda(e.valor)
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {e.conversaoAcumulada === null ? (
+                        <span className="text-zinc-400" title="Nenhuma negociação entrou no funil neste período">—</span>
+                      ) : (
+                        <span title={`${e.alcancaram} de ${resumo.totalEntraram} que entraram no período`}>
+                          {formatarPercentual(e.conversaoAcumulada)}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5">
                       {e.proxima ? (
                         <Conversao
@@ -146,9 +169,12 @@ export function MetricasFunilPainel({ metricas }: { metricas: MetricasFunil }) {
           </table>
         </div>
         <p className="border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
-          Cards e valor: etapas abertas agora; Fechado e Perdido, encerradas no período. Avanço: das
-          negociações criadas no período, quantas passaram da etapa (ou de alguma depois dela) para a
-          seguinte. Tempo médio: passagens concluídas no período, pelo histórico de etapas.
+          Cards e valor: etapas abertas, agora (exclui arquivadas e excluídas). Fechado: vendas reais no
+          período, pela data de fechamento — mesmo que a negociação tenha sido arquivada depois. Perdido:
+          entrou na etapa no período; valor é estimativa atual, não o valor real da época. &ldquo;Desde a
+          entrada&rdquo; e &ldquo;Avançam para a próxima&rdquo; são sobre as negociações que entraram no funil no período
+          selecionado, mas mostram o avanço delas até agora — podem ter avançado depois do período, e
+          isso ainda conta. Tempo médio: passagens concluídas no período, pelo histórico de etapas.
         </p>
       </details>
     </div>

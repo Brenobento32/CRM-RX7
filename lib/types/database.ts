@@ -2171,9 +2171,11 @@ export type Database = {
           parados_7_dias: number
           parados_medio_segundos: number
           permanencias: number
+          pos_fechamento: boolean
           quantidade: number
           tempo_medio_segundos: number
           tipo: Database["public"]["Enums"]["tipo_etapa"]
+          total_entraram: number
           valor: number
         }[]
       }
@@ -2231,8 +2233,14 @@ export type Database = {
           nome: string
         }[]
       }
-      pode_mover_etapa: { Args: { p_etapa_id: string; p_funil_id: string }; Returns: boolean }
-      pode_ver_etapa: { Args: { p_etapa_id: string; p_funil_id: string }; Returns: boolean }
+      pode_mover_etapa: {
+        Args: { p_etapa_id: string; p_funil_id: string }
+        Returns: boolean
+      }
+      pode_ver_etapa: {
+        Args: { p_etapa_id: string; p_funil_id: string }
+        Returns: boolean
+      }
       salvar_negociacao: {
         Args: {
           p_data_primeira_reuniao: string
