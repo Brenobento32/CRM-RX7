@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { chavePeriodoFunil, periodoCorrespondeAoMes, resolverPeriodoFunil } from '@/lib/utils/periodo'
+import { chavePeriodoFunil, resolverPeriodoFunil } from '@/lib/utils/periodo'
 
 const HOJE = '2026-10-15'
 
@@ -71,32 +71,17 @@ describe('resolverPeriodoFunil', () => {
       fim: HOJE,
     })
   })
-})
 
-describe('periodoCorrespondeAoMes', () => {
-  it('mês inteiro (dia 1 ao último dia) bate com o mês', () => {
-    expect(periodoCorrespondeAoMes({ inicio: '2026-10-01', fim: '2026-10-31' }, '2026-10')).toBe(true)
+  it('transição: de "personalizado" para um atalho — cada chamada é independente, sem estado residual', () => {
+    const personalizado = resolverPeriodoFunil('personalizado', { inicio: '2026-01-01', fim: '2026-01-05' }, HOJE)
+    const depois30d = resolverPeriodoFunil('30d', {}, HOJE)
+    expect(personalizado.chave).toBe('personalizado')
+    expect(depois30d).toEqual({ chave: '30d', inicio: '2026-09-16', fim: HOJE })
   })
 
-  it('mês até hoje (mês em andamento) bate com o mês', () => {
-    expect(periodoCorrespondeAoMes({ inicio: '2026-10-01', fim: HOJE }, '2026-10')).toBe(true)
-  })
-
-  it('nenhum atalho rolante (7d/30d/90d) bate com o mês por acaso', () => {
-    expect(periodoCorrespondeAoMes(resolverPeriodoFunil('7d', {}, HOJE), '2026-10')).toBe(false)
-    expect(periodoCorrespondeAoMes(resolverPeriodoFunil('30d', {}, HOJE), '2026-10')).toBe(false)
-    expect(periodoCorrespondeAoMes(resolverPeriodoFunil('90d', {}, HOJE), '2026-10')).toBe(false)
-  })
-
-  it('"este ano" não bate com o mês (período maior que o mês)', () => {
-    expect(periodoCorrespondeAoMes(resolverPeriodoFunil('ano', {}, HOJE), '2026-10')).toBe(false)
-  })
-
-  it('início fora do dia 1 não bate, mesmo no mês certo', () => {
-    expect(periodoCorrespondeAoMes({ inicio: '2026-10-02', fim: '2026-10-31' }, '2026-10')).toBe(false)
-  })
-
-  it('mês diferente do pedido não bate, mesmo começando no dia 1', () => {
-    expect(periodoCorrespondeAoMes({ inicio: '2026-09-01', fim: '2026-09-30' }, '2026-10')).toBe(false)
+  it('transição: de um atalho para "personalizado" — não herda nada do atalho anterior', () => {
+    resolverPeriodoFunil('7d', {}, HOJE)
+    const personalizado = resolverPeriodoFunil('personalizado', { inicio: '2026-02-01', fim: '2026-02-10' }, HOJE)
+    expect(personalizado).toEqual({ chave: 'personalizado', inicio: '2026-02-01', fim: '2026-02-10' })
   })
 })

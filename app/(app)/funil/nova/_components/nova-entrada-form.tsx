@@ -6,19 +6,20 @@ import { useActionState } from 'react'
 import { ErroCampo } from '@/components/ui/erro-campo'
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
 import { criarNegociacaoAction, type EstadoNovaNegociacao } from '@/lib/actions/funis'
-import type { OpcaoCliente } from '@/lib/dal/eventos'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
+
+import { SeletorClienteBusca } from './seletor-cliente-busca'
 
 /**
  * Sempre para um cliente já existente — nunca cria cliente aqui. O
  * responsável segue o dono do cliente; não há seletor de responsável.
+ * Cliente é escolhido por busca (`SeletorClienteBusca`), nunca por uma
+ * lista estática — evita carregar a base inteira de clientes no formulário.
  */
 export function NovaEntradaForm({
-  clientes,
   funilId,
   cancelarHref,
 }: {
-  clientes: OpcaoCliente[]
   funilId: string
   cancelarHref: string
 }) {
@@ -42,27 +43,7 @@ export function NovaEntradaForm({
 
       <input type="hidden" name="funil_id" value={funilId} />
 
-      <div>
-        <label htmlFor="cliente_id" className="mb-1.5 block text-sm font-medium">
-          Cliente
-        </label>
-        <select
-          id="cliente_id"
-          name="cliente_id"
-          defaultValue={valores?.cliente_id ?? ''}
-          aria-invalid={erro('cliente_id') ? true : undefined}
-          className={inputClass}
-        >
-          <option value="">Selecione…</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome}
-              {c.empresa ? ` · ${c.empresa}` : ''}
-            </option>
-          ))}
-        </select>
-        <ErroCampo mensagem={erro('cliente_id')} />
-      </div>
+      <SeletorClienteBusca erro={erro('cliente_id')} />
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>

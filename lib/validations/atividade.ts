@@ -50,6 +50,19 @@ export const atividadeSchema = z.object({
 
 export type AtividadeInput = z.output<typeof atividadeSchema>
 
+/**
+ * "Observação" rápida do card do Kanban: sempre `tipo='nota'`, sempre
+ * amarrada à negociação do próprio card (nunca escolhida por `<select>`) —
+ * por isso só pede a descrição, ao contrário de `atividadeSchema`.
+ */
+export const observacaoRapidaSchema = z.object({
+  descricao: z
+    .string()
+    .trim()
+    .min(1, 'Escreva a observação.')
+    .max(5000, 'Máximo de 5000 caracteres.'),
+})
+
 export const proximaAcaoSchema = z.object({
   titulo: z
     .string()

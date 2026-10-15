@@ -22,6 +22,13 @@ type Props = {
   valoresIniciais: Valores
   /** Só preenchido para gerente: permite escolher a carteira do cliente. */
   responsaveis: { id: string; nome: string; role: string }[]
+  /**
+   * Só no cadastro (nunca na edição/ficha rápida, que não recriam
+   * negociação): funis que o usuário pode escolher pra abrir a negociação
+   * inicial — já filtrados por permissão (`listarFunis()`). Ausente/vazio
+   * esconde o campo (edição não precisa dele).
+   */
+  funis?: { id: string; nome: string }[]
   rotuloEnviar: string
   /** Página de destino do "Cancelar" — ausente quando `onCancelar` é usado (ficha dentro de um `<dialog>`). */
   cancelarHref?: string
@@ -42,6 +49,7 @@ export function ClienteForm({
   action,
   valoresIniciais,
   responsaveis,
+  funis,
   rotuloEnviar,
   cancelarHref,
   onCancelar,
@@ -95,6 +103,31 @@ export function ClienteForm({
           className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
         >
           {estado.erro}
+        </div>
+      )}
+
+      {funis && funis.length > 0 && (
+        <div className="space-y-1.5">
+          <label htmlFor="funil_id" className="block text-sm font-medium">
+            Funil
+          </label>
+          <select
+            id="funil_id"
+            name="funil_id"
+            defaultValue={funis.length === 1 ? funis[0].id : ''}
+            required
+            className={inputClass}
+          >
+            {funis.length > 1 && <option value="">Selecione…</option>}
+            {funis.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-zinc-500">
+            A negociação inicial entra na primeira etapa aberta deste funil.
+          </p>
         </div>
       )}
 

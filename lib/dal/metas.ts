@@ -5,6 +5,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { getUsuarioAtual, type UserRole } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
+import { metaProporcionalPeriodo, type MetaPeriodo } from '@/lib/utils/financeiro-periodo'
 import { primeiroDiaDoMes } from '@/lib/utils/periodo'
 import {
   ALVO_EMPRESA,
@@ -91,6 +92,41 @@ export async function obterProgressoMetas(mes: string): Promise<ProgressoMetas> 
 
   pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   return { empresa, pessoas }
+}
+
+/**
+ * Meta proporcionada a um período arbitrário (não necessariamente um mês
+ * inteiro) — schema continua mensal (`metas.periodo_mes`), sem nenhuma
+ * tabela/coluna nova: busca TODAS as metas do alvo (`usuario_id = null`
+ * para a empresa, ou o uuid da pessoa — mesma RLS de `obterMeta`/`metas_select`:
+ * `usuario_id = auth.uid() OR is_gerente()`) e deixa `metaProporcionalPeriodo`
+ * (pura, `lib/utils/financeiro-periodo.ts`) somar a fração de cada mês que
+ * o período toca. Mês completo = 100% da meta daquele mês; período
+ * parcial = a fração de dias; vários meses somam a parcela de cada um.
+ * Mês sem meta definida contribui 0 sem anular os demais; `null` só se
+ * NENHUM mês tocado tiver meta.
+ */
+export async function obterMetaPeriodo(
+  periodo: { inicio: string; fim: string },
+  usuarioId: string | null,
+): Promise<MetaPeriodo> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  let query = supabase.from('metas').select('periodo_mes, tipo_meta, valor_meta')
+  query = usuarioId === null ? query.is('usuario_id', null) : query.eq('usuario_id', usuarioId)
+  const { data, error } = await query
+  if (error) throw new Error('Não foi possível carregar a meta do período.', { cause: error })
+
+  const paraMensal = (tipo: TipoMeta) =>
+    data
+      .filter((m) => m.tipo_meta === tipo)
+      .map((m) => ({ mes: m.periodo_mes.slice(0, 7), valorMeta: Number(m.valor_meta) }))
+
+  return {
+    tcv: metaProporcionalPeriodo(paraMensal('tcv'), periodo),
+    mrr: metaProporcionalPeriodo(paraMensal('mrr'), periodo),
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,10 @@ import 'server-only'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
+import { agregarRealizado, type RealizadoFunil } from '@/lib/utils/financeiro-periodo'
 import { processarMetricasFunil, type MetricasFunil } from '@/lib/utils/funil-metricas'
+
+export type { RealizadoFunil } from '@/lib/utils/financeiro-periodo'
 
 export type { MetricaEtapa, MetricasFunil, ResumoFunil } from '@/lib/utils/funil-metricas'
 
@@ -34,21 +37,16 @@ export async function obterMetricasFunil(
   return processarMetricasFunil(data)
 }
 
-export type RealizadoFunil = { tcv: number; mrr: number }
-
 /**
- * Vendido no funil e período selecionados, por tipo (TCV/MRR) —
- * `fechamentos.valor_vendido`, pela data de fechamento, sobre as
- * negociações do funil escolhido. NUNCA usa `metas_progresso` (que é
- * sempre mês corrente, sem filtro de funil) — é uma query própria, sem
- * RPC nova e sem migration, no mesmo padrão já usado por
- * `listarPropostasFechadas` (`lib/dal/propostas.ts`): SELECT direto,
- * `fechamentos` RLS decide o que cada papel enxerga (igual ao resto da
- * tela — nunca um filtro de dono aqui).
- *
- * `tipo_venda` nulo (vendas registradas antes da classificação TCV/MRR
- * existir) não entra em nenhum dos dois totais — mesma regra de
- * `metas_progresso`.
+ * Vendido no funil e período selecionados, por tipo (TCV/MRR), com
+ * quantidade (para ticket médio) — `fechamentos.valor_vendido`, pela data
+ * de fechamento, sobre as negociações do funil escolhido. NUNCA usa
+ * `metas_progresso` (que é sempre mês corrente, sem filtro de funil) — é
+ * uma query própria, sem RPC nova e sem migration, no mesmo padrão já
+ * usado por `listarPropostasFechadas` (`lib/dal/propostas.ts`): SELECT
+ * direto, `fechamentos` RLS decide o que cada papel enxerga (igual ao
+ * resto da tela — nunca um filtro de dono aqui). A agregação em si
+ * (`agregarRealizado`) é pura, em `lib/utils/financeiro-periodo.ts`.
  */
 export async function obterRealizadoFunil(
   periodo: { inicio: string; fim: string },
@@ -69,12 +67,5 @@ export async function obterRealizadoFunil(
 
   if (error) throw new Error('Não foi possível carregar o realizado do período.', { cause: error })
 
-  return data.reduce<RealizadoFunil>(
-    (acc, f) => {
-      if (f.tipo_venda === 'tcv') acc.tcv += Number(f.valor_vendido)
-      if (f.tipo_venda === 'mrr') acc.mrr += Number(f.valor_vendido)
-      return acc
-    },
-    { tcv: 0, mrr: 0 },
-  )
+  return agregarRealizado(data)
 }

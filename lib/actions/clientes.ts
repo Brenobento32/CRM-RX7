@@ -46,7 +46,14 @@ export async function criarClienteAction(
     return { campos: z.flattenError(parsed.error).fieldErrors, valores }
   }
 
-  const resultado = await criarCliente(parsed.data)
+  // Fora de `clienteSchema` de propósito: só existe na criação (nunca na
+  // edição/ficha rápida, que reaproveitam o mesmo schema/action pattern) —
+  // `undefined` deixa `criar_cliente` cair no funil padrão, mesmo
+  // comportamento de antes pra quem não manda nada.
+  const funilIdBruto = formData.get('funil_id')
+  const funilId = typeof funilIdBruto === 'string' && z.uuid().safeParse(funilIdBruto).success ? funilIdBruto : undefined
+
+  const resultado = await criarCliente(parsed.data, funilId)
 
   if (!resultado.ok) {
     return resultado.campo

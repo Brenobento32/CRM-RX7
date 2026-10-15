@@ -6,13 +6,12 @@ import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
-import { obterProgressoMetas, percentualMeta } from '@/lib/dal/metas'
-import { formatarData, hojeSaoPaulo } from '@/lib/utils/formatacao'
-import { chavePeriodoFunil, mesAtual, periodoCorrespondeAoMes, resolverPeriodoFunil, rotuloMes } from '@/lib/utils/periodo'
+import { obterMetaPeriodo } from '@/lib/dal/metas'
+import { hojeSaoPaulo } from '@/lib/utils/formatacao'
+import { chavePeriodoFunil, resolverPeriodoFunil } from '@/lib/utils/periodo'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
-import { ROTULO_TIPO_META, TIPOS_META } from '@/lib/validations/meta'
 
-import { CardMeta } from '../../metas/_components/progresso'
+import { FinanceiroFunil } from '../_components/financeiro-funil'
 import { FunilVisual } from '../_components/funil-visual'
 import { SeletorFunil } from '../_components/seletor-funil'
 import { MetricasFunilPainel } from '../_components/metricas-funil'
@@ -42,29 +41,17 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
     )
   }
 
-  const mes = mesAtual(hoje)
-  const [metricas, progressoMetas, realizado] = await Promise.all([
+  // Meta é da empresa (gerente, usuario_id null) ou da própria pessoa
+  // (closer) — mesma distinção de /metas. `obterMetaPeriodo` já devolve a
+  // meta PROPORCIONADA ao período selecionado (nunca a do mês corrente
+  // inteiro) — ver lib/utils/financeiro-periodo.ts#metaProporcionalPeriodo.
+  const usuarioIdMeta = usuario.role === 'gerente' ? null : usuario.id
+
+  const [metricas, realizado, metaPeriodo] = await Promise.all([
     obterMetricasFunil(periodo, funilSelecionado.id),
-    obterProgressoMetas(mes),
     obterRealizadoFunil(periodo, funilSelecionado.id),
+    obterMetaPeriodo(periodo, usuarioIdMeta),
   ])
-
-  // Meta (valor-alvo) é da empresa (gerente) ou da própria pessoa (closer),
-  // sempre do mês corrente — o schema é mensal, sem meta por funil ainda.
-  // Só o VALOR da meta vem daqui; "realizado"/"percentual" de
-  // obterProgressoMetas são descartados nesta tela porque são sempre do mês
-  // inteiro, sem filtro de funil — usar os dois juntos misturaria duas
-  // janelas diferentes.
-  const metaPessoaOuEmpresa =
-    usuario.role === 'gerente' ? progressoMetas.empresa : (progressoMetas.pessoas.find((p) => p.usuarioId === usuario.id) ?? null)
-
-  // "Atingido %" só faz sentido comparando o realizado do período
-  // selecionado contra a meta mensal quando esse período É o mês da meta
-  // (início no dia 1, fim dentro do mesmo mês) — nenhum atalho 7d/30d/90d/
-  // ano bate com isso por acaso; só "Personalizado" ajustado manualmente
-  // para o mês inteiro passa. Fora disso, o percentual é null de propósito
-  // — nunca comparar uma janela arbitrária com a meta do mês.
-  const periodoEhOMesDaMeta = periodoCorrespondeAoMes(periodo, mes)
 
   return (
     <div className="space-y-6">
@@ -86,9 +73,13 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <SeletorFunil funis={funis} funilId={funilSelecionado.id} />
+        {/* key={periodo.chave}: força remontar ao trocar de atalho, pra nunca
+            deixar o calendário personalizado visível depois de escolher outro
+            atalho (e vice-versa) — ver comentário no próprio componente. */}
         <SeletorPeriodoFunil
+          key={periodo.chave}
           caminho="/funil/metricas"
           funilId={funilSelecionado.id}
           atual={periodo}
@@ -96,45 +87,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         />
       </div>
 
-      {metaPessoaOuEmpresa && (
-        <section className="space-y-2">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-              Meta {usuario.role === 'gerente' ? 'da empresa' : 'pessoal'} — referência de {rotuloMes(mes).toLowerCase()}
-            </h2>
-            <p className="text-xs text-zinc-500">
-              A meta é mensal (ainda não existe meta por funil). Realizado é o vendido no funil e período
-              selecionados acima ({formatarData(periodo.inicio)} a {formatarData(periodo.fim)}) — nunca o do
-              mês inteiro. Atingido só aparece quando o período escolhido é o próprio mês da meta;
-              comparar uma janela diferente com a meta mensal seria enganoso.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {TIPOS_META.map((tipo) => {
-              const valorMeta = metaPessoaOuEmpresa[tipo].valorMeta
-              const realizadoNoPeriodo = realizado[tipo]
-              const percentual = periodoEhOMesDaMeta ? percentualMeta(realizadoNoPeriodo, valorMeta) : null
-              return (
-                <div key={tipo}>
-                  <CardMeta
-                    titulo={`Meta ${ROTULO_TIPO_META[tipo]}`}
-                    valorMeta={valorMeta}
-                    realizado={realizadoNoPeriodo}
-                    percentual={percentual}
-                    semMeta="Não definida"
-                  />
-                  {!periodoEhOMesDaMeta && (
-                    <p className="mt-1.5 px-1 text-xs text-zinc-500">
-                      Atingido: não aplicável — o período selecionado não é o mês inteiro de{' '}
-                      {rotuloMes(mes).toLowerCase()}.
-                    </p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
+      <FinanceiroFunil metaPeriodo={metaPeriodo} realizado={realizado} periodo={periodo} />
 
       <FunilVisual metricas={metricas} />
 

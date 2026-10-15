@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-import { listarOpcoesClientes } from '@/lib/dal/eventos'
 import { listarFunis } from '@/lib/dal/funis'
 
 import { NovaEntradaForm } from './_components/nova-entrada-form'
@@ -16,8 +15,6 @@ export default async function NovaEntradaPage({ searchParams }: PageProps<'/funi
   const funil = funis.find((f) => f.id === funilParam && f.ativo)
   if (!funil) notFound()
 
-  const clientes = await listarOpcoesClientes()
-
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -27,7 +24,7 @@ export default async function NovaEntradaPage({ searchParams }: PageProps<'/funi
         </p>
       </div>
 
-      <NovaEntradaForm clientes={clientes} funilId={funil.id} cancelarHref={`/funil?funil=${funil.id}`} />
+      <NovaEntradaForm funilId={funil.id} cancelarHref={`/funil?funil=${funil.id}`} />
     </div>
   )
 }

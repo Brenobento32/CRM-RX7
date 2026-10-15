@@ -8,7 +8,7 @@ import {
   criarProximaAcao,
   registrarAtividade,
 } from '@/lib/dal/atividades'
-import { atividadeSchema, proximaAcaoSchema } from '@/lib/validations/atividade'
+import { atividadeSchema, observacaoRapidaSchema, proximaAcaoSchema } from '@/lib/validations/atividade'
 
 export type EstadoFormAtividade = {
   ok?: boolean
@@ -43,6 +43,46 @@ export async function registrarAtividadeAction(
   }
 
   const resultado = await registrarAtividade(clienteId, parsed.data)
+  if (!resultado.ok) {
+    return resultado.campo
+      ? { campos: { [resultado.campo]: [resultado.mensagem] } }
+      : { erro: resultado.mensagem }
+  }
+
+  revalidar(clienteId)
+  return { ok: true }
+}
+
+/**
+ * "Observação" do card do Kanban (`ModalFichaCliente`) — sempre `tipo='nota'`,
+ * sempre vinculada à negociação do card (nunca deixa o chamador escolher
+ * outra, ao contrário de `registrarAtividadeAction`): autorização fica
+ * inequívoca em `atividades_insert` (pode_mover_etapa na negociação
+ * exata), nunca "qualquer negociação do cliente".
+ */
+export async function registrarObservacaoAction(
+  clienteId: string,
+  negociacaoId: string,
+  _estado: EstadoFormAtividade | undefined,
+  formData: FormData,
+): Promise<EstadoFormAtividade> {
+  if (!uuid.safeParse(clienteId).success || !uuid.safeParse(negociacaoId).success) {
+    return { erro: 'Cliente ou negociação inválidos.' }
+  }
+
+  const parsed = observacaoRapidaSchema.safeParse({
+    descricao: String(formData.get('descricao') ?? ''),
+  })
+  if (!parsed.success) {
+    return { campos: z.flattenError(parsed.error).fieldErrors }
+  }
+
+  const resultado = await registrarAtividade(clienteId, {
+    tipo: 'nota',
+    descricao: parsed.data.descricao,
+    data: new Date().toISOString(),
+    negociacao_id: negociacaoId,
+  })
   if (!resultado.ok) {
     return resultado.campo
       ? { campos: { [resultado.campo]: [resultado.mensagem] } }

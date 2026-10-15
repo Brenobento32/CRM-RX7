@@ -104,19 +104,6 @@ export const ROTULO_PERIODO_FUNIL: Record<ChavePeriodoFunil, string> = {
 
 export type PeriodoFunil = { chave: ChavePeriodoFunil; inicio: string; fim: string }
 
-/**
- * true só quando o período começa exatamente no dia 1 do mês informado e
- * termina dentro dele — único caso em que "Atingido %" contra uma meta
- * MENSAL faz sentido. Nenhum dos atalhos 7d/30d/90d/ano bate com isso por
- * acaso (30 dias é janela rolante, nunca o calendário do mês); só
- * "Personalizado" ajustado manualmente para o mês inteiro (ou até hoje)
- * passa. Comparar uma janela diferente contra a meta do mês seria
- * enganoso — por isso a checagem é estrita, não "aproximada".
- */
-export function periodoCorrespondeAoMes(periodo: { inicio: string; fim: string }, mes: string): boolean {
-  return periodo.inicio === primeiroDiaDoMes(mes) && periodo.fim.slice(0, 7) === mes
-}
-
 export function chavePeriodoFunil(valor: unknown): ChavePeriodoFunil {
   return (PERIODOS_FUNIL as readonly unknown[]).includes(valor) ? (valor as ChavePeriodoFunil) : '30d'
 }

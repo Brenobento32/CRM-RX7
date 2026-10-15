@@ -108,6 +108,39 @@ export async function listarClientes({
   }
 }
 
+export type OpcaoClienteBusca = { id: string; nome: string; empresa: string | null }
+
+export const LIMITE_BUSCA_CLIENTES = 20
+
+/**
+ * Busca de cliente pra selecionar (ex.: "Nova entrada" do Kanban) —
+ * pensada pra um campo de digitação, não pra popular uma lista inteira:
+ * sem termo, não consulta nada (retorna vazio, nunca a tabela toda); com
+ * termo, reaproveita `filtroDeBusca` (mesmo filtro/sanitização de
+ * `listarClientes`) e devolve só id/nome/empresa — nenhuma negociação
+ * embutida, ao contrário de `listarOpcoesClientes` (que carrega até 1000
+ * linhas com o histórico inteiro, pra um `<select>` estático). RLS de
+ * `clientes` decide o que cada papel enxerga, igual a toda outra consulta.
+ */
+export async function buscarClientesParaSelecao(busca: string): Promise<OpcaoClienteBusca[]> {
+  await getUsuarioAtual()
+
+  const filtro = filtroDeBusca(busca)
+  if (!filtro) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('id, nome, empresa')
+    .is('deleted_at', null)
+    .or(filtro)
+    .order('nome')
+    .limit(LIMITE_BUSCA_CLIENTES)
+
+  if (error) throw new Error('Não foi possível buscar clientes.', { cause: error })
+  return data
+}
+
 /**
  * `null` quando o cliente não existe, foi excluído, ou — pra SDR/CLOSER,
  * desde `20261014160000_permissoes_colaborador.sql` — quando a RLS de
@@ -213,7 +246,20 @@ export type ResultadoEscrita =
  * Closer sempre cria na própria carteira; o `owner_id` do formulário só é
  * considerado para gerente. Mesmo que alguém forje o campo, a RLS recusa.
  */
-export async function criarCliente(input: ClienteInput): Promise<ResultadoEscrita> {
+/**
+ * `funilId`: funil onde a negociação inicial entra — obrigatório pra SDR/
+ * CLOSER (a tela sempre manda um, escolhido entre os que `listarFunis()` já
+ * filtra por permissão); `undefined`/`null` cai no funil padrão (RPC
+ * resolve sozinha), mantendo o comportamento de antes pra quem não manda
+ * nada. A permissão de verdade é checada no banco (trigger
+ * `negociacoes_protege_criacao_por_permissao`) — se o funil/etapa inicial
+ * não tiver `pode_mover` pra quem chama, a RPC falha com 42501, traduzido
+ * abaixo.
+ */
+export async function criarCliente(
+  input: ClienteInput,
+  funilId?: string | null,
+): Promise<ResultadoEscrita> {
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
@@ -234,6 +280,7 @@ export async function criarCliente(input: ClienteInput): Promise<ResultadoEscrit
     p_observacoes: input.observacoes ?? undefined,
     p_owner_id: ownerId,
     p_instagram: input.instagram ?? undefined,
+    p_funil_id: funilId ?? undefined,
   })
 
   if (error) return traduzirErro(error)

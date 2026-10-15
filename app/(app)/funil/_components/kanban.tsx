@@ -481,7 +481,17 @@ export function Kanban({
 
       {conversa && <PainelConversa card={conversa} onFechar={() => setConversa(null)} />}
 
-      {ficha && <ModalFichaCliente card={ficha} etapas={etapas} onFechar={() => setFicha(null)} />}
+      {ficha && (
+        <ModalFichaCliente
+          card={ficha}
+          etapas={etapas}
+          // UX apenas — a trava real é a RLS de `atividades_insert`
+          // (pode_mover_etapa). GERENTE sempre pode; SDR/CLOSER só se a
+          // etapa atual do card estiver em `etapasMovimentaveis`.
+          podeTrabalharCard={papel === 'gerente' || podeMoverEtapa(ficha.etapaId)}
+          onFechar={() => setFicha(null)}
+        />
+      )}
 
       {desqualificar && (
         <ModalDesqualificar

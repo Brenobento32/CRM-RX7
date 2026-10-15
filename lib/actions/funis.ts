@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
+import { buscarClientesParaSelecao, type OpcaoClienteBusca } from '@/lib/dal/clientes'
 import { criarNegociacao } from '@/lib/dal/funil'
 import {
   criarFunil,
@@ -143,4 +144,9 @@ export async function criarNegociacaoAction(
   revalidatePath('/funil')
   revalidatePath(`/clientes/${parsed.data.cliente_id}`)
   redirect(`/funil?funil=${parsed.data.funil_id}`)
+}
+
+/** Busca de cliente pro campo de digitação de "Nova entrada" — nunca a lista inteira. */
+export async function buscarClientesAction(busca: string): Promise<OpcaoClienteBusca[]> {
+  return buscarClientesParaSelecao(busca)
 }

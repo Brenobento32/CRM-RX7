@@ -5,6 +5,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, useTransi
 import { ClienteForm } from '@/app/(app)/clientes/_components/cliente-form'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { atualizarClienteRapidoAction, obterClienteParaFichaAction } from '@/lib/actions/clientes'
+import { registrarObservacaoAction } from '@/lib/actions/atividades'
 import {
   atualizarDadosComerciaisAction,
   listarNichosAtivosAction,
@@ -20,11 +21,20 @@ import { formatarMoeda } from '@/lib/utils/formatacao'
 import { ORIGENS_NEGOCIACAO, ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
+import { FormObservacaoRapida } from './form-observacao-rapida'
 import { BotoesModal, ErroCampo, ErroGeral, inputClass } from './modal'
 
 type Props = {
   card: CardFunil
   etapas: EtapaKanban[]
+  /**
+   * GERENTE sempre `true`; SDR/CLOSER só quando `pode_mover` está
+   * configurado na etapa atual do card. Puramente UX — esconde/desabilita
+   * o que o servidor (RLS de `atividades_insert`) ia recusar de qualquer
+   * forma, pra nem fazer a chamada. `pode_ver=true` sozinho (que é como o
+   * usuário conseguiu abrir esta ficha) nunca é suficiente aqui.
+   */
+  podeTrabalharCard: boolean
   onFechar: () => void
 }
 
@@ -45,7 +55,7 @@ function valorParaCampo(valor: number | null): string {
  * telas próprias (Mover no Kanban, carteira do cliente). Qualificação é só
  * leitura: vem do formulário externo, não existe fluxo de editar resposta.
  */
-export function ModalFichaCliente({ card, etapas, onFechar }: Props) {
+export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const [cliente, setCliente] = useState<ClienteDetalhe | null | undefined>(undefined)
   const [respostas, setRespostas] = useState<RespostaLead[] | null>(null)
@@ -125,6 +135,22 @@ export function ModalFichaCliente({ card, etapas, onFechar }: Props) {
                     </div>
                   ))}
                 </dl>
+              )}
+            </section>
+
+            <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Observação</h3>
+              {podeTrabalharCard ? (
+                <>
+                  <p className="text-xs text-zinc-500">
+                    Vira uma atividade ligada a esta negociação — nunca altera o cadastro do cliente.
+                  </p>
+                  <FormObservacaoRapida action={registrarObservacaoAction.bind(null, cliente.id, card.id)} />
+                </>
+              ) : (
+                <p className="text-sm text-zinc-500">
+                  Você só pode visualizar este card — sem permissão para registrar observações nele.
+                </p>
               )}
             </section>
 
