@@ -48,11 +48,16 @@ export async function criarClienteAction(
 
   // Fora de `clienteSchema` de propósito: só existe na criação (nunca na
   // edição/ficha rápida, que reaproveitam o mesmo schema/action pattern) —
-  // `undefined` deixa `criar_cliente` cair no funil padrão, mesmo
-  // comportamento de antes pra quem não manda nada.
+  // `undefined` deixa `criar_ou_reaproveitar_cliente` cair no funil
+  // padrão, mesmo comportamento de antes pra quem não manda nada.
   const funilIdBruto = formData.get('funil_id')
   const funilId = typeof funilIdBruto === 'string' && z.uuid().safeParse(funilIdBruto).success ? funilIdBruto : undefined
 
+  // Deduplicação (telefone/WhatsApp/e-mail, nunca nome sozinho) e criação/
+  // reaproveitamento do cliente + negociação acontecem atomicamente dentro
+  // de `criar_ou_reaproveitar_cliente` (RPC, SECURITY DEFINER) — ver
+  // `lib/dal/clientes.ts#criarCliente`. Esta action não decide mais nada
+  // disso: só lê o resultado.
   const resultado = await criarCliente(parsed.data, funilId)
 
   if (!resultado.ok) {

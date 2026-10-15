@@ -31,6 +31,7 @@ import {
 } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
+import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_FORMA_PAGAMENTO, ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
@@ -161,6 +162,10 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
                     <span className="flex items-center gap-2 font-medium">
                       <PontoEtapa cor={n.etapa.cor} />
                       {n.etapa.nome}
+                    </span>
+                    {n.funilNome && <span className="text-zinc-500">{n.funilNome}</span>}
+                    <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                      {ROTULO_ORIGEM[n.origem]}
                     </span>
                     <span className="text-zinc-500">Aberta em {data(n.created_at)}</span>
                   </p>

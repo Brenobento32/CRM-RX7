@@ -8,9 +8,16 @@ import {
   restaurarClienteExcluidoAction,
 } from '@/lib/actions/clientes'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { CLIENTES_POR_PAGINA, listarClientes, type StatusCliente } from '@/lib/dal/clientes'
+import {
+  CLIENTES_POR_PAGINA,
+  listarClientes,
+  type OrigemFiltroCliente,
+  type StatusCliente,
+} from '@/lib/dal/clientes'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
+
+import { BuscaClientes } from './_components/busca-clientes'
 
 export const metadata: Metadata = {
   title: 'Clientes',
@@ -20,6 +27,18 @@ const ABAS: { valor: StatusCliente; rotulo: string }[] = [
   { valor: 'ativos', rotulo: 'Ativos' },
   { valor: 'arquivados', rotulo: 'Arquivados' },
   { valor: 'excluidos', rotulo: 'Excluídos' },
+]
+
+/**
+ * "Outbound", nesta arquitetura, É `origem = 'manual'` — não existe um
+ * valor de enum "outbound" à parte (`origem_negociacao` só tem
+ * `formulario`/`whatsapp`/`manual`, confirmado no banco). WhatsApp não
+ * ganha aba própria ainda, só aparece no resumo de origem de cada linha.
+ */
+const ABAS_ORIGEM: { valor: OrigemFiltroCliente; rotulo: string }[] = [
+  { valor: 'todos', rotulo: 'Todos' },
+  { valor: 'inbound', rotulo: 'Inbound' },
+  { valor: 'outbound', rotulo: 'Outbound' },
 ]
 
 export default async function ClientesPage({
@@ -32,8 +51,10 @@ export default async function ClientesPage({
   const pagina = Math.max(1, Number.parseInt(String(params.pagina ?? '1'), 10) || 1)
   const aba: StatusCliente =
     params.aba === 'arquivados' ? 'arquivados' : params.aba === 'excluidos' ? 'excluidos' : 'ativos'
+  const origemFiltro: OrigemFiltroCliente =
+    params.origem === 'inbound' ? 'inbound' : params.origem === 'outbound' ? 'outbound' : 'todos'
 
-  const { clientes, total } = await listarClientes({ busca, pagina, status: aba })
+  const { clientes, total } = await listarClientes({ busca, pagina, status: aba, origemFiltro })
   const totalPaginas = Math.max(1, Math.ceil(total / CLIENTES_POR_PAGINA))
   const gerente = usuario.role === 'gerente'
   const arquivados = aba === 'arquivados'
@@ -46,6 +67,7 @@ export default async function ClientesPage({
     const qs = new URLSearchParams()
     if (busca) qs.set('q', busca)
     if (aba !== 'ativos') qs.set('aba', aba)
+    if (origemFiltro !== 'todos') qs.set('origem', origemFiltro)
     if (p > 1) qs.set('pagina', String(p))
     const s = qs.toString()
     return s ? `/clientes?${s}` : '/clientes'
@@ -55,6 +77,16 @@ export default async function ClientesPage({
     const qs = new URLSearchParams()
     if (busca) qs.set('q', busca)
     if (valor !== 'ativos') qs.set('aba', valor)
+    if (origemFiltro !== 'todos') qs.set('origem', origemFiltro)
+    const s = qs.toString()
+    return s ? `/clientes?${s}` : '/clientes'
+  }
+
+  const hrefOrigem = (valor: OrigemFiltroCliente) => {
+    const qs = new URLSearchParams()
+    if (busca) qs.set('q', busca)
+    if (aba !== 'ativos') qs.set('aba', aba)
+    if (valor !== 'todos') qs.set('origem', valor)
     const s = qs.toString()
     return s ? `/clientes?${s}` : '/clientes'
   }
@@ -76,6 +108,23 @@ export default async function ClientesPage({
         </Link>
       </div>
 
+      <nav className="flex gap-1" aria-label="Origem">
+        {ABAS_ORIGEM.map((a) => (
+          <Link
+            key={a.valor}
+            href={hrefOrigem(a.valor)}
+            aria-current={origemFiltro === a.valor ? 'page' : undefined}
+            className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
+              origemFiltro === a.valor
+                ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                : 'border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800'
+            }`}
+          >
+            {a.rotulo}
+          </Link>
+        ))}
+      </nav>
+
       <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Status do cliente">
         {ABAS.map((a) => (
           <Link
@@ -93,23 +142,9 @@ export default async function ClientesPage({
         ))}
       </nav>
 
-      <form action="/clientes" className="flex max-w-md gap-2" role="search">
-        {aba !== 'ativos' && <input type="hidden" name="aba" value={aba} />}
-        <input
-          type="search"
-          name="q"
-          defaultValue={busca}
-          placeholder="Buscar por nome, empresa, e-mail, CPF/CNPJ, telefone…"
-          aria-label="Buscar clientes"
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950"
-        />
-        <button
-          type="submit"
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-        >
-          Buscar
-        </button>
-      </form>
+      <div className="max-w-md">
+        <BuscaClientes valorInicial={busca} />
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         <table className="w-full text-left text-sm">
@@ -119,6 +154,7 @@ export default async function ClientesPage({
               <th className="px-4 py-3 font-medium">Empresa</th>
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 font-medium">Contato</th>
+              <th className="px-4 py-3 font-medium">Origem</th>
               {gerente && <th className="px-4 py-3 font-medium">Carteira</th>}
               {temAcoes && <th className="px-4 py-3 font-medium">Ações</th>}
             </tr>
@@ -148,6 +184,7 @@ export default async function ClientesPage({
                       ? formatarTelefone(c.telefone)
                       : (c.email ?? '—')}
                 </td>
+                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{c.origens}</td>
                 {gerente && (
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                     {c.dono ?? '—'}
@@ -200,7 +237,7 @@ export default async function ClientesPage({
             {clientes.length === 0 && (
               <tr>
                 <td
-                  colSpan={(gerente ? 5 : 4) + (temAcoes ? 1 : 0)}
+                  colSpan={(gerente ? 6 : 5) + (temAcoes ? 1 : 0)}
                   className="px-4 py-10 text-center text-zinc-500"
                 >
                   {busca

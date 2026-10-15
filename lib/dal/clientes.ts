@@ -7,10 +7,13 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
+import { resumoOrigensCliente } from '@/lib/utils/origens-cliente'
 import type { CampoCliente, ClienteInput } from '@/lib/validations/cliente'
+import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import type { FormaPagamento, Temperatura } from '@/lib/validations/negociacao'
 
 type TipoCliente = Database['public']['Enums']['tipo_cliente']
+type OrigemNegociacao = Database['public']['Enums']['origem_negociacao']
 
 export const CLIENTES_POR_PAGINA = 25
 
@@ -24,7 +27,16 @@ export type ClienteResumo = {
   email: string | null
   dono: string | null
   created_at: string
+  /**
+   * Resumo de origem (`negociacoes.origem`, nunca uma coluna em `clientes`
+   * — origem pertence à negociação): rótulo único quando só uma origem,
+   * "Múltiplas origens" quando o cliente tem negociações de mais de uma,
+   * "—" quando não tem nenhuma negociação.
+   */
+  origens: string
 }
+
+export type OrigemFiltroCliente = 'todos' | 'inbound' | 'outbound'
 
 export type ClienteDetalhe = ClienteResumo & {
   cpf: string | null
@@ -46,6 +58,9 @@ export type NegociacaoDoCliente = {
   temperatura: Temperatura | null
   valor_proposta: number | null
   forma_pagamento: FormaPagamento | null
+  /** Da NEGOCIAÇÃO, nunca do cliente — um mesmo cliente pode ter origens diferentes entre as próprias negociações. */
+  origem: OrigemNegociacao
+  funilNome: string | null
   /** Inclui serviços desativados depois do vínculo (histórico). */
   servicos: { nome: string; ativo: boolean }[]
 }
@@ -65,6 +80,7 @@ export async function listarClientes({
   busca,
   pagina,
   status = 'ativos',
+  origemFiltro = 'todos',
 }: {
   busca?: string
   pagina: number
@@ -74,9 +90,32 @@ export async function listarClientes({
    * null`).
    */
   status?: StatusCliente
+  /**
+   * 'todos' (padrão) | 'inbound' (tem negociação com `origem = 'formulario'`)
+   * | 'outbound' (tem negociação com `origem = 'manual'`) — não existe um
+   * valor de enum "outbound" à parte: `origem_negociacao` só tem
+   * `formulario`/`whatsapp`/`manual` (confirmado no banco), e "Outbound",
+   * nesta arquitetura, É o cadastro manual. WhatsApp não ganha aba própria
+   * ainda — só aparece no resumo de origem de cada cliente (`origens`).
+   */
+  origemFiltro?: OrigemFiltroCliente
 }): Promise<{ clientes: ClienteResumo[]; total: number }> {
   await getUsuarioAtual()
   const supabase = await createClient()
+
+  let idsOrigem: string[] | null = null
+  if (origemFiltro !== 'todos') {
+    const origemBanco: OrigemNegociacao = origemFiltro === 'inbound' ? 'formulario' : 'manual'
+    const { data: negs, error: erroNegs } = await supabase
+      .from('negociacoes')
+      .select('cliente_id')
+      .eq('origem', origemBanco)
+
+    if (erroNegs) throw new Error('Não foi possível filtrar por origem.', { cause: erroNegs })
+
+    idsOrigem = [...new Set(negs.map((n) => n.cliente_id))]
+    if (idsOrigem.length === 0) return { clientes: [], total: 0 }
+  }
 
   const inicio = (pagina - 1) * CLIENTES_POR_PAGINA
 
@@ -93,6 +132,8 @@ export async function listarClientes({
   else if (status === 'arquivados') query = query.not('deleted_at', 'is', null).is('excluido_em', null)
   else query = query.is('deleted_at', null)
 
+  if (idsOrigem) query = query.in('id', idsOrigem)
+
   const filtro = filtroDeBusca(busca)
   if (filtro) query = query.or(filtro)
 
@@ -102,10 +143,42 @@ export async function listarClientes({
     throw new Error('Não foi possível carregar os clientes.', { cause: error })
   }
 
+  const origensPorCliente = await mapaOrigensPorCliente(
+    supabase,
+    data.map((c) => c.id),
+  )
+
   return {
-    clientes: data.map(({ dono, ...c }) => ({ ...c, dono: dono?.nome ?? null })),
+    clientes: data.map(({ dono, ...c }) => ({
+      ...c,
+      dono: dono?.nome ?? null,
+      origens: resumoOrigensCliente(origensPorCliente.get(c.id) ?? [], ROTULO_ORIGEM),
+    })),
     total: count ?? 0,
   }
+}
+
+/** `cliente_id -> origens das negociações dele`, só pra quem está na página atual. */
+async function mapaOrigensPorCliente(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clienteIds: string[],
+): Promise<Map<string, OrigemNegociacao[]>> {
+  const mapa = new Map<string, OrigemNegociacao[]>()
+  if (clienteIds.length === 0) return mapa
+
+  const { data, error } = await supabase
+    .from('negociacoes')
+    .select('cliente_id, origem')
+    .in('cliente_id', clienteIds)
+
+  if (error) throw new Error('Não foi possível carregar a origem dos clientes.', { cause: error })
+
+  for (const n of data) {
+    const lista = mapa.get(n.cliente_id)
+    if (lista) lista.push(n.origem)
+    else mapa.set(n.cliente_id, [n.origem])
+  }
+  return mapa
 }
 
 export type OpcaoClienteBusca = { id: string; nome: string; empresa: string | null }
@@ -180,8 +253,9 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
        responsavel, cargo, instagram, observacoes, owner_id, created_at, updated_at,
        dono:profiles!clientes_owner_id_fkey(nome),
        negociacoes(
-         id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento,
+         id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento, origem,
          etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
+         funil:funis(nome),
          vinculos:negociacao_servicos(servico:servicos(nome, ativo))
        )`,
     )
@@ -199,10 +273,15 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
   return {
     ...cliente,
     dono: dono?.nome ?? null,
-    negociacoes: negociacoes.map(({ vinculos, ...n }) => ({
+    origens: resumoOrigensCliente(
+      negociacoes.map((n) => n.origem),
+      ROTULO_ORIGEM,
+    ),
+    negociacoes: negociacoes.map(({ vinculos, funil, ...n }) => ({
       ...n,
       valor_estimado: n.valor_estimado === null ? null : Number(n.valor_estimado),
       valor_proposta: n.valor_proposta === null ? null : Number(n.valor_proposta),
+      funilNome: funil?.nome ?? null,
       servicos: vinculos
         .flatMap((v) => (v.servico ? [v.servico] : []))
         .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
@@ -256,6 +335,13 @@ export type ResultadoEscrita =
  * não tiver `pode_mover` pra quem chama, a RPC falha com 42501, traduzido
  * abaixo.
  */
+/** Linha devolvida por `criar_ou_reaproveitar_cliente` (RPC nova, ver nota de tipos abaixo). */
+type LinhaCriarOuReaproveitarCliente = {
+  cliente_id: string
+  negociacao_id: string
+  reaproveitado: boolean
+}
+
 export async function criarCliente(
   input: ClienteInput,
   funilId?: string | null,
@@ -266,7 +352,14 @@ export async function criarCliente(
   const ownerId =
     usuario.role === 'gerente' && input.owner_id ? input.owner_id : usuario.id
 
-  const { data, error } = await supabase.rpc('criar_cliente', {
+  // Deduplicação global e segura (telefone/WhatsApp/e-mail, sem vazar PII
+  // de cliente que o chamador não enxergaria) + criação/reaproveitamento
+  // do cliente + criação da negociação, tudo atômico — ver migration
+  // 20261015150000. Cast temporário: a RPC é nova (ainda não aplicada,
+  // só dry-run) — `lib/types/database.ts` só é regenerado (`npm run
+  // db:types`) depois de um `db push` real autorizado; remover o cast
+  // assim que os tipos forem regenerados.
+  const { data, error } = (await supabase.rpc('criar_ou_reaproveitar_cliente' as never, {
     p_tipo_cliente: input.tipo_cliente,
     p_nome: input.nome,
     p_empresa: input.empresa ?? undefined,
@@ -281,10 +374,19 @@ export async function criarCliente(
     p_owner_id: ownerId,
     p_instagram: input.instagram ?? undefined,
     p_funil_id: funilId ?? undefined,
-  })
+  } as never)) as unknown as {
+    data: LinhaCriarOuReaproveitarCliente[] | null
+    error: PostgrestError | null
+  }
 
   if (error) return traduzirErro(error)
-  return { ok: true, id: data }
+
+  const linha = data?.[0]
+  if (!linha) {
+    console.error('criar_ou_reaproveitar_cliente não devolveu nenhuma linha', { input, funilId })
+    return { ok: false, mensagem: 'Não foi possível salvar o cliente. Tente novamente.' }
+  }
+  return { ok: true, id: linha.cliente_id }
 }
 
 /**
@@ -458,6 +560,16 @@ function traduzirErro(error: PostgrestError): ResultadoEscrita {
     }
     if (error.message.includes('clientes_cnpj_unico')) {
       return { ok: false, campo: 'cnpj', mensagem: 'Já existe um cliente com este CNPJ.' }
+    }
+  }
+
+  // `criar_ou_reaproveitar_cliente`: telefone/WhatsApp/e-mail batem em mais
+  // de um cliente — nunca revela quais (ver migration 20261015150000).
+  if (error.code === 'P0003') {
+    return {
+      ok: false,
+      mensagem:
+        'Encontramos mais de um cadastro compatível. Solicite ao gerente ou use Clientes para selecionar o cadastro correto.',
     }
   }
 
