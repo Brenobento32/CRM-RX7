@@ -20,7 +20,7 @@ import type { RespostaLead } from '@/lib/dal/negociacoes'
 import type { EtapaKanban } from '@/lib/utils/etapas'
 import { formatarDataHoraCompleta, formatarMoeda } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
-import { ORIGENS_NEGOCIACAO, ROTULO_ORIGEM } from '@/lib/validations/funil'
+import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
 import { FormObservacaoRapida } from './form-observacao-rapida'
@@ -132,7 +132,13 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
           <p className="mt-4 text-sm text-red-600 dark:text-red-400">Cliente não encontrado.</p>
         ) : (
           <div className="mt-5 space-y-8">
-            <SecaoDadosComerciais card={card} etapa={etapa} nichos={nichos} onFechar={onFechar} />
+            <SecaoDadosComerciais
+              card={card}
+              etapa={etapa}
+              nichos={nichos}
+              podeTrabalharCard={podeTrabalharCard}
+              onFechar={onFechar}
+            />
 
             <SecaoAtribuicao card={card} />
 
@@ -239,27 +245,36 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
 }
 
 /**
- * "Dados comerciais" editáveis (item 3/4 do refinamento): nicho, origem,
- * temperatura e proposta num único formulário — salvar fecha a ficha
- * inteira (mesmo padrão do `ClienteForm` abaixo) e revalida o Kanban, então
- * a borda do card (que é o nicho) já chega colorida certa, sem reload.
- * Funil/etapa/responsável são só leitura: têm telas próprias (Mover no
- * Kanban, carteira do cliente) — duplicar a edição aqui multiplicaria onde
- * essas regras vivem.
+ * "Dados comerciais" editáveis (item 3/4 do refinamento): nicho, temperatura
+ * e proposta num único formulário — salvar fecha a ficha inteira (mesmo
+ * padrão do `ClienteForm` abaixo) e revalida o Kanban, então a borda do
+ * card (que é o nicho) já chega colorida certa, sem reload. Funil/etapa/
+ * responsável/origem são só leitura: funil/etapa/responsável têm telas
+ * próprias (Mover no Kanban, carteira do cliente); origem é fato histórico
+ * de como o lead entrou — nunca editável por ninguém, nem gerente (trigger
+ * `negociacoes_origem_imutavel`, proposta em
+ * `supabase/migrations_propostas/20261015130000_...sql`).
  *
- * Em etapa encerrada (ganha/perdida), temperatura e proposta viram texto —
- * o banco já recusa a alteração (trigger `negociacoes_encerrada_somente_leitura`),
- * então desabilitar aqui evita a viagem de ida e volta só para mostrar o erro.
+ * Trava dupla, nunca só na UI: `bloqueado` é true em etapa encerrada
+ * (ganha/perdida — o banco recusa via `negociacoes_encerrada_somente_leitura`)
+ * OU quando o chamador não tem `pode_mover_etapa` na etapa atual (o banco
+ * recusa via `negociacoes_protege_dados_operacionais_por_permissao`, mesma
+ * migration proposta). Os dois casos desabilitam aqui só pra evitar a
+ * viagem de ida e volta pra mostrar o erro — a proteção real é sempre o
+ * banco.
  */
 function SecaoDadosComerciais({
   card,
   etapa,
   nichos,
+  podeTrabalharCard,
   onFechar,
 }: {
   card: CardFunil
   etapa: EtapaKanban | undefined
   nichos: Nicho[]
+  /** `false` quando o chamador só tem `pode_ver` — ver `ModalFichaCliente`. */
+  podeTrabalharCard: boolean
   onFechar: () => void
 }) {
   const [estado, action, pendente] = useActionState(
@@ -272,6 +287,12 @@ function SecaoDadosComerciais({
   )
 
   const encerrada = card.etapaTipo !== 'aberta'
+  // Trava de UX (nunca a real): soma as duas razões pelas quais o banco
+  // recusaria o UPDATE — encerrada (negociacoes_encerrada_somente_leitura)
+  // OU sem pode_mover_etapa (negociacoes_protege_dados_operacionais_por_
+  // permissao). `pode_ver` sozinho nunca basta pra editar nicho/temperatura/
+  // valor_estimado, só pra ver esta ficha.
+  const bloqueado = encerrada || !podeTrabalharCard
   const erro = (campo: string) => estado?.campos?.[campo]?.[0]
   const valorAtual = card.etapaTipo === 'ganha' ? card.valorVendido : card.valorEstimado
 
@@ -307,6 +328,12 @@ function SecaoDadosComerciais({
             <dt className="text-zinc-500">Responsável</dt>
             <dd className="mt-0.5 font-medium">{card.responsavel ?? '—'}</dd>
           </div>
+          <div>
+            {/* Fato histórico de como o lead entrou — nunca editável por
+                ninguém, nem gerente (trigger negociacoes_origem_imutavel). */}
+            <dt className="text-zinc-500">Origem</dt>
+            <dd className="mt-0.5 font-medium">{ROTULO_ORIGEM[card.origem]}</dd>
+          </div>
         </dl>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -314,46 +341,41 @@ function SecaoDadosComerciais({
             <label htmlFor="nicho_id" className="mb-1.5 block text-sm font-medium">
               Nicho
             </label>
-            <select id="nicho_id" name="nicho_id" defaultValue={card.nichoId ?? ''} className={inputClass}>
-              <option value="">Outros</option>
-              {/* Nicho histórico desativado: mantém selecionado (se não tocar, salva
-                  igual) e mostra o nome, mas nunca pode ser escolhido de novo —
-                  `disabled` só permite ser a opção já selecionada. */}
-              {card.nichoId && !nichos.some((n) => n.id === card.nichoId) && (
-                <option value={card.nichoId} disabled>
-                  {card.nichoNome ?? 'Nicho desativado'} (desativado)
-                </option>
-              )}
-              {nichos.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="origem" className="mb-1.5 block text-sm font-medium">
-              Origem
-            </label>
-            <select id="origem" name="origem" defaultValue={card.origem} className={inputClass}>
-              {ORIGENS_NEGOCIACAO.map((o) => (
-                <option key={o} value={o}>
-                  {ROTULO_ORIGEM[o]}
-                </option>
-              ))}
-            </select>
+            {bloqueado ? (
+              <>
+                {/* Valor atual, sem alteração: o trigger de dados operacionais
+                    compara old/new de TODAS as colunas na mesma UPDATE —
+                    omitir o campo mandaria `null` e apagaria um valor que não mudou. */}
+                <input type="hidden" name="nicho_id" value={card.nichoId ?? ''} />
+                <p className="mt-2 text-sm">{card.nichoNome ?? 'Outros'}</p>
+              </>
+            ) : (
+              <select id="nicho_id" name="nicho_id" defaultValue={card.nichoId ?? ''} className={inputClass}>
+                <option value="">Outros</option>
+                {/* Nicho histórico desativado: mantém selecionado (se não tocar, salva
+                    igual) e mostra o nome, mas nunca pode ser escolhido de novo —
+                    `disabled` só permite ser a opção já selecionada. */}
+                {card.nichoId && !nichos.some((n) => n.id === card.nichoId) && (
+                  <option value={card.nichoId} disabled>
+                    {card.nichoNome ?? 'Nicho desativado'} (desativado)
+                  </option>
+                )}
+                {nichos.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.nome}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
             <label htmlFor="temperatura" className="mb-1.5 block text-sm font-medium">
               Temperatura
             </label>
-            {encerrada ? (
+            {bloqueado ? (
               <>
-                {/* Valor atual, sem alteração: o trigger de negociação encerrada
-                    compara old/new de TODAS as colunas comerciais na mesma UPDATE —
-                    omitir o campo mandaria `null` e apagaria um valor que não mudou. */}
+                {/* Mesmo motivo do hidden de nicho, acima. */}
                 <input type="hidden" name="temperatura" value={card.temperatura ?? ''} />
                 <p className="mt-2 text-sm">
                   {card.temperatura ? ROTULO_TEMPERATURA[card.temperatura] : '—'}
@@ -380,10 +402,10 @@ function SecaoDadosComerciais({
             <label htmlFor="valor_estimado" className="mb-1.5 block text-sm font-medium">
               Proposta (R$)
             </label>
-            {encerrada ? (
+            {bloqueado ? (
               <>
                 {/* `valor_estimado` em si (não o vendido mostrado abaixo) —
-                    mesmo motivo do hidden de temperatura, acima. */}
+                    mesmo motivo do hidden de nicho, acima. */}
                 <input type="hidden" name="valor_estimado" value={valorParaCampo(card.valorEstimado)} />
                 <p className="mt-2 text-sm">{valorAtual !== null ? formatarMoeda(valorAtual) : 'Sem valor'}</p>
               </>
@@ -405,14 +427,18 @@ function SecaoDadosComerciais({
           </div>
         </div>
 
-        {encerrada && (
+        {encerrada ? (
           <p
             role="note"
             className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
           >
-            Negociação encerrada: temperatura e proposta não podem mais ser alteradas.
+            Negociação encerrada: nicho, temperatura e proposta não podem mais ser alterados.
           </p>
-        )}
+        ) : !podeTrabalharCard ? (
+          <p role="note" className="text-xs text-zinc-500">
+            Você só pode visualizar este card — sem permissão para editar os dados operacionais.
+          </p>
+        ) : null}
 
         <BotoesModal pendente={pendente} rotulo="Salvar" onCancelar={onFechar} />
       </form>

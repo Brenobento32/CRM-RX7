@@ -377,7 +377,6 @@ export async function excluirNegociacaoPermanente(
 export type DadosComerciaisInput = {
   negociacaoId: string
   nichoId: string | null
-  origem: Enums['origem_negociacao']
   temperatura: Temperatura | null
   valorEstimado: string | null
 }
@@ -385,13 +384,42 @@ export type DadosComerciaisInput = {
 export type ResultadoDadosComerciais = { ok: true } | { ok: false; mensagem: string }
 
 /**
- * "Dados comerciais" da ficha (item 3/4 do refinamento) — nicho, origem,
- * temperatura e proposta/valor num único UPDATE. `valor_estimado` e
- * `temperatura` são recusados pelo banco (trigger
- * `negociacoes_encerrada_somente_leitura`) quando a negociação já está
- * encerrada (ganha/perdida); a ficha também desabilita esses dois campos
- * nesse caso, então chegar aqui com eles alterados só acontece se o usuário
- * contornar a UI — o banco é quem garante a regra de qualquer forma.
+ * Args de `atualizar_dados_operacionais_negociacao` (migration
+ * 20261016160000) — fora do gerador de tipos porque a migration ainda não
+ * foi aplicada no banco real (`npm run db:types` lê o schema remoto via
+ * `--linked`). Remover os casts `as never` quando a migration for aplicada
+ * e os tipos forem regerados.
+ */
+type ArgsDadosOperacionais = {
+  p_negociacao_id: string
+  p_nicho_id: string | null
+  p_temperatura: Enums['temperatura_negociacao'] | null
+  p_valor_estimado: number | null
+  p_data_primeira_reuniao: string | null
+  p_data_proposta: string | null
+  p_objecao_principal: string | null
+  p_valor_proposta: number | null
+  p_forma_pagamento: Enums['forma_pagamento'] | null
+}
+
+/**
+ * "Dados comerciais" da ficha (item 3/4 do refinamento) — nicho, temperatura
+ * e proposta/valor. `origem` nunca passa por aqui: é fato histórico de como
+ * o lead entrou, imutável depois da criação (trigger
+ * `negociacoes_origem_imutavel`, proposta em
+ * `supabase/migrations_propostas/20261015130000_...sql`) — a ficha só
+ * mostra, nunca edita.
+ *
+ * Chama a RPC `atualizar_dados_operacionais_negociacao` (SECURITY DEFINER:
+ * GERENTE ou `pode_mover_etapa` autoriza, owner_id nunca é consultado — a
+ * mesma regra de `mover_negociacao`) em vez de um `.update()` direto, que
+ * dependia de `negociacoes_update` (owner_id OR gerente) e por isso
+ * bloqueava um CLOSER/SDR com `pode_mover` mas que não era o dono da
+ * negociação. Como a RPC exige os 8 campos operacionais de uma vez, os 5 que
+ * esta tela não edita (data_primeira_reuniao, data_proposta,
+ * objecao_principal, valor_proposta, forma_pagamento — editados pelo modal
+ * de edição rápida/tela `/negociacoes/[id]/editar`) são lidos antes e
+ * repassados sem alteração, pra não apagar o que já estava salvo lá.
  */
 export async function atualizarDadosComerciaisNegociacao(
   input: DadosComerciaisInput,
@@ -399,21 +427,41 @@ export async function atualizarDadosComerciaisNegociacao(
   await getUsuarioAtual()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const { data: atual, error: erroAtual } = await supabase
     .from('negociacoes')
-    .update({
-      nicho_id: input.nichoId,
-      origem: input.origem,
-      temperatura: input.temperatura,
-      valor_estimado: input.valorEstimado === null ? null : Number(input.valorEstimado),
-    })
+    .select('data_primeira_reuniao, data_proposta, objecao_principal, valor_proposta, forma_pagamento')
     .eq('id', input.negociacaoId)
-    .select('id')
     .maybeSingle()
+
+  if (erroAtual) {
+    console.error('Erro ao carregar dados comerciais', erroAtual)
+    return { ok: false, mensagem: 'Não foi possível salvar os dados comerciais. Tente novamente.' }
+  }
+  if (!atual) return { ok: false, mensagem: 'Negociação não encontrada.' }
+
+  const args: ArgsDadosOperacionais = {
+    p_negociacao_id: input.negociacaoId,
+    p_nicho_id: input.nichoId,
+    p_temperatura: input.temperatura,
+    p_valor_estimado: input.valorEstimado === null ? null : Number(input.valorEstimado),
+    p_data_primeira_reuniao: atual.data_primeira_reuniao,
+    p_data_proposta: atual.data_proposta,
+    p_objecao_principal: atual.objecao_principal,
+    p_valor_proposta: atual.valor_proposta,
+    p_forma_pagamento: atual.forma_pagamento,
+  }
+
+  const { error } = await supabase.rpc(
+    'atualizar_dados_operacionais_negociacao' as never,
+    args as never,
+  )
 
   if (error) {
     if (error.code === '42501') {
       return { ok: false, mensagem: 'Você não tem permissão para editar esta negociação.' }
+    }
+    if (error.code === 'P0002') {
+      return { ok: false, mensagem: 'Negociação não encontrada.' }
     }
     if (error.code === '23514' && error.message.startsWith('Negociação encerrada')) {
       return { ok: false, mensagem: NEGOCIACAO_ENCERRADA }
@@ -422,7 +470,7 @@ export async function atualizarDadosComerciaisNegociacao(
     return { ok: false, mensagem: 'Não foi possível salvar os dados comerciais. Tente novamente.' }
   }
 
-  return data ? { ok: true } : { ok: false, mensagem: 'Negociação não encontrada.' }
+  return { ok: true }
 }
 
 export type DetalhesLeadNegociacao = {

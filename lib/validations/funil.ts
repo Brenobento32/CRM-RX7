@@ -231,11 +231,16 @@ export const ROTULO_ORIGEM: Record<Enums['origem_negociacao'], string> = {
 
 /**
  * "Dados comerciais" editáveis na ficha do cliente (item 3/4 do refinamento):
- * nicho, origem, temperatura e proposta/valor. Funil, etapa e responsável
- * ficam fora daqui — têm telas próprias (Mover, carteira do cliente).
- * `valor_estimado` só é aceito pelo banco em etapa aberta (trigger
- * `negociacoes_encerrada_somente_leitura`); a ficha também desabilita o
- * campo nesse caso, mas o schema não precisa saber da etapa.
+ * nicho, temperatura e proposta/valor. Funil, etapa e responsável ficam fora
+ * daqui — têm telas próprias (Mover, carteira do cliente). `origem` também
+ * fica fora: é fato histórico de como o lead entrou (formulário/WhatsApp/
+ * manual), nunca editável depois da criação, nem por gerente (trigger
+ * `negociacoes_origem_imutavel`, proposta em
+ * `supabase/migrations_propostas/20261015130000_...sql`) — a ficha só
+ * mostra, nunca envia esse campo. `valor_estimado`/`temperatura`/`nicho_id`
+ * só são aceitos pelo banco em etapa aberta (trigger
+ * `negociacoes_encerrada_somente_leitura`); a ficha também desabilita esses
+ * campos nesse caso, mas o schema não precisa saber da etapa.
  */
 export const dadosComerciaisSchema = z.object({
   negociacao_id: z.uuid(),
@@ -243,7 +248,6 @@ export const dadosComerciaisSchema = z.object({
     .string()
     .transform(vazioParaNulo)
     .pipe(z.uuid('Nicho inválido.').nullable()),
-  origem: z.enum(ORIGENS_NEGOCIACAO, 'Origem inválida.'),
   temperatura: z
     .string()
     .transform(vazioParaNulo)

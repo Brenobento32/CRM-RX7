@@ -184,7 +184,7 @@ export async function atualizarDadosComerciaisAction(
   formData: FormData,
 ): Promise<EstadoModalFunil> {
   const parsed = dadosComerciaisSchema.safeParse(
-    lerCampos(formData, ['negociacao_id', 'nicho_id', 'origem', 'temperatura', 'valor_estimado']),
+    lerCampos(formData, ['negociacao_id', 'nicho_id', 'temperatura', 'valor_estimado']),
   )
   if (!parsed.success) {
     return { campos: z.flattenError(parsed.error).fieldErrors }
@@ -193,7 +193,6 @@ export async function atualizarDadosComerciaisAction(
   const resultado = await atualizarDadosComerciaisNegociacao({
     negociacaoId: parsed.data.negociacao_id,
     nichoId: parsed.data.nicho_id,
-    origem: parsed.data.origem,
     temperatura: parsed.data.temperatura,
     valorEstimado: parsed.data.valor_estimado,
   })
