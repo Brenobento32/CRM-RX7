@@ -1,32 +1,40 @@
 import { percentualMeta, type RealizadoGeral } from '@/lib/dal/metas'
 import type { RealizadoFunil } from '@/lib/dal/funil-metricas'
 import { ticketMedio, type MetaPeriodo } from '@/lib/utils/financeiro-periodo'
-import { formatarData, formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
+import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 
 /**
- * TCV/MRR do período — meta (proporcionada às metas mensais, ver
- * `lib/utils/financeiro-periodo.ts#metaProporcionalPeriodo`) contra o
- * realizado de TODOS os funis (`realizadoGeral`, RPC `realizado_periodo`) —
- * nunca o realizado de só o funil selecionado. Esse era um bug real: antes
- * desta correção, o percentual comparava a meta geral/individual (nunca
- * por funil) com o vendido de só o funil selecionado na tela — trocar o
- * funil mudava o "Atingido: X%" sem nenhuma venda ter mudado.
+ * Duas seções visualmente separadas, de propósito — não é só estética: são
+ * dois conjuntos de pessoas diferentes, nunca a mesma coisa em escalas
+ * diferentes.
  *
- * O vendido e o ticket médio DESTE funil (`realizadoFunil`) continuam
- * mostrados — são métricas legítimas do funil selecionado (pipeline,
- * conversão, ticket médio) — mas como uma linha SECUNDÁRIA, separada,
- * nunca mais usada para o percentual/círculo de progresso da meta.
+ * SEÇÃO 1 ("Meta do período — todos os funis"): meta (proporcionada às
+ * metas mensais, `metaProporcionalPeriodo`) contra o realizado da MESMA
+ * pessoa (`realizadoGeral`, RPC `realizado_periodo` — GERENTE: todo mundo;
+ * closer/SDR: só `responsavel_id` = a própria pessoa), em TODOS os funis.
+ * Nunca muda com o funil selecionado abaixo.
+ *
+ * SEÇÃO 2 ("Contexto do funil selecionado"): vendido/ticket médio só
+ * DESTE funil, mas da MESMA pessoa (`realizadoFunil`, agora recebendo o
+ * mesmo `usuarioId` da Seção 1) — achado desta rodada: antes, `obterRealizadoFunil`
+ * não filtrava por responsável, então um SDR/CLOSER com `pode_ver` em
+ * várias etapas via um colega via o fechamento de QUALQUER UM visível no
+ * funil, enquanto a Seção 1 mostrava só a própria pessoa — os dois números
+ * pareciam contradição ("vendi X no funil mas minha meta mostra 0") por
+ * somarem conjuntos de pessoas diferentes, nunca por período ou TCV/MRR
+ * errados. Agora a ÚNICA diferença entre as duas seções é o filtro de
+ * `funil_id` — nunca "de quem são as vendas".
  */
 export function FinanceiroFunil({
   metaPeriodo,
   realizadoGeral,
   realizadoFunil,
-  periodo,
+  funilNome,
 }: {
   metaPeriodo: MetaPeriodo
   realizadoGeral: RealizadoGeral
   realizadoFunil: RealizadoFunil
-  periodo: { inicio: string; fim: string }
+  funilNome: string
 }) {
   const linhas = [
     {
@@ -48,46 +56,62 @@ export function FinanceiroFunil({
   ]
 
   return (
-    <section className="space-y-2">
-      <div>
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Financeiro do período</h2>
-        <p className="text-xs text-zinc-500">
-          Meta e realizado ({formatarData(periodo.inicio)} a {formatarData(periodo.fim)}): sempre de TODOS
-          os funis — nunca reduzidos ao funil selecionado abaixo. O vendido e o ticket médio deste funil
-          aparecem à parte, só como referência deste funil.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {linhas.map((l) => (
-          <CardFinanceiro
-            key={l.chave}
-            titulo={l.titulo}
-            valorMeta={l.valorMeta}
-            realizadoGeral={l.realizadoGeral}
-            percentual={percentualMeta(l.realizadoGeral, l.valorMeta)}
-            realizadoFunil={l.realizadoFunil}
-            ticketMedioFunil={ticketMedio(l.realizadoFunil, l.qtdFunil)}
-          />
-        ))}
-      </div>
-    </section>
+    <div className="space-y-6">
+      <section className="space-y-2">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta do período</h2>
+          <p className="text-xs text-zinc-500">
+            Todos os funis. Estes três números nunca mudam com o funil selecionado abaixo.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {linhas.map((l) => (
+            <CardMetaGeral
+              key={l.chave}
+              titulo={l.titulo}
+              valorMeta={l.valorMeta}
+              realizado={l.realizadoGeral}
+              percentual={percentualMeta(l.realizadoGeral, l.valorMeta)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-2 rounded-lg border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+            Contexto do funil selecionado
+          </h2>
+          <p className="text-xs text-zinc-500">
+            Funil: <span className="font-medium text-zinc-700 dark:text-zinc-300">{funilNome}</span>.
+            Esses valores são somente deste funil e não entram no cálculo da meta acima.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {linhas.map((l) => (
+            <CardContextoFunil
+              key={l.chave}
+              titulo={l.titulo}
+              realizadoFunil={l.realizadoFunil}
+              ticketMedioFunil={ticketMedio(l.realizadoFunil, l.qtdFunil)}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
   )
 }
 
-function CardFinanceiro({
+function CardMetaGeral({
   titulo,
   valorMeta,
-  realizadoGeral,
+  realizado,
   percentual,
-  realizadoFunil,
-  ticketMedioFunil,
 }: {
   titulo: string
   valorMeta: number | null
-  realizadoGeral: number
+  realizado: number
   percentual: number | null
-  realizadoFunil: number
-  ticketMedioFunil: number | null
 }) {
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -95,22 +119,42 @@ function CardFinanceiro({
       <div className="min-w-40 flex-1 space-y-1.5">
         <p className="font-semibold">{titulo}</p>
         <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
-          <dt className="text-zinc-500">Meta (todos os funis)</dt>
+          <dt className="text-zinc-500">Meta</dt>
           <dd className="text-right tabular-nums">
             {valorMeta === null ? <span className="text-zinc-400">Não definida</span> : formatarMoeda(valorMeta)}
           </dd>
-          <dt className="text-zinc-500">Realizado (todos os funis)</dt>
-          <dd className="text-right font-medium tabular-nums">{formatarMoeda(realizadoGeral)}</dd>
-        </dl>
-        <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-t border-zinc-100 pt-1.5 text-xs dark:border-zinc-800">
-          <dt className="text-zinc-400">Vendido neste funil</dt>
-          <dd className="text-right tabular-nums text-zinc-500">{formatarMoeda(realizadoFunil)}</dd>
-          <dt className="text-zinc-400">Ticket médio deste funil</dt>
-          <dd className="text-right tabular-nums text-zinc-500">
-            {ticketMedioFunil === null ? '—' : formatarMoeda(ticketMedioFunil)}
+          <dt className="text-zinc-500">Realizado</dt>
+          <dd className="text-right font-medium tabular-nums">{formatarMoeda(realizado)}</dd>
+          <dt className="text-zinc-500">Atingido</dt>
+          <dd className="text-right tabular-nums">
+            {percentual === null ? <span className="text-zinc-400">—</span> : formatarPercentual(percentual)}
           </dd>
         </dl>
       </div>
+    </div>
+  )
+}
+
+function CardContextoFunil({
+  titulo,
+  realizadoFunil,
+  ticketMedioFunil,
+}: {
+  titulo: string
+  realizadoFunil: number
+  ticketMedioFunil: number | null
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <p className="font-semibold">{titulo}</p>
+      <dl className="mt-1.5 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-zinc-500">Vendido neste funil</dt>
+        <dd className="text-right tabular-nums">{formatarMoeda(realizadoFunil)}</dd>
+        <dt className="text-zinc-500">Ticket médio deste funil</dt>
+        <dd className="text-right tabular-nums">
+          {ticketMedioFunil === null ? <span className="text-zinc-400">—</span> : formatarMoeda(ticketMedioFunil)}
+        </dd>
+      </dl>
     </div>
   )
 }

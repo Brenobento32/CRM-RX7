@@ -1,6 +1,28 @@
 import { describe, expect, it } from 'vitest'
 
-import { chavePeriodoFunil, resolverPeriodoFunil } from '@/lib/utils/periodo'
+import { chavePeriodoFunil, resolverPeriodoFunil, ultimoDiaDoMes } from '@/lib/utils/periodo'
+
+describe('ultimoDiaDoMes', () => {
+  it('mês de 31 dias', () => {
+    expect(ultimoDiaDoMes('2026-10')).toBe('2026-10-31')
+  })
+
+  it('mês de 30 dias', () => {
+    expect(ultimoDiaDoMes('2026-09')).toBe('2026-09-30')
+  })
+
+  it('fevereiro em ano bissexto', () => {
+    expect(ultimoDiaDoMes('2028-02')).toBe('2028-02-29')
+  })
+
+  it('fevereiro em ano não bissexto', () => {
+    expect(ultimoDiaDoMes('2026-02')).toBe('2026-02-28')
+  })
+
+  it('dezembro', () => {
+    expect(ultimoDiaDoMes('2026-12')).toBe('2026-12-31')
+  })
+})
 
 const HOJE = '2026-10-15'
 

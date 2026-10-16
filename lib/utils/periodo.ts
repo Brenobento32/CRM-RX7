@@ -72,6 +72,13 @@ export function primeiroDiaDoMes(mes: string): string {
   return `${mes}-01`
 }
 
+/** AAAA-MM → último dia do mês (AAAA-MM-DD) — pro cabeçalho "Período: … → …" de /metas. */
+export function ultimoDiaDoMes(mes: string): string {
+  const [ano, m] = mes.split('-').map(Number)
+  const dia = new Date(ano, m, 0).getDate()
+  return `${mes}-${String(dia).padStart(2, '0')}`
+}
+
 export function somarMeses(mes: string, meses: number): string {
   const total = Number(mes.slice(0, 4)) * 12 + Number(mes.slice(5)) - 1 + meses
   const ano = Math.floor(total / 12)

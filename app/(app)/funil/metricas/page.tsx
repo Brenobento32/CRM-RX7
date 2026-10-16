@@ -7,7 +7,7 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { obterMetaPeriodo, obterRealizadoGeral } from '@/lib/dal/metas'
-import { hojeSaoPaulo } from '@/lib/utils/formatacao'
+import { formatarData, hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { chavePeriodoFunil, resolverPeriodoFunil } from '@/lib/utils/periodo'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
 
@@ -46,15 +46,18 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
   // meta PROPORCIONADA ao período selecionado (nunca a do mês corrente
   // inteiro) — ver lib/utils/financeiro-periodo.ts#metaProporcionalPeriodo.
   // `obterRealizadoGeral` é o par certo dela: TODOS os funis, nunca só o
-  // selecionado (achado desta rodada — ver comentário na migration
-  // 20261016190000 e em FinanceiroFunil). `obterRealizadoFunil` continua
-  // existindo só pro vendido/ticket médio DESTE funil, nunca pra comparar
-  // com a meta.
+  // selecionado. `obterRealizadoFunil` agora recebe o MESMO `usuarioIdMeta`
+  // (achado desta rodada: sem isso, um SDR/CLOSER com `pode_ver` em várias
+  // etapas via um colega somava o fechamento de QUALQUER UM visível ali —
+  // "vendido neste funil" e "realizado geral" pareciam contradição por
+  // somarem conjuntos de pessoas diferentes, não por período ou TCV/MRR
+  // errados) — a única diferença entre os dois agora é o filtro de
+  // `funil_id`, nunca "de quem são as vendas".
   const usuarioIdMeta = usuario.role === 'gerente' ? null : usuario.id
 
   const [metricas, realizadoFunil, realizadoGeral, metaPeriodo] = await Promise.all([
     obterMetricasFunil(periodo, funilSelecionado.id),
-    obterRealizadoFunil(periodo, funilSelecionado.id),
+    obterRealizadoFunil(periodo, funilSelecionado.id, usuarioIdMeta),
     obterRealizadoGeral(periodo, usuarioIdMeta),
     obterMetaPeriodo(periodo, usuarioIdMeta),
   ])
@@ -70,6 +73,9 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {usuario.role === 'gerente' ? 'Da equipe inteira.' : 'Das suas negociações.'} Conversão,
             tempo por etapa e cards parados.
+          </p>
+          <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Período: {formatarData(periodo.inicio)} → {formatarData(periodo.fim)}
           </p>
         </div>
         {usuario.role === 'gerente' && (
@@ -97,7 +103,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         metaPeriodo={metaPeriodo}
         realizadoGeral={realizadoGeral}
         realizadoFunil={realizadoFunil}
-        periodo={periodo}
+        funilNome={funilSelecionado.nome}
       />
 
       <FunilVisual metricas={metricas} />

@@ -11,8 +11,8 @@ import {
   type ProgressoPessoa,
   type TipoMeta,
 } from '@/lib/dal/metas'
-import { formatarMoeda } from '@/lib/utils/formatacao'
-import { lerMes, rotuloMes } from '@/lib/utils/periodo'
+import { formatarData, formatarMoeda } from '@/lib/utils/formatacao'
+import { lerMes, primeiroDiaDoMes, rotuloMes, ultimoDiaDoMes } from '@/lib/utils/periodo'
 import { ALVO_EMPRESA, ROTULO_TIPO_META, TIPOS_META } from '@/lib/validations/meta'
 
 import { BarraProgresso, CardMeta, TextoPercentual } from './_components/progresso'
@@ -36,7 +36,11 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
           <h1 className="text-2xl font-semibold">Metas</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Vendas fechadas em {rotuloMes(mes).toLowerCase()}, pela data de fechamento. Cada venda conta
-            para o responsável pela negociação quando ela foi fechada.
+            para quem era o responsável da negociação no momento do fechamento
+            (<code>fechamentos.responsavel_id</code>) — nunca o dono atual da carteira.
+          </p>
+          <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Período: {formatarData(primeiroDiaDoMes(mes))} → {formatarData(ultimoDiaDoMes(mes))}
           </p>
         </div>
         <SeletorMes mes={mes} />
@@ -54,19 +58,23 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
       {gerente ? (
         <>
           {empresa && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {TIPOS_META.map((tipo) => (
-                <CardMeta
-                  key={tipo}
-                  titulo={`Meta ${ROTULO_TIPO_META[tipo]} da empresa`}
-                  valorMeta={empresa[tipo].valorMeta}
-                  realizado={empresa[tipo].realizado}
-                  percentual={empresa[tipo].percentual}
-                  semMeta="Não definida"
-                  acoes={<AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} />}
-                />
-              ))}
-            </div>
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta da empresa</h2>
+              <p className="text-xs text-zinc-500">Todos os funis, todos os responsáveis.</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {TIPOS_META.map((tipo) => (
+                  <CardMeta
+                    key={tipo}
+                    titulo={ROTULO_TIPO_META[tipo]}
+                    valorMeta={empresa[tipo].valorMeta}
+                    realizado={empresa[tipo].realizado}
+                    percentual={empresa[tipo].percentual}
+                    semMeta="Não definida"
+                    acoes={<AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} />}
+                  />
+                ))}
+              </div>
+            </section>
           )}
           <TabelaPessoas pessoas={pessoas} mes={mes} />
         </>
@@ -79,18 +87,22 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
 
 function MinhaMeta({ pessoa }: { pessoa: ProgressoPessoa | undefined }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {TIPOS_META.map((tipo) => (
-        <CardMeta
-          key={tipo}
-          titulo={`Sua meta ${ROTULO_TIPO_META[tipo]}`}
-          valorMeta={pessoa?.[tipo].valorMeta ?? null}
-          realizado={pessoa?.[tipo].realizado ?? 0}
-          percentual={pessoa?.[tipo].percentual ?? null}
-          semMeta="Nenhuma meta definida para este mês"
-        />
-      ))}
-    </div>
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Minha meta</h2>
+      <p className="text-xs text-zinc-500">Todos os funis, só as suas vendas (responsável pelo fechamento).</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {TIPOS_META.map((tipo) => (
+          <CardMeta
+            key={tipo}
+            titulo={ROTULO_TIPO_META[tipo]}
+            valorMeta={pessoa?.[tipo].valorMeta ?? null}
+            realizado={pessoa?.[tipo].realizado ?? 0}
+            percentual={pessoa?.[tipo].percentual ?? null}
+            semMeta="Nenhuma meta definida para este mês"
+          />
+        ))}
+      </div>
+    </section>
   )
 }
 
