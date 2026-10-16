@@ -129,6 +129,54 @@ export async function obterMetaPeriodo(
   }
 }
 
+export type RealizadoGeral = { tcv: number; mrr: number }
+
+/**
+ * Args de `realizado_periodo` (migration 20261016190000) — fora do gerador
+ * de tipos porque a migration ainda não foi aplicada no banco real.
+ * Remover o cast `as never` quando for aplicada e os tipos regerados.
+ */
+type LinhaRealizadoPeriodo = {
+  usuario_id: string | null
+  nome: string | null
+  role: UserRole | null
+  ativo: boolean | null
+  realizado_tcv: number | string
+  realizado_mrr: number | string
+}
+
+/**
+ * Realizado (TCV/MRR) de TODOS os funis, no período, pra par com
+ * `obterMetaPeriodo` — juntos formam o "meta geral/individual" correto de
+ * `/funil/metricas`. NUNCA usar `obterRealizadoFunil` pra isso: ela filtra
+ * por um funil só (certo pro que ELA representa — vendido/ticket médio
+ * daquele funil — errado pra comparar com uma meta que nunca é por funil).
+ *
+ * Chama `realizado_periodo` (SECURITY DEFINER, mesma atribuição por
+ * `responsavel_id` de `metas_progresso`) e filtra a UMA linha que importa
+ * pro alvo pedido (`null` = empresa, ou o uuid da pessoa) — a RPC já só
+ * devolve as linhas que o chamador pode ver (closer só a própria).
+ */
+export async function obterRealizadoGeral(
+  periodo: { inicio: string; fim: string },
+  usuarioId: string | null,
+): Promise<RealizadoGeral> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('realizado_periodo' as never, {
+    p_inicio: periodo.inicio,
+    p_fim: periodo.fim,
+  } as never)
+  if (error) throw new Error('Não foi possível carregar o realizado do período.', { cause: error })
+
+  const linhas = data as unknown as LinhaRealizadoPeriodo[]
+  const linha = linhas.find((l) => l.usuario_id === usuarioId)
+  if (!linha) return { tcv: 0, mrr: 0 }
+
+  return { tcv: Number(linha.realizado_tcv), mrr: Number(linha.realizado_mrr) }
+}
+
 // ---------------------------------------------------------------------------
 // Gestão — somente gerente. A RLS de `metas` é quem garante; a checagem aqui
 // evita a viagem e dá mensagem clara.

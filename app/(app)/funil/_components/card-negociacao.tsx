@@ -58,6 +58,7 @@ export function CardArrastavel({
   onMover,
   onEditar,
   onAbrirDrawer,
+  onAbrirObservacoes,
 }: {
   card: CardFunil
   etapas: EtapaKanban[]
@@ -66,6 +67,7 @@ export function CardArrastavel({
   onMover: (id: string, etapaId: string) => void
   onEditar: (card: CardFunil) => void
   onAbrirDrawer: (card: CardFunil) => void
+  onAbrirObservacoes: (card: CardFunil) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id, disabled: travado })
@@ -83,6 +85,7 @@ export function CardArrastavel({
         card={card}
         onEditar={onEditar}
         onAbrirDrawer={onAbrirDrawer}
+        onAbrirObservacoes={onAbrirObservacoes}
         menu={
           travado ? undefined : (
             <MenuMoverPara
@@ -104,6 +107,7 @@ export function CardConteudo({
   menu,
   onEditar,
   onAbrirDrawer,
+  onAbrirObservacoes,
 }: {
   card: CardFunil
   flutuando?: boolean
@@ -113,6 +117,8 @@ export function CardConteudo({
   onEditar?: (card: CardFunil) => void
   /** Abre o painel lateral (ficha/drawer); ausente na cópia flutuante do arraste. */
   onAbrirDrawer?: (card: CardFunil) => void
+  /** Abre o modal "Ver observações"; ausente na cópia flutuante do arraste. */
+  onAbrirObservacoes?: (card: CardFunil) => void
 }) {
   const campanha = resumoCampanha(card.atribuicao)
   // Proposta: o valor vendido manda quando a etapa é ganha, senão o estimado
@@ -225,6 +231,24 @@ export function CardConteudo({
         <p className="mt-2 truncate text-xs text-zinc-500" title={campanha}>
           Campanha: {campanha}
         </p>
+      )}
+
+      {/* "Ver observações" — funciona com ou sem observação já registrada
+          (o modal mostra "Não há observações ainda." nesse caso); nunca
+          desabilitado, mesmo pra quem só tem pode_ver (o modal abre
+          read-only pra esse caso). */}
+      {onAbrirObservacoes && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAbrirObservacoes(card)
+          }}
+          className="mt-2 text-xs font-medium text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
+          {...pararArraste}
+        >
+          Ver observações
+        </button>
       )}
     </article>
   )

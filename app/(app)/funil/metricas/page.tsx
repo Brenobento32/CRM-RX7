@@ -6,7 +6,7 @@ import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
-import { obterMetaPeriodo } from '@/lib/dal/metas'
+import { obterMetaPeriodo, obterRealizadoGeral } from '@/lib/dal/metas'
 import { hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { chavePeriodoFunil, resolverPeriodoFunil } from '@/lib/utils/periodo'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
@@ -45,11 +45,17 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
   // (closer) — mesma distinção de /metas. `obterMetaPeriodo` já devolve a
   // meta PROPORCIONADA ao período selecionado (nunca a do mês corrente
   // inteiro) — ver lib/utils/financeiro-periodo.ts#metaProporcionalPeriodo.
+  // `obterRealizadoGeral` é o par certo dela: TODOS os funis, nunca só o
+  // selecionado (achado desta rodada — ver comentário na migration
+  // 20261016190000 e em FinanceiroFunil). `obterRealizadoFunil` continua
+  // existindo só pro vendido/ticket médio DESTE funil, nunca pra comparar
+  // com a meta.
   const usuarioIdMeta = usuario.role === 'gerente' ? null : usuario.id
 
-  const [metricas, realizado, metaPeriodo] = await Promise.all([
+  const [metricas, realizadoFunil, realizadoGeral, metaPeriodo] = await Promise.all([
     obterMetricasFunil(periodo, funilSelecionado.id),
     obterRealizadoFunil(periodo, funilSelecionado.id),
+    obterRealizadoGeral(periodo, usuarioIdMeta),
     obterMetaPeriodo(periodo, usuarioIdMeta),
   ])
 
@@ -87,7 +93,12 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         />
       </div>
 
-      <FinanceiroFunil metaPeriodo={metaPeriodo} realizado={realizado} periodo={periodo} />
+      <FinanceiroFunil
+        metaPeriodo={metaPeriodo}
+        realizadoGeral={realizadoGeral}
+        realizadoFunil={realizadoFunil}
+        periodo={periodo}
+      />
 
       <FunilVisual metricas={metricas} />
 

@@ -52,6 +52,7 @@ import { ModalDesqualificar } from './modal-desqualificar'
 import { ModalEdicaoRapida } from './modal-edicao-rapida'
 import { ModalFechamento } from './modal-fechamento'
 import { ModalFichaCliente } from './modal-ficha-cliente'
+import { ModalObservacoes } from './modal-observacoes'
 import { ModalPerda } from './modal-perda'
 import { PainelConversa } from './painel-conversa'
 import { useRolagemHorizontal } from './rolagem-horizontal'
@@ -209,6 +210,7 @@ export function Kanban({
   const [drawer, setDrawer] = useState<CardFunil | null>(null)
   const [conversa, setConversa] = useState<CardFunil | null>(null)
   const [ficha, setFicha] = useState<CardFunil | null>(null)
+  const [observacoes, setObservacoes] = useState<CardFunil | null>(null)
   const [desqualificar, setDesqualificar] = useState<CardFunil | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, startTransition] = useTransition()
@@ -430,6 +432,7 @@ export function Kanban({
                 onMover={moverPara}
                 onEditar={setEdicaoRapida}
                 onAbrirDrawer={setDrawer}
+                onAbrirObservacoes={setObservacoes}
               />
             )
           })}
@@ -493,6 +496,16 @@ export function Kanban({
         />
       )}
 
+      {observacoes && (
+        <ModalObservacoes
+          card={observacoes}
+          // Mesmo cálculo de `podeTrabalharCard` da ficha, acima — UX
+          // apenas, a trava real é `atividades_insert` (pode_mover_etapa).
+          podeTrabalharCard={papel === 'gerente' || podeMoverEtapa(observacoes.etapaId)}
+          onFechar={() => setObservacoes(null)}
+        />
+      )}
+
       {desqualificar && (
         <ModalDesqualificar
           card={desqualificar}
@@ -518,6 +531,7 @@ function Coluna({
   onMover,
   onEditar,
   onAbrirDrawer,
+  onAbrirObservacoes,
 }: {
   etapa: EtapaKanban
   /** Destinos válidos a partir desta coluna — ver `etapasPermitidas` em `Kanban`. Igual pra todo card dela (owner_id não entra mais na decisão). */
@@ -530,6 +544,7 @@ function Coluna({
   onMover: (id: string, etapaId: string) => void
   onEditar: (card: CardFunil) => void
   onAbrirDrawer: (card: CardFunil) => void
+  onAbrirObservacoes: (card: CardFunil) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.id })
   const total = cards.reduce(
@@ -585,6 +600,7 @@ function Coluna({
               onMover={onMover}
               onEditar={onEditar}
               onAbrirDrawer={onAbrirDrawer}
+              onAbrirObservacoes={onAbrirObservacoes}
             />
           ))}
         </ul>
