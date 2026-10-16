@@ -57,6 +57,40 @@ export async function listarTimeline(clienteId: string): Promise<ItemTimeline[]>
   }))
 }
 
+/**
+ * Timeline de UMA negociação (ficha do card no Kanban), mais recente
+ * primeiro — recorte de `atividades` por `negociacao_id`, não por
+ * `cliente_id` (um cliente pode ter mais de uma negociação; a ficha do
+ * card só mostra o que é desse card). Mesma RLS de `listarTimeline`
+ * (segue o cliente): quem vê o cliente vê toda a timeline da negociação,
+ * inclusive o que outra pessoa registrou.
+ */
+export async function listarTimelineNegociacao(negociacaoId: string): Promise<ItemTimeline[]> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('atividades')
+    .select('id, tipo, descricao, data, usuario_id')
+    .eq('negociacao_id', negociacaoId)
+    .order('data', { ascending: false })
+    .limit(LIMITE_TIMELINE)
+
+  if (error) {
+    throw new Error('Não foi possível carregar a timeline.', { cause: error })
+  }
+
+  const nomes = await nomesDeUsuarios(data.map((a) => a.usuario_id))
+
+  return data.map((a) => ({
+    id: a.id,
+    tipo: a.tipo,
+    descricao: a.descricao,
+    data: a.data,
+    usuario: nomes.get(a.usuario_id) ?? null,
+  }))
+}
+
 /** Próximas ações pendentes do cliente, da mais próxima para a mais distante. */
 export async function listarProximasAcoes(clienteId: string): Promise<ProximaAcao[]> {
   await getUsuarioAtual()

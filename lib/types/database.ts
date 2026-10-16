@@ -2010,6 +2010,7 @@ export type Database = {
           p_cpf?: string
           p_email?: string
           p_empresa?: string
+          p_funil_id?: string
           p_instagram?: string
           p_nome: string
           p_observacoes?: string
@@ -2048,6 +2049,29 @@ export type Database = {
           p_valor_estimado?: number
         }
         Returns: string
+      }
+      criar_ou_reaproveitar_cliente: {
+        Args: {
+          p_cargo?: string
+          p_cnpj?: string
+          p_cpf?: string
+          p_email?: string
+          p_empresa?: string
+          p_funil_id?: string
+          p_instagram?: string
+          p_nome: string
+          p_observacoes?: string
+          p_owner_id?: string
+          p_responsavel?: string
+          p_telefone?: string
+          p_tipo_cliente: Database["public"]["Enums"]["tipo_cliente"]
+          p_whatsapp?: string
+        }
+        Returns: {
+          cliente_id: string
+          negociacao_id: string
+          reaproveitado: boolean
+        }[]
       }
       criar_serie_eventos: {
         Args: {

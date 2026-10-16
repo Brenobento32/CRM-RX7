@@ -75,6 +75,10 @@ begin
 end;
 $$;
 
+-- Re-executável mesmo depois que 20261015110000 já foi aplicada de verdade
+-- (confirmado: `supabase migration list` mostra ela em produção) — sem o
+-- DROP, este CREATE TRIGGER colide com o objeto real ("already exists").
+drop trigger if exists negociacoes_protege_criacao_por_permissao on public.negociacoes;
 create trigger negociacoes_protege_criacao_por_permissao
   before insert on public.negociacoes
   for each row
@@ -183,6 +187,7 @@ begin
 end;
 $$;
 
+drop trigger if exists clientes_protege_arquivamento_com_negociacao_ativa on public.clientes;
 create trigger clientes_protege_arquivamento_com_negociacao_ativa
   before update of deleted_at on public.clientes
   for each row

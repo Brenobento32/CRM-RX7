@@ -6,7 +6,9 @@ import { z } from 'zod'
 import {
   concluirProximaAcao,
   criarProximaAcao,
+  listarTimelineNegociacao,
   registrarAtividade,
+  type ItemTimeline,
 } from '@/lib/dal/atividades'
 import { atividadeSchema, observacaoRapidaSchema, proximaAcaoSchema } from '@/lib/validations/atividade'
 
@@ -91,6 +93,12 @@ export async function registrarObservacaoAction(
 
   revalidar(clienteId)
   return { ok: true }
+}
+
+/** Timeline da ficha do card no Kanban (`ModalFichaCliente`) — carregada no abrir e após cada observação registrada. */
+export async function listarTimelineNegociacaoAction(negociacaoId: string): Promise<ItemTimeline[]> {
+  if (!uuid.safeParse(negociacaoId).success) return []
+  return listarTimelineNegociacao(negociacaoId)
 }
 
 export async function criarProximaAcaoAction(

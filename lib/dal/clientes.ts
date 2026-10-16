@@ -335,13 +335,6 @@ export type ResultadoEscrita =
  * não tiver `pode_mover` pra quem chama, a RPC falha com 42501, traduzido
  * abaixo.
  */
-/** Linha devolvida por `criar_ou_reaproveitar_cliente` (RPC nova, ver nota de tipos abaixo). */
-type LinhaCriarOuReaproveitarCliente = {
-  cliente_id: string
-  negociacao_id: string
-  reaproveitado: boolean
-}
-
 export async function criarCliente(
   input: ClienteInput,
   funilId?: string | null,
@@ -355,11 +348,8 @@ export async function criarCliente(
   // Deduplicação global e segura (telefone/WhatsApp/e-mail, sem vazar PII
   // de cliente que o chamador não enxergaria) + criação/reaproveitamento
   // do cliente + criação da negociação, tudo atômico — ver migration
-  // 20261015150000. Cast temporário: a RPC é nova (ainda não aplicada,
-  // só dry-run) — `lib/types/database.ts` só é regenerado (`npm run
-  // db:types`) depois de um `db push` real autorizado; remover o cast
-  // assim que os tipos forem regenerados.
-  const { data, error } = (await supabase.rpc('criar_ou_reaproveitar_cliente' as never, {
+  // 20261015150000.
+  const { data, error } = await supabase.rpc('criar_ou_reaproveitar_cliente', {
     p_tipo_cliente: input.tipo_cliente,
     p_nome: input.nome,
     p_empresa: input.empresa ?? undefined,
@@ -374,10 +364,7 @@ export async function criarCliente(
     p_owner_id: ownerId,
     p_instagram: input.instagram ?? undefined,
     p_funil_id: funilId ?? undefined,
-  } as never)) as unknown as {
-    data: LinhaCriarOuReaproveitarCliente[] | null
-    error: PostgrestError | null
-  }
+  })
 
   if (error) return traduzirErro(error)
 

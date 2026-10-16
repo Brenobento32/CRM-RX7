@@ -40,6 +40,15 @@ type Props = {
    * edição usa `redirect()` na action e nunca passa por aqui.
    */
   onSucesso?: () => void
+  /**
+   * `false` só na ficha do card do Kanban: a observação ali passa a ser
+   * atividade/timeline (ver `FormObservacaoRapida`), e manter os dois
+   * campos juntos duplicava o conceito. O valor existente continua indo
+   * num campo oculto — nunca é apagado por um salvamento que não toca
+   * nele, e a página de edição completa (`/clientes/[id]/editar`)
+   * continua mostrando o campo normalmente.
+   */
+  mostrarObservacoes?: boolean
 }
 
 const inputClass =
@@ -54,6 +63,7 @@ export function ClienteForm({
   cancelarHref,
   onCancelar,
   onSucesso,
+  mostrarObservacoes = true,
 }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores ?? valoresIniciais
@@ -182,22 +192,26 @@ export function ClienteForm({
         </div>
       </section>
 
-      <div className="space-y-1.5">
-        <label htmlFor="observacoes" className="block text-sm font-medium">
-          Observações
-        </label>
-        <textarea
-          id="observacoes"
-          name="observacoes"
-          rows={4}
-          defaultValue={valores.observacoes}
-          aria-invalid={erro('observacoes') ? true : undefined}
-          className={inputClass}
-        />
-        {erro('observacoes') && (
-          <p className="text-sm text-red-600 dark:text-red-400">{erro('observacoes')}</p>
-        )}
-      </div>
+      {mostrarObservacoes ? (
+        <div className="space-y-1.5">
+          <label htmlFor="observacoes" className="block text-sm font-medium">
+            Observações
+          </label>
+          <textarea
+            id="observacoes"
+            name="observacoes"
+            rows={4}
+            defaultValue={valores.observacoes}
+            aria-invalid={erro('observacoes') ? true : undefined}
+            className={inputClass}
+          />
+          {erro('observacoes') && (
+            <p className="text-sm text-red-600 dark:text-red-400">{erro('observacoes')}</p>
+          )}
+        </div>
+      ) : (
+        <input type="hidden" name="observacoes" value={valores.observacoes ?? ''} />
+      )}
 
       {responsaveis.length > 0 ? (
         <div className="max-w-sm space-y-1.5">

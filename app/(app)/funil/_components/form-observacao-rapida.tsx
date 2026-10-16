@@ -11,6 +11,8 @@ type Props = {
     estado: EstadoFormAtividade | undefined,
     formData: FormData,
   ) => Promise<EstadoFormAtividade>
+  /** Chamado depois de um registro bem-sucedido — recarrega a timeline da ficha. */
+  onRegistrada?: () => void
 }
 
 /**
@@ -20,12 +22,15 @@ type Props = {
  * só tem `pode_ver` (sem `pode_mover`) recebe o erro vindo da RLS; o campo
  * fica sempre visível (a trava real é no banco, não aqui).
  */
-export function FormObservacaoRapida({ action }: Props) {
+export function FormObservacaoRapida({ action, onRegistrada }: Props) {
   const formRef = useRef<HTMLFormElement>(null)
   const [estado, formAction, pendente] = useActionState(
     async (anterior: EstadoFormAtividade | undefined, formData: FormData) => {
       const resultado = await action(anterior, formData)
-      if (resultado.ok) formRef.current?.reset()
+      if (resultado.ok) {
+        formRef.current?.reset()
+        onRegistrada?.()
+      }
       return resultado
     },
     undefined,

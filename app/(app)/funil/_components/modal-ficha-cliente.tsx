@@ -5,7 +5,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, useTransi
 import { ClienteForm } from '@/app/(app)/clientes/_components/cliente-form'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { atualizarClienteRapidoAction, obterClienteParaFichaAction } from '@/lib/actions/clientes'
-import { registrarObservacaoAction } from '@/lib/actions/atividades'
+import { listarTimelineNegociacaoAction, registrarObservacaoAction } from '@/lib/actions/atividades'
 import {
   atualizarDadosComerciaisAction,
   listarNichosAtivosAction,
@@ -13,11 +13,13 @@ import {
   type EstadoModalFunil,
 } from '@/lib/actions/funil'
 import type { ClienteDetalhe } from '@/lib/dal/clientes'
+import type { ItemTimeline } from '@/lib/dal/atividades'
 import type { CardFunil } from '@/lib/dal/funil'
 import type { Nicho } from '@/lib/dal/nichos'
 import type { RespostaLead } from '@/lib/dal/negociacoes'
 import type { EtapaKanban } from '@/lib/utils/etapas'
-import { formatarMoeda } from '@/lib/utils/formatacao'
+import { formatarDataHoraCompleta, formatarMoeda } from '@/lib/utils/formatacao'
+import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ORIGENS_NEGOCIACAO, ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
@@ -60,6 +62,7 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
   const [cliente, setCliente] = useState<ClienteDetalhe | null | undefined>(undefined)
   const [respostas, setRespostas] = useState<RespostaLead[] | null>(null)
   const [nichos, setNichos] = useState<Nicho[]>([])
+  const [timeline, setTimeline] = useState<ItemTimeline[] | null>(null)
   const [carregando, iniciarCarregamento] = useTransition()
 
   useEffect(() => {
@@ -70,16 +73,29 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
 
   useEffect(() => {
     iniciarCarregamento(async () => {
-      const [c, r, n] = await Promise.all([
+      const [c, r, n, t] = await Promise.all([
         obterClienteParaFichaAction(card.clienteId),
         obterRespostasLeadAction(card.id),
         listarNichosAtivosAction(),
+        listarTimelineNegociacaoAction(card.id),
       ])
       setCliente(c)
       setRespostas(r)
       setNichos(n)
+      setTimeline(t)
     })
   }, [card.clienteId, card.id])
+
+  // Chamado depois de `registrarObservacaoAction` ter sucesso — o
+  // formulário/estado dela fica em `FormObservacaoRapida` (não aqui), então
+  // a timeline precisa ser buscada de novo explicitamente: ela veio de um
+  // `useEffect` client-side, não de uma prop de RSC, e `revalidatePath` não
+  // re-executa esse fetch por conta própria.
+  function recarregarTimeline() {
+    startTransition(async () => {
+      setTimeline(await listarTimelineNegociacaoAction(card.id))
+    })
+  }
 
   const etapa = etapas.find((e) => e.id === card.etapaId)
 
@@ -139,19 +155,52 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
             </section>
 
             <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Observação</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Observações</h3>
               {podeTrabalharCard ? (
                 <>
                   <p className="text-xs text-zinc-500">
                     Vira uma atividade ligada a esta negociação — nunca altera o cadastro do cliente.
                   </p>
-                  <FormObservacaoRapida action={registrarObservacaoAction.bind(null, cliente.id, card.id)} />
+                  <FormObservacaoRapida
+                    action={registrarObservacaoAction.bind(null, cliente.id, card.id)}
+                    onRegistrada={recarregarTimeline}
+                  />
                 </>
               ) : (
                 <p className="text-sm text-zinc-500">
                   Você só pode visualizar este card — sem permissão para registrar observações nele.
                 </p>
               )}
+
+              <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Histórico
+                </h4>
+                {timeline === null ? (
+                  <p className="text-sm text-zinc-500">Carregando…</p>
+                ) : timeline.length === 0 ? (
+                  <p className="text-sm text-zinc-500">Nenhuma atividade registrada nesta negociação.</p>
+                ) : (
+                  <ol className="relative space-y-4 border-l border-zinc-200 pl-4 dark:border-zinc-800">
+                    {timeline.map((a) => (
+                      <li key={a.id} className="relative">
+                        <span
+                          className="absolute top-1.5 -left-[21px] size-2 rounded-full border-2 border-white bg-zinc-400 dark:border-zinc-950"
+                          aria-hidden
+                        />
+                        <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+                          <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                            {ROTULO_TIPO_ATIVIDADE[a.tipo]}
+                          </span>
+                          <time dateTime={a.data}>{formatarDataHoraCompleta(a.data)}</time>
+                          {a.usuario && <span>· {a.usuario}</span>}
+                        </p>
+                        <p className="mt-1 text-sm whitespace-pre-wrap">{a.descricao}</p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
             </section>
 
             <section className="space-y-3">
@@ -179,6 +228,7 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
                 rotuloEnviar="Salvar"
                 onCancelar={onFechar}
                 onSucesso={onFechar}
+                mostrarObservacoes={false}
               />
             </section>
           </div>
