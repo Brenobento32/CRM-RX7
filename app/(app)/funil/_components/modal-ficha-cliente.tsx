@@ -2,21 +2,17 @@
 
 import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from 'react'
 
-import { ClienteForm } from '@/app/(app)/clientes/_components/cliente-form'
+import { CamposCliente, inputClassCliente } from '@/app/(app)/clientes/_components/cliente-form'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
-import { atualizarClienteRapidoAction, obterClienteParaFichaAction } from '@/lib/actions/clientes'
+import { obterClienteParaFichaAction } from '@/lib/actions/clientes'
 import { listarTimelineNegociacaoAction, registrarObservacaoAction } from '@/lib/actions/atividades'
-import {
-  atualizarDadosComerciaisAction,
-  listarNichosAtivosAction,
-  obterRespostasLeadAction,
-  type EstadoModalFunil,
-} from '@/lib/actions/funil'
+import { listarNichosAtivosAction, obterRespostasLeadAction, salvarFichaAction } from '@/lib/actions/funil'
 import type { ClienteDetalhe } from '@/lib/dal/clientes'
 import type { ItemTimeline } from '@/lib/dal/atividades'
 import type { CardFunil } from '@/lib/dal/funil'
 import type { Nicho } from '@/lib/dal/nichos'
 import type { RespostaLead } from '@/lib/dal/negociacoes'
+import { CAMPOS_CLIENTE, type CampoCliente } from '@/lib/validations/cliente'
 import type { EtapaKanban } from '@/lib/utils/etapas'
 import { formatarDataHoraCompleta, formatarMoeda } from '@/lib/utils/formatacao'
 import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
@@ -24,7 +20,7 @@ import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
 import { FormObservacaoRapida } from './form-observacao-rapida'
-import { BotoesModal, ErroCampo, ErroGeral, inputClass } from './modal'
+import { ErroCampo } from './modal'
 
 type Props = {
   card: CardFunil
@@ -32,9 +28,11 @@ type Props = {
   /**
    * GERENTE sempre `true`; SDR/CLOSER só quando `pode_mover` está
    * configurado na etapa atual do card. Puramente UX — esconde/desabilita
-   * o que o servidor (RLS de `atividades_insert`) ia recusar de qualquer
-   * forma, pra nem fazer a chamada. `pode_ver=true` sozinho (que é como o
-   * usuário conseguiu abrir esta ficha) nunca é suficiente aqui.
+   * o que o servidor (RPCs `atualizar_dados_operacionais_negociacao` e
+   * `atualizar_cliente_do_card`, ambas GERENTE ou `pode_mover_etapa`) ia
+   * recusar de qualquer forma, pra nem fazer a chamada. `pode_ver=true`
+   * sozinho (que é como o usuário conseguiu abrir esta ficha) nunca é
+   * suficiente aqui.
    */
   podeTrabalharCard: boolean
   onFechar: () => void
@@ -50,12 +48,17 @@ function valorParaCampo(valor: number | null): string {
  * `DrawerNegociacao` (mesma pilha de `PainelConversa`): fechar aqui revela o
  * drawer de novo, sozinho, sem navegar para `/clientes/[id]`.
  *
- * Dados do cliente (nome/telefone/email/empresa/Instagram/…) são editáveis —
- * reaproveita `ClienteForm` com a action "rápida" (sem redirect). Dados
- * comerciais: nicho/origem/temperatura/proposta são editáveis aqui também
- * (item 3/4 do refinamento) — funil/etapa/responsável ficam só leitura, têm
- * telas próprias (Mover no Kanban, carteira do cliente). Qualificação é só
- * leitura: vem do formulário externo, não existe fluxo de editar resposta.
+ * Dados do cliente (cadastro) e dados comerciais da negociação (nicho/
+ * temperatura/proposta) são salvos juntos, num ÚNICO formulário/botão
+ * "Salvar alterações" (`SecaoEdicao` abaixo) — nunca fecha a ficha: sucesso
+ * e erro aparecem inline, embaixo do botão. Funil/etapa/responsável/origem
+ * ficam só leitura: funil/etapa/responsável têm telas próprias (Mover no
+ * Kanban, carteira do cliente); origem é fato histórico de como o lead
+ * entrou — nunca editável por ninguém, nem gerente (trigger
+ * `negociacoes_origem_imutavel`). Qualificação é só leitura: vem do
+ * formulário externo, não existe fluxo de editar resposta. Observação
+ * continua sendo uma ação SEPARADA (vira atividade/timeline, nunca mexe no
+ * cadastro) — não faz parte deste formulário combinado.
  */
 export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -132,12 +135,12 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
           <p className="mt-4 text-sm text-red-600 dark:text-red-400">Cliente não encontrado.</p>
         ) : (
           <div className="mt-5 space-y-8">
-            <SecaoDadosComerciais
+            <SecaoEdicao
               card={card}
               etapa={etapa}
               nichos={nichos}
+              cliente={cliente}
               podeTrabalharCard={podeTrabalharCard}
-              onFechar={onFechar}
             />
 
             <SecaoAtribuicao card={card} />
@@ -208,35 +211,6 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
                 )}
               </div>
             </section>
-
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados do cliente</h3>
-              <ClienteForm
-                action={atualizarClienteRapidoAction.bind(null, cliente.id)}
-                valoresIniciais={{
-                  tipo_cliente: cliente.tipo_cliente,
-                  nome: cliente.nome,
-                  empresa: cliente.empresa ?? '',
-                  cpf: cliente.cpf ?? '',
-                  cnpj: cliente.cnpj ?? '',
-                  telefone: cliente.telefone ?? '',
-                  whatsapp: cliente.whatsapp ?? '',
-                  email: cliente.email ?? '',
-                  responsavel: cliente.responsavel ?? '',
-                  cargo: cliente.cargo ?? '',
-                  instagram: cliente.instagram ?? '',
-                  observacoes: cliente.observacoes ?? '',
-                  owner_id: cliente.owner_id,
-                }}
-                // Carteira (owner_id) não muda por aqui — é dado comercial,
-                // tratado como somente leitura nesta ficha (ver acima).
-                responsaveis={[]}
-                rotuloEnviar="Salvar"
-                onCancelar={onFechar}
-                onSucesso={onFechar}
-                mostrarObservacoes={false}
-              />
-            </section>
           </div>
         )}
       </div>
@@ -245,72 +219,59 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
 }
 
 /**
- * "Dados comerciais" editáveis (item 3/4 do refinamento): nicho, temperatura
- * e proposta num único formulário — salvar fecha a ficha inteira (mesmo
- * padrão do `ClienteForm` abaixo) e revalida o Kanban, então a borda do
- * card (que é o nicho) já chega colorida certa, sem reload. Funil/etapa/
- * responsável/origem são só leitura: funil/etapa/responsável têm telas
- * próprias (Mover no Kanban, carteira do cliente); origem é fato histórico
- * de como o lead entrou — nunca editável por ninguém, nem gerente (trigger
- * `negociacoes_origem_imutavel`, proposta em
- * `supabase/migrations_propostas/20261015130000_...sql`).
+ * Formulário único: dados comerciais da negociação (nicho/temperatura/
+ * proposta) + cadastro do cliente, um só `<form>`, um só botão "Salvar
+ * alterações", nunca fecha a ficha. `salvarFichaAction` chama as duas RPCs
+ * (cliente + negociação) e devolve sucesso/erro — mostrados inline embaixo
+ * do botão, sem toast como única confirmação.
  *
- * Trava dupla, nunca só na UI: `bloqueado` é true em etapa encerrada
- * (ganha/perdida — o banco recusa via `negociacoes_encerrada_somente_leitura`)
- * OU quando o chamador não tem `pode_mover_etapa` na etapa atual (o banco
- * recusa via `negociacoes_protege_dados_operacionais_por_permissao`, mesma
- * migration proposta). Os dois casos desabilitam aqui só pra evitar a
- * viagem de ida e volta pra mostrar o erro — a proteção real é sempre o
- * banco.
+ * Trava dupla, nunca só na UI: `bloqueadoComercial` é true em etapa
+ * encerrada (ganha/perdida — o banco recusa via `negociacoes_encerrada_
+ * somente_leitura`/a própria RPC) OU quando o chamador não tem `pode_mover_
+ * etapa` na etapa atual (a RPC recusa com 42501). Cadastro do cliente só
+ * trava por falta de `pode_mover_etapa` — negociação encerrada NÃO bloqueia
+ * corrigir nome/telefone/e-mail do cliente (não é dado histórico da venda).
  */
-function SecaoDadosComerciais({
+function SecaoEdicao({
   card,
   etapa,
   nichos,
+  cliente,
   podeTrabalharCard,
-  onFechar,
 }: {
   card: CardFunil
   etapa: EtapaKanban | undefined
   nichos: Nicho[]
-  /** `false` quando o chamador só tem `pode_ver` — ver `ModalFichaCliente`. */
+  cliente: ClienteDetalhe
   podeTrabalharCard: boolean
-  onFechar: () => void
 }) {
+  const encerrada = card.etapaTipo !== 'aberta'
+  const bloqueadoComercial = encerrada || !podeTrabalharCard
+
   const [estado, action, pendente] = useActionState(
-    async (anterior: EstadoModalFunil | undefined, formData: FormData) => {
-      const resultado = await atualizarDadosComerciaisAction(anterior, formData)
-      if (resultado.ok) onFechar()
-      return resultado
-    },
+    salvarFichaAction.bind(null, cliente.id, card.id),
     undefined,
   )
 
-  const encerrada = card.etapaTipo !== 'aberta'
-  // Trava de UX (nunca a real): soma as duas razões pelas quais o banco
-  // recusaria o UPDATE — encerrada (negociacoes_encerrada_somente_leitura)
-  // OU sem pode_mover_etapa (negociacoes_protege_dados_operacionais_por_
-  // permissao). `pode_ver` sozinho nunca basta pra editar nicho/temperatura/
-  // valor_estimado, só pra ver esta ficha.
-  const bloqueado = encerrada || !podeTrabalharCard
   const erro = (campo: string) => estado?.campos?.[campo]?.[0]
   const valorAtual = card.etapaTipo === 'ganha' ? card.valorVendido : card.valorEstimado
 
-  return (
-    <section className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados comerciais</h3>
+  const valoresCliente: Partial<Record<CampoCliente, string>> = Object.fromEntries(
+    CAMPOS_CLIENTE.map((c) => [c, estado?.valores?.[c] ?? (cliente[c as keyof ClienteDetalhe] as string | null) ?? '']),
+  )
 
-      <form
-        noValidate
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault()
-          const formData = new FormData(e.currentTarget)
-          startTransition(() => action(formData))
-        }}
-      >
-        <ErroGeral mensagem={estado?.erro} />
-        <input type="hidden" name="negociacao_id" value={card.id} />
+  return (
+    <form
+      noValidate
+      className="space-y-6"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const formData = new FormData(e.currentTarget)
+        startTransition(() => action(formData))
+      }}
+    >
+      <section className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados comerciais</h3>
 
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
@@ -341,16 +302,16 @@ function SecaoDadosComerciais({
             <label htmlFor="nicho_id" className="mb-1.5 block text-sm font-medium">
               Nicho
             </label>
-            {bloqueado ? (
+            {bloqueadoComercial ? (
               <>
-                {/* Valor atual, sem alteração: o trigger de dados operacionais
-                    compara old/new de TODAS as colunas na mesma UPDATE —
-                    omitir o campo mandaria `null` e apagaria um valor que não mudou. */}
+                {/* Valor atual, sem alteração: a RPC operacional escreve os
+                    8 campos juntos — omitir o campo mandaria `null` e
+                    apagaria um valor que não mudou. */}
                 <input type="hidden" name="nicho_id" value={card.nichoId ?? ''} />
                 <p className="mt-2 text-sm">{card.nichoNome ?? 'Outros'}</p>
               </>
             ) : (
-              <select id="nicho_id" name="nicho_id" defaultValue={card.nichoId ?? ''} className={inputClass}>
+              <select id="nicho_id" name="nicho_id" defaultValue={card.nichoId ?? ''} className={inputClassCliente}>
                 <option value="">Outros</option>
                 {/* Nicho histórico desativado: mantém selecionado (se não tocar, salva
                     igual) e mostra o nome, mas nunca pode ser escolhido de novo —
@@ -373,7 +334,7 @@ function SecaoDadosComerciais({
             <label htmlFor="temperatura" className="mb-1.5 block text-sm font-medium">
               Temperatura
             </label>
-            {bloqueado ? (
+            {bloqueadoComercial ? (
               <>
                 {/* Mesmo motivo do hidden de nicho, acima. */}
                 <input type="hidden" name="temperatura" value={card.temperatura ?? ''} />
@@ -386,7 +347,7 @@ function SecaoDadosComerciais({
                 id="temperatura"
                 name="temperatura"
                 defaultValue={card.temperatura ?? ''}
-                className={inputClass}
+                className={inputClassCliente}
               >
                 <option value="">Não avaliada</option>
                 {TEMPERATURAS.map((t) => (
@@ -402,7 +363,7 @@ function SecaoDadosComerciais({
             <label htmlFor="valor_estimado" className="mb-1.5 block text-sm font-medium">
               Proposta (R$)
             </label>
-            {bloqueado ? (
+            {bloqueadoComercial ? (
               <>
                 {/* `valor_estimado` em si (não o vendido mostrado abaixo) —
                     mesmo motivo do hidden de nicho, acima. */}
@@ -419,7 +380,7 @@ function SecaoDadosComerciais({
                   defaultValue={valorParaCampo(card.valorEstimado)}
                   aria-invalid={erro('valor_estimado') ? true : undefined}
                   aria-describedby="valor_estimado-erro"
-                  className={inputClass}
+                  className={inputClassCliente}
                 />
                 <ErroCampo id="valor_estimado-erro" mensagem={erro('valor_estimado')} />
               </>
@@ -439,10 +400,65 @@ function SecaoDadosComerciais({
             Você só pode visualizar este card — sem permissão para editar os dados operacionais.
           </p>
         ) : null}
+      </section>
 
-        <BotoesModal pendente={pendente} rotulo="Salvar" onCancelar={onFechar} />
-      </form>
-    </section>
+      <section className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados do cliente</h3>
+
+        {podeTrabalharCard ? (
+          <CamposCliente valores={valoresCliente} erro={erro} responsaveis={[]} mostrarObservacoes={false} />
+        ) : (
+          <>
+            <p className="text-xs text-zinc-500">
+              Você só pode visualizar este card — sem permissão para editar os dados cadastrais dele.
+            </p>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-zinc-500">Nome</dt>
+                <dd className="mt-0.5 font-medium">{cliente.nome}</dd>
+              </div>
+              {cliente.empresa && (
+                <div>
+                  <dt className="text-zinc-500">Empresa</dt>
+                  <dd className="mt-0.5 font-medium">{cliente.empresa}</dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-zinc-500">Telefone</dt>
+                <dd className="mt-0.5 font-medium">{cliente.telefone ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-zinc-500">E-mail</dt>
+                <dd className="mt-0.5 font-medium">{cliente.email ?? '—'}</dd>
+              </div>
+            </dl>
+          </>
+        )}
+      </section>
+
+      {podeTrabalharCard && (
+        <div className="space-y-2">
+          <button
+            type="submit"
+            disabled={pendente}
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            {pendente ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+
+          {!pendente && estado?.sucesso && (
+            <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+              ✓ Alterações salvas.
+            </p>
+          )}
+          {!pendente && estado?.erro && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              ⚠ Não foi possível salvar: {estado.erro}
+            </p>
+          )}
+        </div>
+      )}
+    </form>
   )
 }
 

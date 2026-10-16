@@ -12,15 +12,16 @@ import {
 import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
 import {
   arquivarNegociacao,
-  atualizarDadosComerciaisNegociacao,
   excluirNegociacaoPermanente,
   listarRespostasLead,
   obterDetalhesLeadNegociacao,
   reativarNegociacao,
+  salvarFichaNegociacao,
   type DetalhesLeadNegociacao,
   type RespostaLead,
 } from '@/lib/dal/negociacoes'
 import { listarNichosAtivos, type Nicho } from '@/lib/dal/nichos'
+import { CAMPOS_CLIENTE, clienteSchema } from '@/lib/validations/cliente'
 import {
   dadosComerciaisSchema,
   desqualificarSchema,
@@ -173,34 +174,65 @@ export async function listarNichosAtivosAction(): Promise<Nicho[]> {
   return listarNichosAtivos()
 }
 
+export type EstadoFicha = {
+  erro?: string
+  sucesso?: boolean
+  campos?: Record<string, string[] | undefined>
+  /** Devolvidos ao formulário (cliente + comerciais juntos) quando o salvamento falha. */
+  valores?: Record<string, string>
+}
+
 /**
- * "Dados comerciais" da ficha do cliente (nicho/origem/temperatura/proposta)
- * — mesma pilha `useActionState` do resto do funil. Salvar fecha a ficha e
- * revalida `/funil` (a borda do card, que é o nicho, atualiza sem reload);
- * falhar mantém a ficha aberta com o erro.
+ * ÚNICO salvar da ficha do card (Kanban) — dados do cliente (cadastro) e
+ * dados comerciais da negociação (nicho/temperatura/proposta) num só
+ * submit, numa ÚNICA chamada atômica (`salvarFichaNegociacao()` → RPC
+ * `salvar_ficha_negociacao`, GERENTE ou `pode_mover_etapa`, nunca owner_id):
+ * sucesso é commit dos dois; qualquer erro desfaz os dois — nunca "cliente
+ * salvo, negociação não" (ou o contrário). Nunca fecha a ficha: devolve
+ * `sucesso`/`erro` pra `ModalFichaCliente` mostrar inline e manter os
+ * valores digitados em caso de erro — quem decide fechar é só o X/Cancelar,
+ * nunca um salvamento bem-sucedido.
  */
-export async function atualizarDadosComerciaisAction(
-  _estado: EstadoModalFunil | undefined,
+export async function salvarFichaAction(
+  clienteId: string,
+  negociacaoId: string,
+  _estado: EstadoFicha | undefined,
   formData: FormData,
-): Promise<EstadoModalFunil> {
-  const parsed = dadosComerciaisSchema.safeParse(
-    lerCampos(formData, ['negociacao_id', 'nicho_id', 'temperatura', 'valor_estimado']),
-  )
-  if (!parsed.success) {
-    return { campos: z.flattenError(parsed.error).fieldErrors }
+): Promise<EstadoFicha> {
+  if (!z.uuid().safeParse(clienteId).success || !z.uuid().safeParse(negociacaoId).success) {
+    return { erro: 'Ficha inválida.' }
   }
 
-  const resultado = await atualizarDadosComerciaisNegociacao({
-    negociacaoId: parsed.data.negociacao_id,
-    nichoId: parsed.data.nicho_id,
-    temperatura: parsed.data.temperatura,
-    valorEstimado: parsed.data.valor_estimado,
+  const valoresCliente = lerCampos(formData, CAMPOS_CLIENTE)
+  const valoresComerciais = lerCampos(formData, ['nicho_id', 'temperatura', 'valor_estimado'])
+  const valores = { ...valoresCliente, ...valoresComerciais }
+
+  const parsedCliente = clienteSchema.safeParse(valoresCliente)
+  const parsedComercial = dadosComerciaisSchema.safeParse({ negociacao_id: negociacaoId, ...valoresComerciais })
+
+  if (!parsedCliente.success || !parsedComercial.success) {
+    return {
+      campos: {
+        ...(!parsedCliente.success ? z.flattenError(parsedCliente.error).fieldErrors : {}),
+        ...(!parsedComercial.success ? z.flattenError(parsedComercial.error).fieldErrors : {}),
+      },
+      valores,
+    }
+  }
+
+  const resultado = await salvarFichaNegociacao(clienteId, negociacaoId, parsedCliente.data, {
+    nichoId: parsedComercial.data.nicho_id,
+    temperatura: parsedComercial.data.temperatura,
+    valorEstimado: parsedComercial.data.valor_estimado,
   })
-  if (!resultado.ok) return { erro: resultado.mensagem }
+  if (!resultado.ok) {
+    return { erro: resultado.mensagem, valores }
+  }
 
   revalidatePath('/funil')
   revalidatePath('/funil/leads')
-  return { ok: true }
+  revalidatePath(`/clientes/${clienteId}`)
+  return { sucesso: true, valores }
 }
 
 /**

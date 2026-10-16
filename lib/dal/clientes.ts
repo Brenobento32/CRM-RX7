@@ -408,6 +408,7 @@ export async function atualizarCliente(
   return { ok: true, id: data.id }
 }
 
+
 export type ResultadoArquivar = { ok: true } | { ok: false; mensagem: string }
 
 /**

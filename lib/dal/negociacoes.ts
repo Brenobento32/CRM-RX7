@@ -8,6 +8,7 @@ import type { Servico } from '@/lib/dal/servicos'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
+import type { ClienteInput } from '@/lib/validations/cliente'
 import type {
   CampoEdicaoNegociacao,
   EdicaoNegociacaoInput,
@@ -374,24 +375,35 @@ export async function excluirNegociacaoPermanente(
     : { ok: false, mensagem: 'Lead precisa estar arquivado para ser excluído permanentemente.' }
 }
 
-export type DadosComerciaisInput = {
-  negociacaoId: string
+export type DadosComerciaisCard = {
   nichoId: string | null
   temperatura: Temperatura | null
   valorEstimado: string | null
 }
 
-export type ResultadoDadosComerciais = { ok: true } | { ok: false; mensagem: string }
+export type ResultadoFicha = { ok: true } | { ok: false; mensagem: string }
 
 /**
- * Args de `atualizar_dados_operacionais_negociacao` (migration
- * 20261016160000) — fora do gerador de tipos porque a migration ainda não
- * foi aplicada no banco real (`npm run db:types` lê o schema remoto via
- * `--linked`). Remover os casts `as never` quando a migration for aplicada
- * e os tipos forem regerados.
+ * Args de `salvar_ficha_negociacao` (migration 20261016180000) — fora do
+ * gerador de tipos porque a migration ainda não foi aplicada no banco real
+ * (`npm run db:types` lê o schema remoto via `--linked`). Remover os casts
+ * `as never` quando a migration for aplicada e os tipos forem regerados.
  */
-type ArgsDadosOperacionais = {
+type ArgsFichaNegociacao = {
+  p_cliente_id: string
   p_negociacao_id: string
+  p_tipo_cliente: ClienteInput['tipo_cliente']
+  p_nome: string
+  p_empresa: string | null
+  p_cpf: string | null
+  p_cnpj: string | null
+  p_telefone: string | null
+  p_whatsapp: string | null
+  p_email: string | null
+  p_responsavel: string | null
+  p_cargo: string | null
+  p_instagram: string | null
+  p_observacoes: string | null
   p_nicho_id: string | null
   p_temperatura: Enums['temperatura_negociacao'] | null
   p_valor_estimado: number | null
@@ -403,47 +415,66 @@ type ArgsDadosOperacionais = {
 }
 
 /**
- * "Dados comerciais" da ficha (item 3/4 do refinamento) — nicho, temperatura
- * e proposta/valor. `origem` nunca passa por aqui: é fato histórico de como
- * o lead entrou, imutável depois da criação (trigger
- * `negociacoes_origem_imutavel`, proposta em
- * `supabase/migrations_propostas/20261015130000_...sql`) — a ficha só
- * mostra, nunca edita.
+ * ÚNICO salvamento da ficha do card — cliente (cadastro) + dados
+ * comerciais da negociação (nicho/temperatura/proposta) numa ÚNICA chamada
+ * de rede, pra garantir atomicidade real: a RPC `salvar_ficha_negociacao`
+ * (SECURITY INVOKER, delega pra `atualizar_cliente_do_card` e
+ * `atualizar_dados_operacionais_negociacao`, ambas SECURITY DEFINER com
+ * GERENTE ou `pode_mover_etapa` — nunca owner_id) é UM corpo de função
+ * PL/pgSQL, ou seja, UMA transação: se qualquer uma das duas escritas
+ * falhar, a outra também é desfeita. Duas chamadas `.rpc()` separadas NÃO
+ * teriam essa garantia (cada uma é a própria transação no PostgREST) — por
+ * isso não existem mais `atualizarClienteDoCard()`/
+ * `atualizarDadosComerciaisNegociacao()` como funções TS separadas; esta é
+ * a única porta de entrada da ficha.
  *
- * Chama a RPC `atualizar_dados_operacionais_negociacao` (SECURITY DEFINER:
- * GERENTE ou `pode_mover_etapa` autoriza, owner_id nunca é consultado — a
- * mesma regra de `mover_negociacao`) em vez de um `.update()` direto, que
- * dependia de `negociacoes_update` (owner_id OR gerente) e por isso
- * bloqueava um CLOSER/SDR com `pode_mover` mas que não era o dono da
- * negociação. Como a RPC exige os 8 campos operacionais de uma vez, os 5 que
- * esta tela não edita (data_primeira_reuniao, data_proposta,
- * objecao_principal, valor_proposta, forma_pagamento — editados pelo modal
- * de edição rápida/tela `/negociacoes/[id]/editar`) são lidos antes e
- * repassados sem alteração, pra não apagar o que já estava salvo lá.
+ * `origem` nunca passa por aqui: é fato histórico, imutável (trigger
+ * `negociacoes_origem_imutavel`). Como a RPC exige os 8 campos
+ * operacionais de uma vez, os 5 que a ficha não edita (data_primeira_
+ * reuniao, data_proposta, objecao_principal, valor_proposta, forma_
+ * pagamento — editados pelo modal de edição rápida/tela
+ * `/negociacoes/[id]/editar`) são lidos antes (leitura, não escrita — não
+ * precisa estar na mesma transação da escrita) e repassados sem alteração.
  */
-export async function atualizarDadosComerciaisNegociacao(
-  input: DadosComerciaisInput,
-): Promise<ResultadoDadosComerciais> {
+export async function salvarFichaNegociacao(
+  clienteId: string,
+  negociacaoId: string,
+  cliente: ClienteInput,
+  comercial: DadosComerciaisCard,
+): Promise<ResultadoFicha> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
   const { data: atual, error: erroAtual } = await supabase
     .from('negociacoes')
     .select('data_primeira_reuniao, data_proposta, objecao_principal, valor_proposta, forma_pagamento')
-    .eq('id', input.negociacaoId)
+    .eq('id', negociacaoId)
     .maybeSingle()
 
   if (erroAtual) {
     console.error('Erro ao carregar dados comerciais', erroAtual)
-    return { ok: false, mensagem: 'Não foi possível salvar os dados comerciais. Tente novamente.' }
+    return { ok: false, mensagem: 'Não foi possível salvar. Tente novamente.' }
   }
   if (!atual) return { ok: false, mensagem: 'Negociação não encontrada.' }
 
-  const args: ArgsDadosOperacionais = {
-    p_negociacao_id: input.negociacaoId,
-    p_nicho_id: input.nichoId,
-    p_temperatura: input.temperatura,
-    p_valor_estimado: input.valorEstimado === null ? null : Number(input.valorEstimado),
+  const args: ArgsFichaNegociacao = {
+    p_cliente_id: clienteId,
+    p_negociacao_id: negociacaoId,
+    p_tipo_cliente: cliente.tipo_cliente,
+    p_nome: cliente.nome,
+    p_empresa: cliente.empresa,
+    p_cpf: cliente.cpf,
+    p_cnpj: cliente.cnpj,
+    p_telefone: cliente.telefone,
+    p_whatsapp: cliente.whatsapp,
+    p_email: cliente.email,
+    p_responsavel: cliente.responsavel,
+    p_cargo: cliente.cargo,
+    p_instagram: cliente.instagram,
+    p_observacoes: cliente.observacoes,
+    p_nicho_id: comercial.nichoId,
+    p_temperatura: comercial.temperatura,
+    p_valor_estimado: comercial.valorEstimado === null ? null : Number(comercial.valorEstimado),
     p_data_primeira_reuniao: atual.data_primeira_reuniao,
     p_data_proposta: atual.data_proposta,
     p_objecao_principal: atual.objecao_principal,
@@ -451,23 +482,37 @@ export async function atualizarDadosComerciaisNegociacao(
     p_forma_pagamento: atual.forma_pagamento,
   }
 
-  const { error } = await supabase.rpc(
-    'atualizar_dados_operacionais_negociacao' as never,
-    args as never,
-  )
+  const { error } = await supabase.rpc('salvar_ficha_negociacao' as never, args as never)
 
   if (error) {
     if (error.code === '42501') {
-      return { ok: false, mensagem: 'Você não tem permissão para editar esta negociação.' }
+      return { ok: false, mensagem: 'Você não tem permissão para editar este card.' }
     }
     if (error.code === 'P0002') {
-      return { ok: false, mensagem: 'Negociação não encontrada.' }
+      return { ok: false, mensagem: 'Cliente ou negociação não encontrados.' }
     }
     if (error.code === '23514' && error.message.startsWith('Negociação encerrada')) {
       return { ok: false, mensagem: NEGOCIACAO_ENCERRADA }
     }
-    console.error('Erro ao salvar dados comerciais', error)
-    return { ok: false, mensagem: 'Não foi possível salvar os dados comerciais. Tente novamente.' }
+    // Tentativa de alterar algum dos 8 campos operacionais com a negociação
+    // encerrada — rejeitada por inteiro (nem o cliente é salvo nessa
+    // tentativa), nunca ignorada em silêncio. Mensagem exata vinda da RPC.
+    if (error.code === '23514' && error.message.includes('estão encerrados e não podem ser alterados')) {
+      return { ok: false, mensagem: error.message }
+    }
+    if (error.code === '23514' && error.message.includes('não pertence ao cliente')) {
+      return { ok: false, mensagem: 'Cliente não encontrado.' }
+    }
+    if (error.code === '23505') {
+      if (error.message.includes('clientes_cpf_unico')) {
+        return { ok: false, mensagem: 'Já existe um cliente com este CPF.' }
+      }
+      if (error.message.includes('clientes_cnpj_unico')) {
+        return { ok: false, mensagem: 'Já existe um cliente com este CNPJ.' }
+      }
+    }
+    console.error('Erro ao salvar ficha', error)
+    return { ok: false, mensagem: 'Não foi possível salvar. Tente novamente.' }
   }
 
   return { ok: true }

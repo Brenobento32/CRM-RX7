@@ -106,41 +106,6 @@ export async function obterClienteParaFichaAction(id: string): Promise<ClienteDe
   return obterCliente(id)
 }
 
-export type EstadoFichaCliente = EstadoFormCliente & { ok?: boolean }
-
-/**
- * Variante "rápida" de `atualizarClienteAction` para o modal de ficha do
- * Kanban: mesma validação e DAL, mas sem `redirect()` — devolve `ok: true` e
- * o próprio `ClienteForm` fecha o modal (via `onSucesso`). O Kanban por trás
- * não precisa recarregar nada: a ficha não altera nicho/etapa/temperatura.
- */
-export async function atualizarClienteRapidoAction(
-  id: string,
-  _estado: EstadoFichaCliente | undefined,
-  formData: FormData,
-): Promise<EstadoFichaCliente> {
-  const valores = lerFormulario(formData)
-
-  if (!z.uuid().safeParse(id).success) {
-    return { erro: 'Cliente inválido.', valores }
-  }
-
-  const parsed = clienteSchema.safeParse(valores)
-  if (!parsed.success) {
-    return { campos: z.flattenError(parsed.error).fieldErrors, valores }
-  }
-
-  const resultado = await atualizarCliente(id, parsed.data)
-  if (!resultado.ok) {
-    return resultado.campo
-      ? { campos: { [resultado.campo]: [resultado.mensagem] }, valores }
-      : { erro: resultado.mensagem, valores }
-  }
-
-  revalidatePath('/funil')
-  revalidatePath(`/clientes/${id}`)
-  return { ok: true, valores }
-}
 
 export type EstadoArquivarCliente = { erro?: string }
 

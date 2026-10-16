@@ -14,32 +14,14 @@ type Valores = Partial<Record<CampoCliente, string>>
 
 type EstadoComOk = EstadoFormCliente & { ok?: boolean }
 
-type Props = {
-  action: (
-    estado: EstadoFormCliente | undefined,
-    formData: FormData,
-  ) => Promise<EstadoComOk>
-  valoresIniciais: Valores
+export const inputClassCliente =
+  'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
+
+type PropsCampos = {
+  valores: Valores
+  erro: (campo: CampoCliente) => string | undefined
   /** Só preenchido para gerente: permite escolher a carteira do cliente. */
   responsaveis: { id: string; nome: string; role: string }[]
-  /**
-   * Só no cadastro (nunca na edição/ficha rápida, que não recriam
-   * negociação): funis que o usuário pode escolher pra abrir a negociação
-   * inicial — já filtrados por permissão (`listarFunis()`). Ausente/vazio
-   * esconde o campo (edição não precisa dele).
-   */
-  funis?: { id: string; nome: string }[]
-  rotuloEnviar: string
-  /** Página de destino do "Cancelar" — ausente quando `onCancelar` é usado (ficha dentro de um `<dialog>`). */
-  cancelarHref?: string
-  /** "Cancelar" fecha o diálogo em vez de navegar — usado dentro do modal de ficha no Kanban. */
-  onCancelar?: () => void
-  /**
-   * Chamado quando a action devolve `ok: true` sem redirecionar — só a
-   * variante "rápida" (modal de ficha) faz isso; a página própria de
-   * edição usa `redirect()` na action e nunca passa por aqui.
-   */
-  onSucesso?: () => void
   /**
    * `false` só na ficha do card do Kanban: a observação ali passa a ser
    * atividade/timeline (ver `FormObservacaoRapida`), e manter os dois
@@ -51,33 +33,23 @@ type Props = {
   mostrarObservacoes?: boolean
 }
 
-const inputClass =
-  'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
-
-export function ClienteForm({
-  action,
-  valoresIniciais,
+/**
+ * Campos de cadastro do cliente, sem `<form>` nem botões — extraído de
+ * `ClienteForm` pra ser reaproveitado pela ficha do card (que precisa de um
+ * ÚNICO `<form>`/botão "Salvar alterações" cobrindo cliente + dados
+ * comerciais juntos, não dois submits independentes). `ClienteForm` (abaixo)
+ * é o `<form>` completo de sempre, usado por /clientes/novo e
+ * /clientes/[id]/editar — nada muda pra essas duas telas.
+ */
+export function CamposCliente({
+  valores,
+  erro,
   responsaveis,
-  funis,
-  rotuloEnviar,
-  cancelarHref,
-  onCancelar,
-  onSucesso,
   mostrarObservacoes = true,
-}: Props) {
-  const [estado, formAction, pendente] = useActionState(action, undefined)
-  const valores = estado?.valores ?? valoresIniciais
-
-  // Só a variante "rápida" (modal de ficha) devolve `ok: true` sem redirecionar.
-  useEffect(() => {
-    if (estado?.ok) onSucesso?.()
-  }, [estado, onSucesso])
-
+}: PropsCampos) {
   // O tipo muda quais campos aparecem, então é o único campo controlado.
   const [tipo, setTipo] = useState(valores.tipo_cliente || 'pessoa_fisica')
   const empresa = tipo === 'empresa'
-
-  const erro = (campo: CampoCliente) => estado?.campos?.[campo]?.[0]
 
   const campo = (
     nome: CampoCliente,
@@ -94,7 +66,7 @@ export function ClienteForm({
         defaultValue={valores[nome]}
         aria-invalid={erro(nome) ? true : undefined}
         aria-describedby={erro(nome) ? `${nome}-erro` : undefined}
-        className={inputClass}
+        className={inputClassCliente}
         {...props}
       />
       {erro(nome) && (
@@ -106,41 +78,7 @@ export function ClienteForm({
   )
 
   return (
-    <form action={formAction} className="space-y-8" noValidate>
-      {estado?.erro && (
-        <div
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-        >
-          {estado.erro}
-        </div>
-      )}
-
-      {funis && funis.length > 0 && (
-        <div className="space-y-1.5">
-          <label htmlFor="funil_id" className="block text-sm font-medium">
-            Funil
-          </label>
-          <select
-            id="funil_id"
-            name="funil_id"
-            defaultValue={funis.length === 1 ? funis[0].id : ''}
-            required
-            className={inputClass}
-          >
-            {funis.length > 1 && <option value="">Selecione…</option>}
-            {funis.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-zinc-500">
-            A negociação inicial entra na primeira etapa aberta deste funil.
-          </p>
-        </div>
-      )}
-
+    <>
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium">Tipo de cliente</legend>
         <div className="flex gap-2">
@@ -203,7 +141,7 @@ export function ClienteForm({
             rows={4}
             defaultValue={valores.observacoes}
             aria-invalid={erro('observacoes') ? true : undefined}
-            className={inputClass}
+            className={inputClassCliente}
           />
           {erro('observacoes') && (
             <p className="text-sm text-red-600 dark:text-red-400">{erro('observacoes')}</p>
@@ -222,7 +160,7 @@ export function ClienteForm({
             id="owner_id"
             name="owner_id"
             defaultValue={valores.owner_id}
-            className={inputClass}
+            className={inputClassCliente}
           >
             {responsaveis.map((r) => (
               <option key={r.id} value={r.id}>
@@ -237,6 +175,108 @@ export function ClienteForm({
       ) : (
         <input type="hidden" name="owner_id" value="" />
       )}
+    </>
+  )
+}
+
+type Props = {
+  action: (
+    estado: EstadoFormCliente | undefined,
+    formData: FormData,
+  ) => Promise<EstadoComOk>
+  valoresIniciais: Valores
+  responsaveis: { id: string; nome: string; role: string }[]
+  /**
+   * Só no cadastro (nunca na edição/ficha rápida, que não recriam
+   * negociação): funis que o usuário pode escolher pra abrir a negociação
+   * inicial — já filtrados por permissão (`listarFunis()`). Ausente/vazio
+   * esconde o campo (edição não precisa dele).
+   */
+  funis?: { id: string; nome: string }[]
+  rotuloEnviar: string
+  /** Página de destino do "Cancelar" — ausente quando `onCancelar` é usado (ficha dentro de um `<dialog>`). */
+  cancelarHref?: string
+  /** "Cancelar" fecha o diálogo em vez de navegar — usado dentro do modal de ficha no Kanban. */
+  onCancelar?: () => void
+  /**
+   * Chamado quando a action devolve `ok: true` sem redirecionar — só a
+   * variante "rápida" (modal de ficha) faz isso; a página própria de
+   * edição usa `redirect()` na action e nunca passa por aqui.
+   */
+  onSucesso?: () => void
+  mostrarObservacoes?: boolean
+}
+
+/**
+ * `<form>` completo (campos + botões) pra /clientes/novo e
+ * /clientes/[id]/editar — único uso restante deste componente. A ficha do
+ * card (Kanban) NÃO usa mais `ClienteForm`: ela precisa de um único
+ * `<form>`/botão "Salvar alterações" cobrindo cliente + dados comerciais
+ * juntos, então usa `CamposCliente` direto (ver `ModalFichaCliente`).
+ */
+export function ClienteForm({
+  action,
+  valoresIniciais,
+  responsaveis,
+  funis,
+  rotuloEnviar,
+  cancelarHref,
+  onCancelar,
+  onSucesso,
+  mostrarObservacoes = true,
+}: Props) {
+  const [estado, formAction, pendente] = useActionState(action, undefined)
+  const valores = estado?.valores ?? valoresIniciais
+
+  // Só a variante "rápida" (modal de ficha) devolve `ok: true` sem redirecionar.
+  useEffect(() => {
+    if (estado?.ok) onSucesso?.()
+  }, [estado, onSucesso])
+
+  const erro = (campo: CampoCliente) => estado?.campos?.[campo]?.[0]
+
+  return (
+    <form action={formAction} className="space-y-8" noValidate>
+      {estado?.erro && (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        >
+          {estado.erro}
+        </div>
+      )}
+
+      {funis && funis.length > 0 && (
+        <div className="space-y-1.5">
+          <label htmlFor="funil_id" className="block text-sm font-medium">
+            Funil
+          </label>
+          <select
+            id="funil_id"
+            name="funil_id"
+            defaultValue={funis.length === 1 ? funis[0].id : ''}
+            required
+            className={inputClassCliente}
+          >
+            {funis.length > 1 && <option value="">Selecione…</option>}
+            {funis.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-zinc-500">
+            A negociação inicial entra na primeira etapa aberta deste funil.
+          </p>
+        </div>
+      )}
+
+      <CamposCliente
+        valores={valores}
+        erro={erro}
+        responsaveis={responsaveis}
+        mostrarObservacoes={mostrarObservacoes}
+      />
 
       <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <button
