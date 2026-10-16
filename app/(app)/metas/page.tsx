@@ -55,33 +55,56 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
         </p>
       )}
 
-      {gerente ? (
-        <>
-          {empresa && (
-            <section className="space-y-2">
-              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta da empresa</h2>
-              <p className="text-xs text-zinc-500">Todos os funis, todos os responsáveis.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {TIPOS_META.map((tipo) => (
-                  <CardMeta
-                    key={tipo}
-                    titulo={ROTULO_TIPO_META[tipo]}
-                    valorMeta={empresa[tipo].valorMeta}
-                    realizado={empresa[tipo].realizado}
-                    percentual={empresa[tipo].percentual}
-                    semMeta="Não definida"
-                    acoes={<AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} />}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-          <TabelaPessoas pessoas={pessoas} mes={mes} />
-        </>
-      ) : (
-        <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} />
-      )}
+      {/*
+        Visibilidade por papel (regra desta rodada — nunca por CSS, os dados
+        já vêm restringidos do servidor, ver metas_progresso):
+          GERENTE: Meta da empresa + Desempenho da equipe (todo mundo).
+          CLOSER:  Meta da empresa + Minha meta (só a própria linha —
+                   `pessoas` já chega do servidor sem a de nenhum colega).
+          SDR:     Só Meta da empresa — `pessoas` já chega vazio pro SDR
+                   (a RPC nunca devolve nenhuma linha individual pra ele),
+                   então nem "Minha meta" nem a tabela fariam sentido aqui.
+      */}
+      {empresa && <SecaoMetaEmpresa empresa={empresa} mes={mes} podeGerenciar={gerente} />}
+
+      {eu.role === 'closer' && <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} />}
+
+      {gerente && <TabelaPessoas pessoas={pessoas} mes={mes} />}
     </div>
+  )
+}
+
+function SecaoMetaEmpresa({
+  empresa,
+  mes,
+  podeGerenciar,
+}: {
+  empresa: NonNullable<Awaited<ReturnType<typeof obterProgressoMetas>>['empresa']>
+  mes: string
+  podeGerenciar: boolean
+}) {
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta da empresa</h2>
+      <p className="text-xs text-zinc-500">Todos os funis, todos os responsáveis.</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {TIPOS_META.map((tipo) => (
+          <CardMeta
+            key={tipo}
+            titulo={ROTULO_TIPO_META[tipo]}
+            valorMeta={empresa[tipo].valorMeta}
+            realizado={empresa[tipo].realizado}
+            percentual={empresa[tipo].percentual}
+            semMeta="Não definida"
+            acoes={
+              podeGerenciar ? (
+                <AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} />
+              ) : undefined
+            }
+          />
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -117,7 +140,7 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Por closer</h2>
+      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Desempenho da equipe</h2>
       <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">

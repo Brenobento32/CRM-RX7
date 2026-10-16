@@ -48,32 +48,28 @@ export async function obterMetricasFunil(
  * resto da tela). A agregação em si (`agregarRealizado`) é pura, em
  * `lib/utils/financeiro-periodo.ts`.
  *
- * ACHADO (teste manual em produção): esta função não tinha filtro de
- * `responsavel_id` — `fechamentos_select` (RLS) deixa um SDR/CLOSER com
- * `pode_ver` configurado em várias etapas do funil enxergar TODOS os
- * fechamentos visíveis ali, não só os próprios. Resultado: "vendido neste
- * funil" somava o fechamento de QUALQUER colega visível (ex.: SDR que só
- * qualifica e nunca fecha via própria carteira, mas vê o funil inteiro),
- * enquanto o "realizado geral/individual" (`obterRealizadoGeral`, por
- * `responsavel_id`) mostrava o número certo da PRÓPRIA pessoa — os dois
- * lado a lado pareciam contradição ("vendi 4.800 no funil mas minha meta
- * mostra 0"), quando na verdade cada um somava um CONJUNTO de pessoas
- * diferente. Corrigido: `usuarioId` (`null` = empresa/gerente, sem
- * filtro — vê o funil inteiro, mesma regra de `metas_progresso`/
- * `realizado_periodo`; um uuid = só os fechamentos daquele
- * `responsavel_id`) alinha esta função com a MESMA pessoa que o card de
- * meta já usa — a única diferença entre os dois números continua sendo o
- * filtro de `funil_id`, nunca "de quem são as vendas".
+ * DECISÃO DE PRODUTO (revisada nesta rodada): "Contexto do funil
+ * selecionado" é SEMPRE a visão agregada do funil inteiro (nunca filtrada
+ * por responsável) — é um número de equipe/funil, igual a `obterMetricasFunil`,
+ * nunca "minhas vendas". Uma rodada anterior chegou a filtrar por
+ * `responsavel_id` aqui (pra alinhar com `obterRealizadoGeral`, que é
+ * individual) — revertido de propósito: agora "Meta do período" também é
+ * SEMPRE geral pra qualquer papel (ver `app/(app)/funil/metricas/page.tsx`),
+ * então as duas seções da página voltaram a ser consistentes sem precisar
+ * desta função saber "de quem" são as vendas — a única diferença entre as
+ * duas seções é o filtro de `funil_id`, nunca de responsável. Nenhum dado
+ * nome+valor individual é exposto aqui (é só um total agregado do funil,
+ * sem PII) — a restrição de privacidade por papel vive em `metas_progresso`/
+ * `realizado_periodo` (linhas individuais só pro próprio CLOSER ou gerente).
  */
 export async function obterRealizadoFunil(
   periodo: { inicio: string; fim: string },
   funilId: string,
-  usuarioId: string | null,
 ): Promise<RealizadoFunil> {
   await getUsuarioAtual()
   const supabase = await createClient()
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('fechamentos')
     .select(
       `valor_vendido, tipo_venda,
@@ -82,10 +78,6 @@ export async function obterRealizadoFunil(
     .eq('negociacao.funil_id', funilId)
     .gte('data_fechamento', periodo.inicio)
     .lte('data_fechamento', periodo.fim)
-
-  if (usuarioId !== null) query = query.eq('responsavel_id', usuarioId)
-
-  const { data, error } = await query
 
   if (error) throw new Error('Não foi possível carregar o realizado do período.', { cause: error })
 

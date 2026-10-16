@@ -41,25 +41,20 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
     )
   }
 
-  // Meta é da empresa (gerente, usuario_id null) ou da própria pessoa
-  // (closer) — mesma distinção de /metas. `obterMetaPeriodo` já devolve a
-  // meta PROPORCIONADA ao período selecionado (nunca a do mês corrente
-  // inteiro) — ver lib/utils/financeiro-periodo.ts#metaProporcionalPeriodo.
-  // `obterRealizadoGeral` é o par certo dela: TODOS os funis, nunca só o
-  // selecionado. `obterRealizadoFunil` agora recebe o MESMO `usuarioIdMeta`
-  // (achado desta rodada: sem isso, um SDR/CLOSER com `pode_ver` em várias
-  // etapas via um colega somava o fechamento de QUALQUER UM visível ali —
-  // "vendido neste funil" e "realizado geral" pareciam contradição por
-  // somarem conjuntos de pessoas diferentes, não por período ou TCV/MRR
-  // errados) — a única diferença entre os dois agora é o filtro de
-  // `funil_id`, nunca "de quem são as vendas".
-  const usuarioIdMeta = usuario.role === 'gerente' ? null : usuario.id
-
+  // "Meta do período" é SEMPRE a visão geral (empresa, todos os funis,
+  // todos os responsáveis) — pra GERENTE, SDR e CLOSER igual (regra desta
+  // rodada: todo mundo pode ver o geral; só a linha INDIVIDUAL de outro
+  // CLOSER é que fica restrita, e essa tela nunca mostrou isso). Por isso
+  // sempre `null` aqui — nunca `usuario.id`. `obterMetaPeriodo`/
+  // `obterRealizadoGeral` já restringem no servidor quem pode ver o quê
+  // (ver `metas_progresso`/`realizado_periodo`, migration 20261016200000):
+  // a linha de usuario_id null (geral, sem PII) agora é visível pra
+  // qualquer autenticado.
   const [metricas, realizadoFunil, realizadoGeral, metaPeriodo] = await Promise.all([
     obterMetricasFunil(periodo, funilSelecionado.id),
-    obterRealizadoFunil(periodo, funilSelecionado.id, usuarioIdMeta),
-    obterRealizadoGeral(periodo, usuarioIdMeta),
-    obterMetaPeriodo(periodo, usuarioIdMeta),
+    obterRealizadoFunil(periodo, funilSelecionado.id),
+    obterRealizadoGeral(periodo, null),
+    obterMetaPeriodo(periodo, null),
   ])
 
   return (
