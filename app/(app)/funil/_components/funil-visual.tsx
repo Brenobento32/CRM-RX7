@@ -2,6 +2,7 @@ import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { corDeFundoAgenda } from '@/lib/utils/etapas'
 import { filtrarPipelinePrincipal, type MetricaEtapa, type MetricasFunil } from '@/lib/utils/funil-metricas'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
+import { larguraDegrauFunil, temEntradaDireta } from '@/lib/utils/painel-metricas'
 
 /**
  * Funil visual — números absolutos e percentuais, lado a lado com a tabela
@@ -18,7 +19,7 @@ import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
  * responde "de quem entrou, quantos chegaram aqui", não "quantos estão
  * aqui agora". Ver "Conversão da coorte — evolução até o momento" na tabela.
  */
-export function FunilVisual({ metricas }: { metricas: MetricasFunil }) {
+export function FunilVisual({ metricas, funilNome }: { metricas: MetricasFunil; funilNome: string }) {
   const { resumo, etapas } = metricas
   const pipeline = filtrarPipelinePrincipal(etapas)
   const recuperacao = etapas.filter((e) => e.posFechamento)
@@ -32,10 +33,17 @@ export function FunilVisual({ metricas }: { metricas: MetricasFunil }) {
     )
   }
 
+  // Largura de cada degrau, pré-calculada (pura, `larguraDegrauFunil`) para
+  // que cada trapezoide saiba a largura do degrau ANTERIOR (seu topo) sem
+  // recalcular nada — a primeira etapa afunila a partir de 100% (a "boca"
+  // do funil, a própria entrada).
+  const larguras = pipeline.map((etapa) => larguraDegrauFunil(etapa.conversaoAcumulada))
+
   return (
     <section aria-label="Funil de conversão visual" className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Funil de conversão</h2>
+        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Funil de vendas</h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">{funilNome}</p>
         <p className="text-xs text-zinc-500">Conversão da coorte — evolução até o momento.</p>
         <p className="text-xs text-zinc-400">
           Leads de origens diferentes podem entrar direto numa etapa mais avançada — por isso os números nem sempre
@@ -53,6 +61,7 @@ export function FunilVisual({ metricas }: { metricas: MetricasFunil }) {
             // conversaoAcumulada); as demais comparam com a etapa anterior
             // da própria sequência (conversaoProxima DELA, não recalculado).
             percentualAnterior={i === 0 ? etapa.conversaoAcumulada : pipeline[i - 1].conversaoProxima}
+            larguraAnterior={i === 0 ? 100 : larguras[i - 1]}
           />
         ))}
       </ol>
@@ -72,8 +81,14 @@ export function FunilVisual({ metricas }: { metricas: MetricasFunil }) {
   )
 }
 
-/** Largura mínima (%) de um degrau — sempre legível, mesmo pra uma fração minúscula. */
-const LARGURA_MINIMA = 6
+/** Altura (px) de cada degrau/trapezoide do funil — mesma para todos, só a largura varia. */
+const ALTURA_DEGRAU = 40
+
+/** `clip-path: polygon(...)` de um trapezoide CENTRALIZADO: `topo`/`base` em % (0–100) da largura total do container. */
+function trapezoide(topo: number, base: number): string {
+  const inset = (pct: number) => (100 - pct) / 2
+  return `polygon(${inset(topo)}% 0, ${100 - inset(topo)}% 0, ${100 - inset(base)}% 100%, ${inset(base)}% 100%)`
+}
 
 function LinhaFunilBase({ quantidade }: { quantidade: number }) {
   return (
@@ -82,7 +97,11 @@ function LinhaFunilBase({ quantidade }: { quantidade: number }) {
         Leads entraram
         <span className="text-base font-semibold tabular-nums">{quantidade}</span>
       </div>
-      <div aria-hidden className="mx-auto h-6 w-full rounded-md bg-zinc-800 dark:bg-zinc-300" />
+      <div
+        aria-hidden
+        className="mx-auto w-full rounded-t-md bg-zinc-800 dark:bg-zinc-300"
+        style={{ height: ALTURA_DEGRAU }}
+      />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-xs text-zinc-500">
         <span>
           <strong className="tabular-nums">100%</strong> desde a entrada
@@ -94,24 +113,28 @@ function LinhaFunilBase({ quantidade }: { quantidade: number }) {
 }
 
 /**
- * Um degrau do funil — bloco CENTRALIZADO (nunca alinhado à esquerda),
- * largura proporcional a `conversaoAcumulada` (já calculada, nunca
- * recalculada aqui). Como existem entradas diretas em etapas avançadas
- * (origens diferentes entram em pontos diferentes do funil — auditado:
- * `empresa`/`etapa_inicial` configurável por nicho), um degrau pode ser
- * MAIS largo que o anterior; em vez de forçar uma sequência sempre
- * decrescente, isso fica marcado com o selo "inclui entradas diretas".
+ * Um degrau do funil — trapezoide CENTRALIZADO (nunca um retângulo
+ * alinhado à esquerda): o topo tem a largura do degrau ANTERIOR, a base
+ * tem a largura PRÓPRIA (`larguraDegrauFunil(conversaoAcumulada)`, já
+ * calculada, nunca recalculada aqui) — a transição entre os dois é o que dá
+ * a aparência real de funil, em vez de barras horizontais empilhadas.
+ * Como existem entradas diretas em etapas avançadas (origens diferentes
+ * entram em pontos diferentes do funil — auditado: `empresa`/
+ * `etapa_inicial` configurável por nicho), um degrau pode ser MAIS largo
+ * que o anterior; em vez de forçar uma sequência sempre decrescente, isso
+ * fica marcado com o selo "inclui entradas diretas".
  */
 function LinhaFunil({
   etapa,
   percentualAnterior,
+  larguraAnterior,
 }: {
   etapa: MetricaEtapa
   percentualAnterior: number | null
+  larguraAnterior: number
 }) {
-  const largura = Math.round(Math.max(Math.min((etapa.conversaoAcumulada ?? 0) * 100, 100), LARGURA_MINIMA))
-  const entradaDireta =
-    percentualAnterior !== null && etapa.conversaoAcumulada !== null && etapa.conversaoAcumulada > percentualAnterior
+  const largura = larguraDegrauFunil(etapa.conversaoAcumulada)
+  const entradaDireta = temEntradaDireta(etapa.conversaoAcumulada, percentualAnterior)
 
   return (
     <li className="space-y-1.5">
@@ -130,8 +153,12 @@ function LinhaFunil({
       </div>
       <div
         aria-hidden
-        className="mx-auto h-6 rounded-md transition-[width]"
-        style={{ width: `${largura}%`, minWidth: 48, backgroundColor: corDeFundoAgenda(etapa.cor) }}
+        className="mx-auto w-full transition-[clip-path]"
+        style={{
+          height: ALTURA_DEGRAU,
+          clipPath: trapezoide(larguraAnterior, largura),
+          backgroundColor: corDeFundoAgenda(etapa.cor),
+        }}
       />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-xs text-zinc-500">
         {percentualAnterior !== null ? (

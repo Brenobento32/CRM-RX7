@@ -6,17 +6,19 @@ import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
-import { obterProgressoMetas } from '@/lib/dal/metas'
+import { obterProgressoMetas, obterProgressoMetasFunis } from '@/lib/dal/metas'
 import { formatarData, hojeSaoPaulo } from '@/lib/utils/formatacao'
-import { chavePeriodoFunil, lerMes, primeiroDiaDoMes, resolverPeriodoFunil, ultimoDiaDoMes } from '@/lib/utils/periodo'
+import { chavePeriodoFunil, lerMes, resolverPeriodoFunil } from '@/lib/utils/periodo'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
 
 import { SeletorMes } from '../../metas/_components/seletor-mes'
 import { ContextoFunilSelecionado } from '../_components/contexto-funil'
+import { DonutMetaMensal } from '../_components/donut-meta-mensal'
 import { FunilVisual, TaxaPorFunil } from '../_components/funil-visual'
 import { MetaMensal } from '../_components/meta-mensal'
-import { SeletorFunil } from '../_components/seletor-funil'
 import { MetricasFunilPainel } from '../_components/metricas-funil'
+import { ResultadosPeriodo } from '../_components/resultados-periodo'
+import { SeletorFunil } from '../_components/seletor-funil'
 import { SeletorPeriodoFunil } from '../_components/seletor-periodo-funil'
 
 export const metadata: Metadata = {
@@ -47,21 +49,19 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
     )
   }
 
-  const periodoDoMes = { inicio: primeiroDiaDoMes(mes), fim: ultimoDiaDoMes(mes) }
-
   // Duas perguntas diferentes, duas fontes de dados diferentes, nunca
   // misturadas num cálculo só:
-  //   - MetaMensal: mês calendário inteiro, sempre o atual, SEM proporção
-  //     (`obterProgressoMetas`/RPC `metas_progresso` — a mesma de `/metas`,
-  //     reaproveitada, nenhuma lógica nova). "Meta por funil" não existe no
-  //     banco (`metas` não tem `funil_id`, auditado) — por isso aqui é só
-  //     REALIZADO mensal por funil, nunca uma meta inventada por divisão.
+  //   - Meta mensal (donut + cards): mês calendário inteiro, sempre o
+  //     escolhido no seletor PRÓPRIO, SEM proporção — `obterProgressoMetas`
+  //     (RPC `metas_progresso`, geral) e `obterProgressoMetasFunis` (RPC
+  //     `metas_funis_progresso`, migration 20261019180000, meta real por
+  //     funil — nunca mais uma divisão inventada da meta geral).
   //   - Análise do período: tudo que segue o seletor de período
-  //     (`SeletorPeriodoFunil`) — métricas/funil visual/ticket médio do
-  //     funil selecionado, e a comparação entre funis disponíveis.
-  const [progressoMes, realizadoPorFunilMes, metricasPorFunil, realizadoFunilPeriodo] = await Promise.all([
+  //     (`SeletorPeriodoFunil`) — métricas/funil visual/resultados do funil
+  //     selecionado, e a comparação entre funis disponíveis.
+  const [progressoMes, progressoFunisMes, metricasPorFunil, realizadoFunilPeriodo] = await Promise.all([
     obterProgressoMetas(mes),
-    Promise.all(funis.map((f) => obterRealizadoFunil(periodoDoMes, f.id))),
+    obterProgressoMetasFunis(mes),
     Promise.all(funis.map((f) => obterMetricasFunil(periodo, f.id))),
     obterRealizadoFunil(periodo, funilSelecionado.id),
   ])
@@ -99,21 +99,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         )}
       </div>
 
-      <MetaMensal
-        mes={mes}
-        progresso={progressoMes.empresa}
-        porFunil={funis.map((f, i) => ({ nome: f.nome, realizado: realizadoPorFunilMes[i] }))}
-        seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" />}
-      />
-
-      <div className="space-y-6 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Análise do período</h2>
-          <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Período: {formatarData(periodo.inicio)} → {formatarData(periodo.fim)}
-          </p>
-        </div>
-
+      <div className="space-y-3">
         <div className="flex flex-wrap items-start gap-3">
           <SeletorFunil funis={funis} funilId={funilSelecionado.id} />
           {/* key = identidade COMPLETA do período (chave+início+fim), não só a
@@ -131,17 +117,44 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
             hoje={hoje}
           />
         </div>
-
-        <ContextoFunilSelecionado realizadoFunil={realizadoFunilPeriodo} funilNome={funilSelecionado.nome} />
-
-        <FunilVisual metricas={metricasSelecionado} />
-
-        <TaxaPorFunil
-          resumos={funis.map((f, i) => ({ funilId: f.id, nome: f.nome, metricas: metricasPorFunil[i] }))}
-        />
-
-        <MetricasFunilPainel metricas={metricasSelecionado} />
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Período de análise: {formatarData(periodo.inicio)} → {formatarData(periodo.fim)}
+        </p>
       </div>
+
+      {/* Três painéis principais: funil visual (esquerda), meta mensal em
+          círculo (centro), resultados do período em barras (direita). No
+          desktop, três colunas; empilha a partir de `lg` para baixo. */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          <FunilVisual metricas={metricasSelecionado} funilNome={funilSelecionado.nome} />
+        </div>
+        <DonutMetaMensal progresso={progressoMes.empresa} />
+        <ResultadosPeriodo resumo={metricasSelecionado.resumo} funilNome={funilSelecionado.nome} />
+      </div>
+
+      <MetaMensal
+        mes={mes}
+        progressoEmpresa={progressoMes.empresa}
+        progressoFunis={progressoFunisMes}
+        seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" />}
+      />
+
+      <details className="space-y-6 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <summary className="cursor-pointer text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          Detalhes por etapa
+        </summary>
+
+        <div className="mt-4 space-y-6">
+          <ContextoFunilSelecionado realizadoFunil={realizadoFunilPeriodo} funilNome={funilSelecionado.nome} />
+
+          <TaxaPorFunil
+            resumos={funis.map((f, i) => ({ funilId: f.id, nome: f.nome, metricas: metricasPorFunil[i] }))}
+          />
+
+          <MetricasFunilPainel metricas={metricasSelecionado} />
+        </div>
+      </details>
     </div>
   )
 }
