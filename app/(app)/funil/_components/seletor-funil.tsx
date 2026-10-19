@@ -27,7 +27,7 @@ export function SeletorFunil({ funis, funilId }: { funis: Pick<Funil, 'id' | 'no
 
   return (
     <div>
-      <label className="sr-only" htmlFor="seletor-funil">
+      <label className="mb-1 block text-xs text-zinc-500" htmlFor="seletor-funil">
         Funil
       </label>
       <select id="seletor-funil" value={funilId} onChange={(e) => trocar(e.target.value)} className={selectClass}>
