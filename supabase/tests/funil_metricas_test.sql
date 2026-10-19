@@ -355,6 +355,39 @@ begin
   insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo, pos_fechamento) values
     (v_funil1_id, 'Recuperação', 'cinza', 100002, 'aberta', true) returning id into v_etapa_recuperacao;
 
+  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
+    (v_funil2_id, 'Aberta', 'azul', 1000, 'aberta') returning id into v_etapa2_aberta;
+  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
+    (v_funil2_id, 'Fechado', 'verde', 100000, 'ganha');
+  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
+    (v_funil2_id, 'Perdido', 'vermelho', 100001, 'perdida');
+
+  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
+    (v_funil3_id, 'Única', 'azul', 1000, 'aberta');
+  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
+    (v_funil3_id, 'Fechado', 'verde', 100000, 'ganha');
+  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
+    (v_funil3_id, 'Perdido', 'vermelho', 100001, 'perdida');
+
+  -- Caso X: outro funil (funil2), período 1 — prova que os números de um
+  -- funil nunca aparecem no resultado do outro. Fica ANTES do `set_config`
+  -- de impersonação (abaixo) de propósito: desde
+  -- 20261015110000_criacao_manual_sdr_e_integridade_cliente.sql, todo INSERT
+  -- em `negociacoes` passa por `negociacoes_protege_criacao_por_permissao`,
+  -- que só deixa passar automação (auth.uid() null) ou quem tem
+  -- `pode_mover_etapa` na etapa de destino — e `v_usuario` (impersonado
+  -- abaixo) deliberadamente não tem NENHUMA permissão em v_funil2_id (ver
+  -- comentário da seção 0b). Isto não é teste de permissão — é só massa de
+  -- dados para provar isolamento entre funis em `funil_metricas` — por isso
+  -- é criado como automação, antes de qualquer impersonação, exatamente como
+  -- o restante da massa de dados desta função.
+  insert into public.clientes (tipo_cliente, nome, owner_id) values ('pessoa_fisica', 'Cliente X', v_usuario)
+    returning id into v_cliente_x;
+  insert into public.negociacoes (cliente_id, etapa_id) values (v_cliente_x, v_etapa2_aberta)
+    returning id into v_neg_x;
+  update public.negociacoes set created_at = '2024-01-10' where id = v_neg_x;
+  update public.historico_etapas set created_at = '2024-01-10' where negociacao_id = v_neg_x;
+
   -- -------------------------------------------------------------------
   -- 0b. Permissão comercial do usuário de teste.
   --
@@ -393,20 +426,6 @@ begin
   -- auth.uid() = v_usuario em qualquer função que o leia.
   perform set_config('request.jwt.claims',
     json_build_object('sub', v_usuario, 'role', 'authenticated')::text, true);
-
-  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
-    (v_funil2_id, 'Aberta', 'azul', 1000, 'aberta') returning id into v_etapa2_aberta;
-  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
-    (v_funil2_id, 'Fechado', 'verde', 100000, 'ganha');
-  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
-    (v_funil2_id, 'Perdido', 'vermelho', 100001, 'perdida');
-
-  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
-    (v_funil3_id, 'Única', 'azul', 1000, 'aberta');
-  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
-    (v_funil3_id, 'Fechado', 'verde', 100000, 'ganha');
-  insert into public.etapas_funil (funil_id, nome, cor, ordem, tipo) values
-    (v_funil3_id, 'Perdido', 'vermelho', 100001, 'perdida');
 
   -- -------------------------------------------------------------------
   -- Caso A: entra em Lead Novo, nunca avança. Período 1 (jan/2024).
@@ -503,9 +522,21 @@ begin
    where id = v_neg_f;
 
   -- -------------------------------------------------------------------
-  -- Caso G: alcança Reunião; a negociação em si nunca é tocada, mas o
-  -- CLIENTE é excluído (deleted_at) depois. Alternativa B: conta no
-  -- histórico, some só de "atual".
+  -- Caso G: alcança Reunião; a negociação em si nunca é tocada (campos de
+  -- arquivamento próprios ficam null), mas o CLIENTE é excluído (deleted_at)
+  -- depois. Alternativa B: conta no histórico, some só de "atual".
+  --
+  -- FIXTURE ATUALIZADA (achado desta rodada, não é regressão de
+  -- `funil_metricas`): desde 20261015110000_criacao_manual_sdr_e_integridade_
+  -- cliente.sql, o trigger `clientes_protege_arquivamento_com_negociacao_
+  -- ativa` bloqueia `clientes.deleted_at` virar not null enquanto existir
+  -- negociação não arquivada/excluída daquele cliente — de propósito,
+  -- backstop contra "negociação ativa presa a cliente arquivado". Esta
+  -- fixture tentava excluir o cliente com a negociação ainda aberta, estado
+  -- que o próprio banco não permite mais alcançar (nem pela UI, nem por SQL
+  -- direto) — por isso arquivamos a negociação ANTES de excluir o cliente,
+  -- preservando a pergunta original do teste ("histórico nunca some por
+  -- cliente excluído") sob o único caminho que o banco hoje de fato permite.
   -- -------------------------------------------------------------------
   insert into public.clientes (tipo_cliente, nome, owner_id) values ('pessoa_fisica', 'Cliente G', v_usuario)
     returning id into v_cliente_g;
@@ -514,6 +545,8 @@ begin
   update public.negociacoes set etapa_id = v_etapa_reuniao where id = v_neg_g;
   update public.negociacoes set created_at = '2024-01-16' where id = v_neg_g;
   update public.historico_etapas set created_at = '2024-01-16' where negociacao_id = v_neg_g;
+  update public.negociacoes set arquivada_em = now(), motivo_arquivamento = 'teste: cliente será excluído a seguir'
+   where id = v_neg_g;
   update public.clientes set deleted_at = now() where id = v_cliente_g;
 
   -- -------------------------------------------------------------------
@@ -545,16 +578,8 @@ begin
   update public.historico_etapas set created_at = '2024-03-05'
     where negociacao_id = v_neg_i and etapa_nova_id = v_etapa_reuniao;
 
-  -- -------------------------------------------------------------------
-  -- Caso X: outro funil (funil2), período 1. Prova que os números de um
-  -- funil nunca aparecem no resultado do outro.
-  -- -------------------------------------------------------------------
-  insert into public.clientes (tipo_cliente, nome, owner_id) values ('pessoa_fisica', 'Cliente X', v_usuario)
-    returning id into v_cliente_x;
-  insert into public.negociacoes (cliente_id, etapa_id) values (v_cliente_x, v_etapa2_aberta)
-    returning id into v_neg_x;
-  update public.negociacoes set created_at = '2024-01-10' where id = v_neg_x;
-  update public.historico_etapas set created_at = '2024-01-10' where negociacao_id = v_neg_x;
+  -- Caso X (outro funil) já foi criado mais acima, ANTES da impersonação —
+  -- ver comentário na seção 0.
 
   -- =====================================================================
   -- ASSERÇÕES — funil 1, período 1 (jan/2024).

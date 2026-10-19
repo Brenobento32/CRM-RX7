@@ -27,8 +27,11 @@ describe('ultimoDiaDoMes', () => {
 const HOJE = '2026-10-15'
 
 describe('chavePeriodoFunil', () => {
-  it('aceita os 5 atalhos válidos', () => {
+  it('aceita os 8 atalhos válidos', () => {
+    expect(chavePeriodoFunil('hoje')).toBe('hoje')
+    expect(chavePeriodoFunil('mes')).toBe('mes')
     expect(chavePeriodoFunil('7d')).toBe('7d')
+    expect(chavePeriodoFunil('15d')).toBe('15d')
     expect(chavePeriodoFunil('30d')).toBe('30d')
     expect(chavePeriodoFunil('90d')).toBe('90d')
     expect(chavePeriodoFunil('ano')).toBe('ano')
@@ -37,15 +40,59 @@ describe('chavePeriodoFunil', () => {
 
   it('cai em 30d para qualquer valor inválido/ausente', () => {
     expect(chavePeriodoFunil(undefined)).toBe('30d')
-    expect(chavePeriodoFunil('mes')).toBe('30d') // atalho de outra tela, não existe aqui
-    expect(chavePeriodoFunil('15d')).toBe('30d')
+    expect(chavePeriodoFunil('mes_anterior')).toBe('30d') // atalho de outra tela, não existe aqui
+    expect(chavePeriodoFunil('lixo')).toBe('30d')
     expect(chavePeriodoFunil(['7d'])).toBe('30d')
   })
 })
 
 describe('resolverPeriodoFunil', () => {
+  it('hoje', () => {
+    expect(resolverPeriodoFunil('hoje', {}, HOJE)).toEqual({ chave: 'hoje', inicio: HOJE, fim: HOJE })
+  })
+
+  it('este mês', () => {
+    expect(resolverPeriodoFunil('mes', {}, HOJE)).toEqual({ chave: 'mes', inicio: '2026-10-01', fim: HOJE })
+  })
+
+  it('este mês no primeiro dia do mês: início = fim = hoje', () => {
+    expect(resolverPeriodoFunil('mes', {}, '2026-10-01')).toEqual({
+      chave: 'mes',
+      inicio: '2026-10-01',
+      fim: '2026-10-01',
+    })
+  })
+
+  it('este mês em janeiro (mudança de ano)', () => {
+    expect(resolverPeriodoFunil('mes', {}, '2026-01-15')).toEqual({
+      chave: 'mes',
+      inicio: '2026-01-01',
+      fim: '2026-01-15',
+    })
+  })
+
+  it('este mês em fevereiro (último dia, ano não bissexto)', () => {
+    expect(resolverPeriodoFunil('mes', {}, '2026-02-28')).toEqual({
+      chave: 'mes',
+      inicio: '2026-02-01',
+      fim: '2026-02-28',
+    })
+  })
+
+  it('este mês em fevereiro (último dia, ano bissexto)', () => {
+    expect(resolverPeriodoFunil('mes', {}, '2028-02-29')).toEqual({
+      chave: 'mes',
+      inicio: '2028-02-01',
+      fim: '2028-02-29',
+    })
+  })
+
   it('7 dias', () => {
     expect(resolverPeriodoFunil('7d', {}, HOJE)).toEqual({ chave: '7d', inicio: '2026-10-09', fim: HOJE })
+  })
+
+  it('15 dias', () => {
+    expect(resolverPeriodoFunil('15d', {}, HOJE)).toEqual({ chave: '15d', inicio: '2026-10-01', fim: HOJE })
   })
 
   it('30 dias', () => {

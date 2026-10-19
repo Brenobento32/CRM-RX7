@@ -92,22 +92,37 @@ export function rotuloMes(mes: string): string {
 
 // ---------------------------------------------------------------------------
 // Período do funil (Métricas do funil) — atalhos próprios, independentes dos
-// de {@link PERIODOS} (dashboard/propostas): 7/30/90 dias, este ano, e um
-// período personalizado (início/fim escolhidos pelo usuário). Nunca reaproveita
-// 'mes'/'mes_anterior'/'15d' — são atalhos de outra tela, com outro propósito.
+// de {@link PERIODOS} (dashboard/propostas): hoje, este mês, 7/15/30/90 dias
+// (agrupados no menu "Dias"), este ano (resolvível por compatibilidade, sem
+// botão próprio nesta tela) e um período personalizado (início/fim escolhidos
+// pelo usuário). Mesmo quando a definição bate com a de {@link PERIODOS}
+// ('mes' = primeiro dia do mês até hoje nos dois lugares), são tipos e
+// atalhos independentes — nunca o MESMO valor reaproveitado entre as telas.
 // ---------------------------------------------------------------------------
 
-export const PERIODOS_FUNIL = ['7d', '30d', '90d', 'ano', 'personalizado'] as const
+export const PERIODOS_FUNIL = ['hoje', 'mes', '7d', '15d', '30d', '90d', 'ano', 'personalizado'] as const
 
 export type ChavePeriodoFunil = (typeof PERIODOS_FUNIL)[number]
 
 export const ROTULO_PERIODO_FUNIL: Record<ChavePeriodoFunil, string> = {
+  hoje: 'Hoje',
+  mes: 'Este mês',
   '7d': '7 dias',
+  '15d': '15 dias',
   '30d': '30 dias',
   '90d': '90 dias',
   ano: 'Este ano',
   personalizado: 'Personalizado',
 }
+
+/**
+ * Atalhos de "Dias" (menu "Dias ▾") — subconjunto de {@link PERIODOS_FUNIL}
+ * que vive dentro do dropdown, em vez de um botão próprio na barra
+ * principal. `hoje`/`mes`/`ano`/`personalizado` nunca entram aqui: cada um
+ * já tem seu próprio lugar (botão dedicado, ou nenhum — `ano` continua
+ * resolvível por compatibilidade, só não é mais atalho principal nesta tela).
+ */
+export const PERIODOS_FUNIL_DIAS = ['7d', '15d', '30d', '90d'] as const satisfies readonly ChavePeriodoFunil[]
 
 export type PeriodoFunil = { chave: ChavePeriodoFunil; inicio: string; fim: string }
 
@@ -131,8 +146,14 @@ export function resolverPeriodoFunil(
   hoje = hojeSaoPaulo(),
 ): PeriodoFunil {
   switch (chave) {
+    case 'hoje':
+      return { chave, inicio: hoje, fim: hoje }
+    case 'mes':
+      return { chave, inicio: `${hoje.slice(0, 7)}-01`, fim: hoje }
     case '7d':
       return { chave, inicio: somarDias(hoje, -6), fim: hoje }
+    case '15d':
+      return { chave, inicio: somarDias(hoje, -14), fim: hoje }
     case '30d':
       return { chave, inicio: somarDias(hoje, -29), fim: hoje }
     case '90d':

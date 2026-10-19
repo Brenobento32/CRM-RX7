@@ -37,6 +37,10 @@ export function FunilVisual({ metricas }: { metricas: MetricasFunil }) {
       <div>
         <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Funil de conversão</h2>
         <p className="text-xs text-zinc-500">Conversão da coorte — evolução até o momento.</p>
+        <p className="text-xs text-zinc-400">
+          Leads de origens diferentes podem entrar direto numa etapa mais avançada — por isso os números nem sempre
+          diminuem etapa a etapa.
+        </p>
       </div>
 
       <ol className="space-y-3">
@@ -68,21 +72,36 @@ export function FunilVisual({ metricas }: { metricas: MetricasFunil }) {
   )
 }
 
+/** Largura mínima (%) de um degrau — sempre legível, mesmo pra uma fração minúscula. */
+const LARGURA_MINIMA = 6
+
 function LinhaFunilBase({ quantidade }: { quantidade: number }) {
   return (
-    <li className="space-y-1">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">Leads entraram</span>
-        <span className="text-lg font-semibold tabular-nums">{quantidade}</span>
+    <li className="space-y-1.5">
+      <div className="flex items-center justify-center gap-2 text-center text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        Leads entraram
+        <span className="text-base font-semibold tabular-nums">{quantidade}</span>
       </div>
-      <div aria-hidden className="h-3 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
-        <div className="h-full w-full rounded-full bg-zinc-800 dark:bg-zinc-300" />
+      <div aria-hidden className="mx-auto h-6 w-full rounded-md bg-zinc-800 dark:bg-zinc-300" />
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-xs text-zinc-500">
+        <span>
+          <strong className="tabular-nums">100%</strong> desde a entrada
+        </span>
+        <span>Negociações criadas no período (coorte)</span>
       </div>
-      <p className="text-xs text-zinc-500">Negociações criadas no período (coorte)</p>
     </li>
   )
 }
 
+/**
+ * Um degrau do funil — bloco CENTRALIZADO (nunca alinhado à esquerda),
+ * largura proporcional a `conversaoAcumulada` (já calculada, nunca
+ * recalculada aqui). Como existem entradas diretas em etapas avançadas
+ * (origens diferentes entram em pontos diferentes do funil — auditado:
+ * `empresa`/`etapa_inicial` configurável por nicho), um degrau pode ser
+ * MAIS largo que o anterior; em vez de forçar uma sequência sempre
+ * decrescente, isso fica marcado com o selo "inclui entradas diretas".
+ */
 function LinhaFunil({
   etapa,
   percentualAnterior,
@@ -90,24 +109,31 @@ function LinhaFunil({
   etapa: MetricaEtapa
   percentualAnterior: number | null
 }) {
-  const largura = Math.round(Math.max(Math.min(etapa.conversaoAcumulada ?? 0, 1), 0.02) * 100)
+  const largura = Math.round(Math.max(Math.min((etapa.conversaoAcumulada ?? 0) * 100, 100), LARGURA_MINIMA))
+  const entradaDireta =
+    percentualAnterior !== null && etapa.conversaoAcumulada !== null && etapa.conversaoAcumulada > percentualAnterior
 
   return (
-    <li className="space-y-1">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <span className="flex items-center gap-2 font-medium">
-          <PontoEtapa cor={etapa.cor} />
-          {etapa.nome}
-        </span>
-        <span className="text-lg font-semibold tabular-nums">{etapa.alcancaram}</span>
+    <li className="space-y-1.5">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-center text-sm font-medium">
+        <PontoEtapa cor={etapa.cor} />
+        {etapa.nome}
+        <span className="text-base font-semibold tabular-nums">{etapa.alcancaram}</span>
+        {entradaDireta && (
+          <span
+            className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-normal text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+            title="Esta etapa alcançou mais negociações que a etapa anterior — algumas entraram direto aqui, sem passar pela anterior"
+          >
+            inclui entradas diretas
+          </span>
+        )}
       </div>
-      <div aria-hidden className="h-3 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-        <div
-          className="h-full rounded-full transition-[width]"
-          style={{ width: `${largura}%`, backgroundColor: corDeFundoAgenda(etapa.cor) }}
-        />
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-zinc-500">
+      <div
+        aria-hidden
+        className="mx-auto h-6 rounded-md transition-[width]"
+        style={{ width: `${largura}%`, minWidth: 48, backgroundColor: corDeFundoAgenda(etapa.cor) }}
+      />
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-xs text-zinc-500">
         {percentualAnterior !== null ? (
           <span>
             <strong className="tabular-nums">{formatarPercentual(percentualAnterior)}</strong> da etapa anterior
@@ -124,6 +150,54 @@ function LinhaFunil({
         )}
       </div>
     </li>
+  )
+}
+
+/**
+ * Resumo "Entrada → Ganho" de cada funil disponível, no mesmo período de
+ * análise — mesma definição de coorte do funil visual (nunca estado atual):
+ * é a `conversaoAcumulada` da própria etapa "ganha" de cada funil
+ * (`alcancaram(ganha) ÷ totalEntraram`), já calculada por
+ * `processarMetricasFunil`; nada recalculado aqui, só uma lista compacta
+ * pra comparar funis sem abrir um de cada vez.
+ */
+export function TaxaPorFunil({ resumos }: { resumos: { funilId: string; nome: string; metricas: MetricasFunil }[] }) {
+  if (resumos.length < 2) return null
+
+  return (
+    <section aria-label="Taxa de conversão por funil" className="space-y-2">
+      <h3 className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Entrada → Ganho, por funil</h3>
+      <div className="flex flex-wrap gap-3">
+        {resumos.map(({ funilId, nome, metricas }) => {
+          const ganha = metricas.etapas.find((e) => e.tipo === 'ganha')
+          const taxa = ganha?.conversaoAcumulada ?? null
+          return (
+            <div
+              key={funilId}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+            >
+              <p className="font-medium">{nome}</p>
+              <dl className="mt-1 grid grid-cols-3 gap-x-3 text-xs">
+                <div>
+                  <dt className="text-zinc-500">Entraram</dt>
+                  <dd className="font-semibold tabular-nums">{metricas.resumo.totalEntraram}</dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">Ganhos</dt>
+                  <dd className="font-semibold tabular-nums">{ganha?.alcancaram ?? 0}</dd>
+                </div>
+                <div>
+                  <dt className="text-zinc-500">Conversão</dt>
+                  <dd className="font-semibold tabular-nums text-zinc-700 dark:text-zinc-300">
+                    {taxa === null ? '—' : formatarPercentual(taxa)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
