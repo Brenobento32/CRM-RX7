@@ -1982,6 +1982,39 @@ export type Database = {
         }
         Returns: undefined
       }
+      atualizar_cliente_do_card: {
+        Args: {
+          p_cargo: string
+          p_cliente_id: string
+          p_cnpj: string
+          p_cpf: string
+          p_email: string
+          p_empresa: string
+          p_instagram: string
+          p_negociacao_id: string
+          p_nome: string
+          p_observacoes: string
+          p_responsavel: string
+          p_telefone: string
+          p_tipo_cliente: Database["public"]["Enums"]["tipo_cliente"]
+          p_whatsapp: string
+        }
+        Returns: undefined
+      }
+      atualizar_dados_operacionais_negociacao: {
+        Args: {
+          p_data_primeira_reuniao: string
+          p_data_proposta: string
+          p_forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
+          p_negociacao_id: string
+          p_nicho_id: string
+          p_objecao_principal: string
+          p_temperatura: Database["public"]["Enums"]["temperatura_negociacao"]
+          p_valor_estimado: number
+          p_valor_proposta: number
+        }
+        Returns: undefined
+      }
       atualizar_fechamento: {
         Args: {
           p_contrato_assinado: boolean
@@ -2136,6 +2169,10 @@ export type Database = {
         Args: { p_etapa_id: string }
         Returns: undefined
       }
+      desqualificar_negociacao: {
+        Args: { p_motivo: string; p_negociacao_id: string }
+        Returns: undefined
+      }
       duplicar_funil: {
         Args: { p_funil_id: string; p_novo_nome: string }
         Returns: string
@@ -2264,6 +2301,44 @@ export type Database = {
       pode_ver_etapa: {
         Args: { p_etapa_id: string; p_funil_id: string }
         Returns: boolean
+      }
+      realizado_periodo: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: {
+          ativo: boolean
+          nome: string
+          realizado_mrr: number
+          realizado_tcv: number
+          role: Database["public"]["Enums"]["user_role"]
+          usuario_id: string
+        }[]
+      }
+      salvar_ficha_negociacao: {
+        Args: {
+          p_cargo: string
+          p_cliente_id: string
+          p_cnpj: string
+          p_cpf: string
+          p_data_primeira_reuniao: string
+          p_data_proposta: string
+          p_email: string
+          p_empresa: string
+          p_forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
+          p_instagram: string
+          p_negociacao_id: string
+          p_nicho_id: string
+          p_nome: string
+          p_objecao_principal: string
+          p_observacoes: string
+          p_responsavel: string
+          p_telefone: string
+          p_temperatura: Database["public"]["Enums"]["temperatura_negociacao"]
+          p_tipo_cliente: Database["public"]["Enums"]["tipo_cliente"]
+          p_valor_estimado: number
+          p_valor_proposta: number
+          p_whatsapp: string
+        }
+        Returns: undefined
       }
       salvar_negociacao: {
         Args: {

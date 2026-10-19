@@ -213,8 +213,14 @@ export type ResultadoArquivarNegociacao = { ok: true } | { ok: false; mensagem: 
  * "Desqualificar lead" — soft delete (`arquivada_em`), nunca apaga a
  * negociação, o cliente, conversas ou histórico. O card some do Kanban
  * porque `funil_cards` filtra `arquivada_em is null`. Motivo obrigatório
- * (pedido explícito do fluxo do drawer); o banco também recusa
- * (`negociacoes_motivo_arquivamento_obrigatorio`).
+ * (pedido explícito do fluxo do drawer); o banco também recusa.
+ *
+ * RPC `desqualificar_negociacao` (20261019100000), não `.update()` direto:
+ * GERENTE ou `pode_ver_etapa(funil_id, etapa_id)` autoriza — owner_id NÃO é
+ * requisito (diferente de `negociacoes_update`, que exige owner_id) e
+ * `pode_mover_etapa` também não é requisito ("desqualificar" é uma ação
+ * diferente de "mover etapa"). Funciona em qualquer etapa, inclusive
+ * ganha/perdida — mesmo comportamento de sempre, só a autorização mudou.
  */
 export async function arquivarNegociacao(id: string, motivo: string): Promise<ResultadoArquivarNegociacao> {
   const motivoLimpo = motivo.trim()
@@ -223,13 +229,10 @@ export async function arquivarNegociacao(id: string, motivo: string): Promise<Re
   await getUsuarioAtual()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('negociacoes')
-    .update({ arquivada_em: new Date().toISOString(), motivo_arquivamento: motivoLimpo })
-    .eq('id', id)
-    .is('arquivada_em', null)
-    .select('id')
-    .maybeSingle()
+  const { error } = await supabase.rpc('desqualificar_negociacao', {
+    p_negociacao_id: id,
+    p_motivo: motivoLimpo,
+  })
 
   if (error) {
     if (error.code === '42501') {
@@ -238,11 +241,14 @@ export async function arquivarNegociacao(id: string, motivo: string): Promise<Re
     if (error.code === '23514') {
       return { ok: false, mensagem: 'Informe o motivo da desqualificação.' }
     }
+    if (error.code === 'P0002') {
+      return { ok: false, mensagem: 'Lead não encontrado ou já está arquivado.' }
+    }
     console.error('Erro ao arquivar negociação', error)
     return { ok: false, mensagem: 'Não foi possível desqualificar o lead. Tente novamente.' }
   }
 
-  return data ? { ok: true } : { ok: false, mensagem: 'Lead não encontrado ou já está arquivado.' }
+  return { ok: true }
 }
 
 /**
