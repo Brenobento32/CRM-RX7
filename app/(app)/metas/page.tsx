@@ -3,10 +3,13 @@ import Link from 'next/link'
 import { Fragment } from 'react'
 
 import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { CardsMetaFunil } from '@/components/metas/cards-meta-funil'
 import { removerMetaAction } from '@/lib/actions/metas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import {
   obterProgressoMetas,
+  obterProgressoMetasFunis,
+  type ProgressoFunilMeta,
   type ProgressoMetaTipo,
   type ProgressoPessoa,
   type TipoMeta,
@@ -15,6 +18,7 @@ import { formatarData, formatarMoeda } from '@/lib/utils/formatacao'
 import { lerMes, primeiroDiaDoMes, rotuloMes, ultimoDiaDoMes } from '@/lib/utils/periodo'
 import { ALVO_EMPRESA, ROTULO_TIPO_META, TIPOS_META } from '@/lib/validations/meta'
 
+import { FormMetasFunis } from './_components/form-metas-funis'
 import { BarraProgresso, CardMeta, TextoPercentual } from './_components/progresso'
 import { SeletorMes } from './_components/seletor-mes'
 
@@ -26,7 +30,10 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
   const eu = await getUsuarioAtual()
   const { mes: param, erro } = await searchParams
   const mes = lerMes(param)
-  const { empresa, pessoas } = await obterProgressoMetas(mes)
+  const [{ empresa, pessoas }, progressoFunis] = await Promise.all([
+    obterProgressoMetas(mes),
+    obterProgressoMetasFunis(mes),
+  ])
   const gerente = eu.role === 'gerente'
 
   return (
@@ -67,6 +74,8 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
       */}
       {empresa && <SecaoMetaEmpresa empresa={empresa} mes={mes} podeGerenciar={gerente} />}
 
+      <SecaoMetasFunis mes={mes} progresso={progressoFunis} gerente={gerente} />
+
       {eu.role === 'closer' && <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} />}
 
       {gerente && <TabelaPessoas pessoas={pessoas} mes={mes} />}
@@ -104,6 +113,37 @@ function SecaoMetaEmpresa({
           />
         ))}
       </div>
+    </section>
+  )
+}
+
+/**
+ * Metas mensais por funil — só GERENTE vê o formulário de cadastro
+ * (`FormMetasFunis`); SDR/CLOSER veem só os cards de progresso
+ * (`CardsMetaFunil`, o MESMO componente usado em `/funil/metricas`, para as
+ * duas telas nunca divergirem). Nada aqui distribui a meta geral: cada
+ * funil tem sua própria meta cadastrada à parte (ver aviso de divergência
+ * dentro de `MetaMensal`, em `/funil/metricas`).
+ */
+function SecaoMetasFunis({
+  mes,
+  progresso,
+  gerente,
+}: {
+  mes: string
+  progresso: ProgressoFunilMeta[]
+  gerente: boolean
+}) {
+  if (progresso.length === 0) return null
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Metas mensais por funil</h2>
+      <p className="text-xs text-zinc-500">
+        Cada funil tem sua própria meta de TCV e de MRR, cadastrada separadamente da meta geral.
+      </p>
+      {gerente && <FormMetasFunis mes={mes} progresso={progresso} />}
+      <CardsMetaFunil progresso={progresso} />
     </section>
   )
 }

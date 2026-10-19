@@ -1065,6 +1065,7 @@ export type Database = {
         Row: {
           created_at: string
           criado_por: string
+          funil_id: string | null
           id: string
           periodo_mes: string
           tipo_meta: Database["public"]["Enums"]["tipo_venda"] | null
@@ -1075,6 +1076,7 @@ export type Database = {
         Insert: {
           created_at?: string
           criado_por?: string
+          funil_id?: string | null
           id?: string
           periodo_mes: string
           tipo_meta?: Database["public"]["Enums"]["tipo_venda"] | null
@@ -1085,6 +1087,7 @@ export type Database = {
         Update: {
           created_at?: string
           criado_por?: string
+          funil_id?: string | null
           id?: string
           periodo_mes?: string
           tipo_meta?: Database["public"]["Enums"]["tipo_venda"] | null
@@ -1098,6 +1101,13 @@ export type Database = {
             columns: ["criado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "metas_funil_id_fkey"
+            columns: ["funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
             referencedColumns: ["id"]
           },
           {
@@ -2287,6 +2297,19 @@ export type Database = {
         }[]
       }
       is_gerente: { Args: never; Returns: boolean }
+      metas_funis_progresso: {
+        Args: { p_mes: string }
+        Returns: {
+          funil_id: string
+          funil_nome: string
+          meta_id_mrr: string
+          meta_id_tcv: string
+          realizado_mrr: number
+          realizado_tcv: number
+          valor_meta_mrr: number
+          valor_meta_tcv: number
+        }[]
+      }
       metas_progresso: {
         Args: { p_mes: string }
         Returns: {
@@ -2294,6 +2317,8 @@ export type Database = {
           meta_id_mrr: string
           meta_id_tcv: string
           nome: string
+          qtd_mrr: number
+          qtd_tcv: number
           realizado_mrr: number
           realizado_tcv: number
           role: Database["public"]["Enums"]["user_role"]
@@ -2359,6 +2384,10 @@ export type Database = {
           p_whatsapp: string
         }
         Returns: undefined
+      }
+      salvar_metas_funis: {
+        Args: { p_itens: Json; p_mes: string }
+        Returns: number
       }
       salvar_negociacao: {
         Args: {

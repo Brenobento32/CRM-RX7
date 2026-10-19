@@ -22,6 +22,8 @@ export type ProgressoMetaTipo = {
   realizado: number
   /** Realizado ÷ meta. Passa de 1 quando a meta é batida. `null` sem meta. */
   percentual: number | null
+  /** Quantidade de vendas deste tipo no mês — para o ticket médio (realizado ÷ quantidade). */
+  quantidade: number
 }
 
 export type ProgressoEmpresa = { tcv: ProgressoMetaTipo; mrr: ProgressoMetaTipo }
@@ -45,6 +47,28 @@ export function percentualMeta(realizado: number, meta: number | null): number |
 }
 
 /**
+ * O gerador de tipos marca `meta_id_tcv`/`meta_id_mrr`/`usuario_id`/`nome`/
+ * `role`/`ativo`/`valor_meta_tcv`/`valor_meta_mrr` como não-nulos (ele só
+ * "vê" o formato geral do `union all`, não que a linha da EMPRESA devolve
+ * `usuario_id`/`nome`/`role`/`ativo` como `null::...` explícito no SQL, e
+ * que `valor_meta_tcv`/`valor_meta_mrr` vêm de um `left join` que pode não
+ * casar). Tipo local, baseado no oficial, só relaxando essas colunas.
+ */
+type LinhaMetasProgressoRpc = Omit<
+  Database['public']['Functions']['metas_progresso']['Returns'][number],
+  'meta_id_tcv' | 'meta_id_mrr' | 'usuario_id' | 'nome' | 'role' | 'ativo' | 'valor_meta_tcv' | 'valor_meta_mrr'
+> & {
+  meta_id_tcv: string | null
+  meta_id_mrr: string | null
+  usuario_id: string | null
+  nome: string | null
+  role: UserRole | null
+  ativo: boolean | null
+  valor_meta_tcv: number | string | null
+  valor_meta_mrr: number | string | null
+}
+
+/**
  * Meta × realizado do mês (AAAA-MM), TCV e MRR nunca somados — são dois
  * totais independentes por alvo. O que cada um enxerga é decidido em
  * `metas_progresso`, no banco: o gerente recebe a empresa e a equipe, o
@@ -60,38 +84,101 @@ export async function obterProgressoMetas(mes: string): Promise<ProgressoMetas> 
   let empresa: ProgressoEmpresa | null = null
   const pessoas: ProgressoPessoa[] = []
 
-  // Os tipos gerados marcam as colunas como não nulas; na linha da empresa
-  // usuario_id, nome, role e ativo vêm nulos, e os valor_meta_* são nulos
-  // sem meta definida para aquele tipo.
-  for (const linha of data) {
+  const linhas = data as unknown as LinhaMetasProgressoRpc[]
+  for (const linha of linhas) {
     const valorMetaTcv = linha.valor_meta_tcv === null ? null : Number(linha.valor_meta_tcv)
     const valorMetaMrr = linha.valor_meta_mrr === null ? null : Number(linha.valor_meta_mrr)
     const realizadoTcv = Number(linha.realizado_tcv)
     const realizadoMrr = Number(linha.realizado_mrr)
     const base: ProgressoEmpresa = {
       tcv: {
-        metaId: (linha.meta_id_tcv as string | null) ?? null,
+        metaId: linha.meta_id_tcv,
         valorMeta: valorMetaTcv,
         realizado: realizadoTcv,
         percentual: percentualMeta(realizadoTcv, valorMetaTcv),
+        quantidade: Number(linha.qtd_tcv),
       },
       mrr: {
-        metaId: (linha.meta_id_mrr as string | null) ?? null,
+        metaId: linha.meta_id_mrr,
         valorMeta: valorMetaMrr,
         realizado: realizadoMrr,
         percentual: percentualMeta(realizadoMrr, valorMetaMrr),
+        quantidade: Number(linha.qtd_mrr),
       },
     }
 
-    if ((linha.usuario_id as string | null) === null) {
+    if (linha.usuario_id === null) {
       empresa = base
     } else {
-      pessoas.push({ ...base, usuarioId: linha.usuario_id, nome: linha.nome, role: linha.role, ativo: linha.ativo })
+      pessoas.push({ ...base, usuarioId: linha.usuario_id, nome: linha.nome ?? '', role: linha.role!, ativo: linha.ativo! })
     }
   }
 
   pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   return { empresa, pessoas }
+}
+
+export type ProgressoFunilMeta = {
+  funilId: string
+  funilNome: string
+  tcv: Omit<ProgressoMetaTipo, 'quantidade'>
+  mrr: Omit<ProgressoMetaTipo, 'quantidade'>
+}
+
+/**
+ * `meta_id_tcv`/`meta_id_mrr`/`valor_meta_tcv`/`valor_meta_mrr` vêm de um
+ * `left join` que pode não casar (funil sem meta definida naquele mês) —
+ * mesma imprecisão do gerador de `LinhaMetasProgressoRpc`, relaxada aqui.
+ */
+type LinhaMetasFunisProgressoRpc = Omit<
+  Database['public']['Functions']['metas_funis_progresso']['Returns'][number],
+  'meta_id_tcv' | 'meta_id_mrr' | 'valor_meta_tcv' | 'valor_meta_mrr'
+> & {
+  meta_id_tcv: string | null
+  valor_meta_tcv: number | string | null
+  meta_id_mrr: string | null
+  valor_meta_mrr: number | string | null
+}
+
+/**
+ * Meta × realizado mensal (TCV/MRR) de cada funil ATIVO — uma linha por
+ * funil, nunca hardcoded (`metas_funis_progresso` já devolve um funil novo
+ * automaticamente). Sem distinção por papel: a RPC não expõe nenhum dado
+ * individual (é um agregado por funil, "visão de equipe" como a meta da
+ * empresa), então GERENTE/SDR/CLOSER recebem exatamente as mesmas linhas.
+ * Segue o MÊS da Meta Mensal (`mes`), nunca o período operacional do funil
+ * visual/resultados.
+ */
+export async function obterProgressoMetasFunis(mes: string): Promise<ProgressoFunilMeta[]> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('metas_funis_progresso', { p_mes: primeiroDiaDoMes(mes) })
+  if (error) throw new Error('Não foi possível carregar as metas por funil.', { cause: error })
+
+  const linhas = data as unknown as LinhaMetasFunisProgressoRpc[]
+  return linhas.map((linha) => {
+    const valorMetaTcv = linha.valor_meta_tcv === null ? null : Number(linha.valor_meta_tcv)
+    const valorMetaMrr = linha.valor_meta_mrr === null ? null : Number(linha.valor_meta_mrr)
+    const realizadoTcv = Number(linha.realizado_tcv)
+    const realizadoMrr = Number(linha.realizado_mrr)
+    return {
+      funilId: linha.funil_id,
+      funilNome: linha.funil_nome,
+      tcv: {
+        metaId: linha.meta_id_tcv,
+        valorMeta: valorMetaTcv,
+        realizado: realizadoTcv,
+        percentual: percentualMeta(realizadoTcv, valorMetaTcv),
+      },
+      mrr: {
+        metaId: linha.meta_id_mrr,
+        valorMeta: valorMetaMrr,
+        realizado: realizadoMrr,
+        percentual: percentualMeta(realizadoMrr, valorMetaMrr),
+      },
+    }
+  })
 }
 
 /**
@@ -285,6 +372,42 @@ export async function removerMeta(id: string): Promise<ResultadoMeta> {
   const { data, error } = await supabase.from('metas').delete().eq('id', id).select('id')
   if (error) return traduzirErro(error)
   return data.length === 0 ? { ok: false, mensagem: 'Meta não encontrada.' } : { ok: true }
+}
+
+export type ItemMetaFunil = { funilId: string; tipoMeta: TipoMeta; valorMeta: number }
+
+/**
+ * Salva (upsert) a meta mensal (TCV/MRR) de um ou mais funis numa ÚNICA
+ * operação ATÔMICA — tudo-ou-nada. Nunca faz upsert item a item em
+ * chamadas `.rpc()`/`.upsert()` separadas: isso permitiria salvamento
+ * PARCIAL se um item no meio da lista falhasse (ex.: terceiro campo
+ * inválido depois dos dois primeiros já gravados). A RPC
+ * `salvar_metas_funis` (migration 20261019180000) valida TODOS os itens
+ * antes de escrever qualquer linha, dentro da MESMA transação desta
+ * chamada — qualquer erro aborta a função inteira no banco, nenhum efeito
+ * parcial é possível.
+ *
+ * `itens`: só os campos PREENCHIDOS no formulário (decidido pela action
+ * antes de chamar esta função) — nunca um array vazio faz sentido aqui (a
+ * action nem chama se não houver nenhum item válido). `usuario_id` nunca é
+ * parâmetro: a RPC sempre grava `usuario_id = null` (meta por funil é
+ * sempre da empresa).
+ */
+export async function salvarMetasFunis(mes: string, itens: ItemMetaFunil[]): Promise<ResultadoMeta> {
+  await exigirGerente()
+  const supabase = await createClient()
+
+  const payload = itens.map((item) => ({
+    funil_id: item.funilId,
+    tipo_meta: item.tipoMeta,
+    valor_meta: item.valorMeta,
+  }))
+
+  const { error } = await supabase.rpc('salvar_metas_funis', {
+    p_mes: primeiroDiaDoMes(mes),
+    p_itens: payload,
+  })
+  return error ? traduzirErro(error) : { ok: true }
 }
 
 function traduzirErro(error: PostgrestError): Extract<ResultadoMeta, { ok: false }> {

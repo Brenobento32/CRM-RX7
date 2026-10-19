@@ -30,3 +30,15 @@ export const editarMetaSchema = z.object({ valor_meta: valorMeta })
 export type CriarMetaInput = z.output<typeof criarMetaSchema>
 export type EditarMetaInput = z.output<typeof editarMetaSchema>
 export type CampoMeta = keyof z.input<typeof criarMetaSchema>
+
+/**
+ * Campo de meta por funil — igual a `valorMeta`, mas aceitando vazio (campo
+ * em branco no formulário único "Salvar metas dos funis" = não tocar
+ * naquela meta, nunca "zerar"/remover). `null` nunca entra no payload da
+ * RPC `salvar_metas_funis` (filtrado em `salvarMetasFunisAction`); um valor
+ * preenchido continua exigindo > 0, mesma regra de qualquer meta.
+ */
+export const valorMetaFunil = valorEmReais.refine(
+  (v) => v === null || Number(v) > 0,
+  'A meta deve ser maior que zero.',
+)
