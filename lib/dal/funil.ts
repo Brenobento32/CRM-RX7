@@ -610,7 +610,11 @@ function traduzirErro(error: PostgrestError): ResultadoFunil {
         : { ok: false, mensagem: 'Você não tem permissão para mover esta negociação.' }
     case '23514':
       // Constraints e triggers de regra de negócio (fechamento, motivo, datas).
-      return { ok: false, mensagem: 'Os dados não atendem às regras da negociação.' }
+      // `fechar_negociacao`/`atualizar_fechamento` (20261019160000) dão uma
+      // mensagem específica pra fechamento anulado — nunca a genérica.
+      return error.message.includes('anulado')
+        ? { ok: false, mensagem: error.message }
+        : { ok: false, mensagem: 'Os dados não atendem às regras da negociação.' }
   }
 
   console.error('Erro no funil', error)

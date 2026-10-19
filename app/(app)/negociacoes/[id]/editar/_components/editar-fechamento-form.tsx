@@ -46,6 +46,24 @@ export function EditarFechamentoForm({
   const marcados = new Set(valores?.servico_ids ?? servicoIdsAtuais)
   const hoje = hojeSaoPaulo()
 
+  if (fechamento.anuladoEm) {
+    return (
+      <div
+        role="alert"
+        className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+      >
+        <p className="font-medium">Este fechamento foi anulado — não conta mais em TCV/MRR/metas/realizado.</p>
+        {fechamento.motivoAnulacao && <p>Motivo: {fechamento.motivoAnulacao}</p>}
+        <p className="text-amber-800 dark:text-amber-300">
+          Não é possível editá-lo por aqui. Reativação ainda não é um fluxo disponível.
+        </p>
+        <Link href={cancelarHref} className="inline-block font-medium underline">
+          Voltar
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <form action={formAction} noValidate className="space-y-6">
       {estado?.erro && (

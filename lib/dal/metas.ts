@@ -132,17 +132,22 @@ export async function obterMetaPeriodo(
 export type RealizadoGeral = { tcv: number; mrr: number }
 
 /**
- * Args de `realizado_periodo` (migration 20261016190000) — fora do gerador
- * de tipos porque a migration ainda não foi aplicada no banco real.
- * Remover o cast `as never` quando for aplicada e os tipos regerados.
+ * `realizado_periodo` já está nos tipos gerados, mas o gerador não consegue
+ * expressar que a linha da EMPRESA (a primeira do `union all`, no corpo da
+ * função) devolve `usuario_id`/`nome`/`role`/`ativo` como `null` — ele
+ * marca as 4 colunas como não nulas (olhando só a segunda metade do
+ * `union all`, a de cada pessoa). Por isso este tipo local, baseado no
+ * tipo oficial (`Database['public']['Functions']`), só relaxando essas 4
+ * colunas pra refletir o `null::uuid`/`null::text`/... reais do SQL.
  */
-type LinhaRealizadoPeriodo = {
+type LinhaRealizadoPeriodo = Omit<
+  Database['public']['Functions']['realizado_periodo']['Returns'][number],
+  'usuario_id' | 'nome' | 'role' | 'ativo'
+> & {
   usuario_id: string | null
   nome: string | null
   role: UserRole | null
   ativo: boolean | null
-  realizado_tcv: number | string
-  realizado_mrr: number | string
 }
 
 /**
@@ -164,10 +169,10 @@ export async function obterRealizadoGeral(
   await getUsuarioAtual()
   const supabase = await createClient()
 
-  const { data, error } = await supabase.rpc('realizado_periodo' as never, {
+  const { data, error } = await supabase.rpc('realizado_periodo', {
     p_inicio: periodo.inicio,
     p_fim: periodo.fim,
-  } as never)
+  })
   if (error) throw new Error('Não foi possível carregar o realizado do período.', { cause: error })
 
   const linhas = data as unknown as LinhaRealizadoPeriodo[]

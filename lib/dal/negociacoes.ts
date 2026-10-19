@@ -29,6 +29,14 @@ export type FechamentoEdicao = {
   observacoes: string | null
   /** `null` só em fechamentos anteriores à classificação TCV/MRR — "não classificado". */
   tipoVenda: Enums['tipo_venda'] | null
+  /**
+   * `null` = ativo (conta em TCV/MRR/metas/realizado). Preenchido = anulado
+   * (20261019160000_fechamentos_anulacao.sql) — `atualizar_fechamento`
+   * recusa editar; a UI deve mostrar isto claramente, nunca deixar editar
+   * como se fosse um fechamento comum.
+   */
+  anuladoEm: string | null
+  motivoAnulacao: string | null
 }
 
 export type NegociacaoEdicao = {
@@ -67,7 +75,8 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
        cliente:clientes!negociacoes_cliente_id_fkey(nome, deleted_at),
        vinculos:negociacao_servicos(servico:servicos(id, nome, categoria, ativo)),
        fechamento:fechamentos(valor_vendido, data_fechamento, contrato_enviado, contrato_assinado,
-         link_contrato, status_pagamento, status_onboarding, observacoes, tipo_venda)`,
+         link_contrato, status_pagamento, status_onboarding, observacoes, tipo_venda,
+         anulado_em, motivo_anulacao)`,
     )
     .eq('id', id)
     .maybeSingle()
@@ -99,6 +108,8 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
           statusOnboarding: data.fechamento.status_onboarding,
           observacoes: data.fechamento.observacoes,
           tipoVenda: data.fechamento.tipo_venda,
+          anuladoEm: data.fechamento.anulado_em,
+          motivoAnulacao: data.fechamento.motivo_anulacao,
         }
       : null,
   }

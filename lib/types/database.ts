@@ -612,6 +612,8 @@ export type Database = {
       }
       fechamentos: {
         Row: {
+          anulado_em: string | null
+          anulado_por: string | null
           contrato_assinado: boolean
           contrato_assinado_em: string | null
           contrato_enviado: boolean
@@ -621,6 +623,7 @@ export type Database = {
           fechado_em: string
           fechado_por: string
           link_contrato: string | null
+          motivo_anulacao: string | null
           negociacao_id: string
           observacoes: string | null
           responsavel_id: string
@@ -631,6 +634,8 @@ export type Database = {
           valor_vendido: number
         }
         Insert: {
+          anulado_em?: string | null
+          anulado_por?: string | null
           contrato_assinado: boolean
           contrato_assinado_em?: string | null
           contrato_enviado: boolean
@@ -640,6 +645,7 @@ export type Database = {
           fechado_em?: string
           fechado_por?: string
           link_contrato?: string | null
+          motivo_anulacao?: string | null
           negociacao_id: string
           observacoes?: string | null
           responsavel_id: string
@@ -650,6 +656,8 @@ export type Database = {
           valor_vendido: number
         }
         Update: {
+          anulado_em?: string | null
+          anulado_por?: string | null
           contrato_assinado?: boolean
           contrato_assinado_em?: string | null
           contrato_enviado?: boolean
@@ -659,6 +667,7 @@ export type Database = {
           fechado_em?: string
           fechado_por?: string
           link_contrato?: string | null
+          motivo_anulacao?: string | null
           negociacao_id?: string
           observacoes?: string | null
           responsavel_id?: string
@@ -669,6 +678,13 @@ export type Database = {
           valor_vendido?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "fechamentos_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fechamentos_fechado_por_fkey"
             columns: ["fechado_por"]
@@ -1980,6 +1996,10 @@ export type Database = {
           p_evento_id: string
           p_status: Database["public"]["Enums"]["status_evento"]
         }
+        Returns: undefined
+      }
+      anular_fechamento: {
+        Args: { p_motivo: string; p_negociacao_id: string }
         Returns: undefined
       }
       atualizar_cliente_do_card: {

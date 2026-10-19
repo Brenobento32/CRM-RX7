@@ -100,6 +100,9 @@ export async function listarPropostasFechadas(periodo: Periodo): Promise<Propost
     )
     .eq('negociacao.etapa.tipo', 'ganha')
     .is('negociacao.cliente.deleted_at', null)
+    // Um fechamento anulado (20261019160000_fechamentos_anulacao.sql) nunca
+    // é uma venda válida, nunca aparece como "fechado" neste relatório.
+    .is('anulado_em', null)
     .gte('data_fechamento', periodo.inicio)
     .lte('data_fechamento', periodo.fim)
     .order('data_fechamento', { ascending: false })

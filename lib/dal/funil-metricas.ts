@@ -78,6 +78,8 @@ export async function obterRealizadoFunil(
     .eq('negociacao.funil_id', funilId)
     .gte('data_fechamento', periodo.inicio)
     .lte('data_fechamento', periodo.fim)
+    // Um fechamento anulado (20261019160000_fechamentos_anulacao.sql) nunca é uma venda válida.
+    .is('anulado_em', null)
 
   if (error) throw new Error('Não foi possível carregar o realizado do período.', { cause: error })
 
