@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 
-import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarEtapas } from '@/lib/dal/etapas'
 import { DIAS_VISIVEIS_ENCERRADOS, listarCardsFunil } from '@/lib/dal/funil'
@@ -28,9 +28,9 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
 
   if (!funilSelecionado) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Funil</h1>
-        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+      <div className="@container w-full space-y-6">
+        <PageHeaderPremium titulo="Funil" usuario={usuario} />
+        <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
           Você ainda não tem acesso a nenhum funil. Peça ao gerente para configurar suas permissões.
         </p>
       </div>
@@ -65,21 +65,22 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
   const etapasExibidas = etapas.filter((e) => etapasVisiveis.has(e.id))
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">{funilSelecionado.nome}</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {usuario.role === 'gerente'
-              ? 'Negociações de toda a equipe.'
-              : 'Negociações das etapas liberadas pelo gerente.'}{' '}
-            Fechadas e perdidas aparecem por {DIAS_VISIVEIS_ENCERRADOS} dias.
-          </p>
-        </div>
-        <Link href={`/funil/metricas?funil=${funilSelecionado.id}`} className={botaoSecundarioClass}>
-          Ver métricas
-        </Link>
-      </div>
+    <div className="@container w-full space-y-5 text-premium-texto">
+      <PageHeaderPremium
+        titulo={funilSelecionado.nome}
+        subtitulo={`${
+          usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Negociações das etapas liberadas pelo gerente.'
+        } Fechadas e perdidas aparecem por ${DIAS_VISIVEIS_ENCERRADOS} dias.`}
+        acoes={
+          <Link
+            href={`/funil/metricas?funil=${funilSelecionado.id}`}
+            className="rounded-lg border border-premium-borda px-3 py-2 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto"
+          >
+            Ver métricas
+          </Link>
+        }
+        usuario={usuario}
+      />
 
       <BarraFunil
         funis={funis}

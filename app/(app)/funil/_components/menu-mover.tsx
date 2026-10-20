@@ -98,7 +98,7 @@ export function MenuMoverPara({
         aria-label={`Mover ${nomeCliente} para outra etapa`}
         title="Mover"
         onClick={(e) => e.stopPropagation()}
-        className="-mt-0.5 -mr-1 shrink-0 cursor-pointer rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        className="-mt-0.5 -mr-1 shrink-0 cursor-pointer rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-borda hover:text-premium-texto"
         {...pararArraste}
       >
         {/* Ícone de "mover" (setas nas 4 direções) — item 5: nunca o "..." de menu genérico. */}
@@ -126,10 +126,10 @@ export function MenuMoverPara({
         onKeyDown={navegarComSetas}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-1 text-sm text-zinc-900 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-lg shadow-black/40"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
-        <p className="px-2 pt-1 pb-1.5 text-xs font-medium text-zinc-500">Mover para</p>
+        <p className="px-2 pt-1 pb-1.5 text-xs font-medium text-premium-mudo">Mover para</p>
         {etapas.filter((etapa) => etapa.id !== etapaAtual).map((etapa) => (
           <button
             key={etapa.id}
@@ -139,11 +139,11 @@ export function MenuMoverPara({
               menuRef.current?.hidePopover()
               onEscolher(etapa.id)
             }}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-100 focus:bg-zinc-100 focus:outline-none dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-premium-borda focus:bg-premium-borda focus:outline-none"
           >
             <PontoEtapa cor={etapa.cor} />
             <span className="truncate">{etapa.nome}</span>
-            {tipoExigeModal(etapa.tipo) && <span className="ml-auto text-xs text-zinc-400">…</span>}
+            {tipoExigeModal(etapa.tipo) && <span className="ml-auto text-xs text-premium-mudo">…</span>}
           </button>
         ))}
       </div>

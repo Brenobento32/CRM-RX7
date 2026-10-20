@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useId, useRef, useState } from 'react'
 
-import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
 import { janelaDaVisao, navegar, tituloPeriodo } from '@/lib/utils/calendario'
 import { formatarData } from '@/lib/utils/formatacao'
 import { PERIODOS_FUNIL_DIAS, ROTULO_PERIODO_FUNIL, type PeriodoFunil } from '@/lib/utils/periodo'
@@ -13,11 +12,11 @@ import { DIAS_SEMANA, somarMeses } from '@/lib/utils/recorrencia'
 const LARGURA_CALENDARIO = 320
 const LARGURA_MENU_DIAS = 160
 
-/** Classes do botão de atalho de período — ativo (preenchido) ou não (texto neutro). */
+/** Classes do botão de atalho de período — ativo (preenchido, cor de destaque) ou não (texto neutro). */
 function classeAtalho(ativo: boolean): string {
   return ativo
-    ? 'rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
-    : 'rounded-md px-3 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+    ? 'rounded-md bg-premium-acento px-3 py-1.5 text-sm font-medium text-zinc-950'
+    : 'rounded-md px-3 py-1.5 text-sm text-premium-secundario transition hover:bg-premium-borda hover:text-premium-texto'
 }
 
 /**
@@ -184,7 +183,7 @@ export function SeletorPeriodoFunil({
     <div className="flex flex-wrap items-start gap-2">
       <nav
         aria-label="Período"
-        className="inline-flex flex-wrap rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-950"
+        className="inline-flex flex-wrap rounded-lg border border-premium-borda bg-premium-card p-0.5"
       >
         <Link
           href={`${caminho}?funil=${funilId}&periodo=hoje`}
@@ -230,7 +229,7 @@ export function SeletorPeriodoFunil({
         popover="auto"
         role="menu"
         aria-label="Escolher quantidade de dias"
-        className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-1 text-sm text-zinc-900 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-lg shadow-black/40"
         style={{ width: LARGURA_MENU_DIAS, inset: 'auto' }}
       >
         {PERIODOS_FUNIL_DIAS.map((p) => (
@@ -241,7 +240,7 @@ export function SeletorPeriodoFunil({
             aria-current={p === atual.chave ? 'page' : undefined}
             onClick={() => menuDiasRef.current?.hidePopover()}
             className={`block rounded-md px-2 py-1.5 transition ${
-              p === atual.chave ? 'bg-zinc-100 font-medium dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              p === atual.chave ? 'bg-premium-borda font-medium' : 'hover:bg-premium-borda'
             }`}
           >
             {ROTULO_PERIODO_FUNIL[p]}
@@ -254,7 +253,7 @@ export function SeletorPeriodoFunil({
         id={`${id}-calendario`}
         popover="auto"
         aria-label="Selecionar período personalizado"
-        className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-3 text-zinc-900 shadow-lg dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-3 text-premium-texto shadow-lg shadow-black/40"
         style={{ width: LARGURA_CALENDARIO, inset: 'auto' }}
       >
         <div className="mb-2 flex items-center justify-between gap-1">
@@ -264,7 +263,7 @@ export function SeletorPeriodoFunil({
               onClick={() => setMesVisivel(somarMeses(mesVisivel, -12))}
               aria-label="Ano anterior"
               title="Ano anterior"
-              className="rounded p-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="rounded p-1 text-sm text-premium-mudo hover:bg-premium-borda"
             >
               «
             </button>
@@ -273,12 +272,12 @@ export function SeletorPeriodoFunil({
               onClick={() => setMesVisivel(navegar('mes', mesVisivel, -1))}
               aria-label="Mês anterior"
               title="Mês anterior"
-              className="rounded p-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="rounded p-1 text-sm text-premium-mudo hover:bg-premium-borda"
             >
               ‹
             </button>
           </div>
-          <p className="text-center text-sm font-medium text-zinc-900 first-letter:uppercase dark:text-zinc-100">
+          <p className="text-center text-sm font-medium text-premium-texto first-letter:uppercase">
             {tituloPeriodo('mes', mesVisivel, janela)}
           </p>
           <div className="flex items-center">
@@ -287,7 +286,7 @@ export function SeletorPeriodoFunil({
               onClick={() => setMesVisivel(navegar('mes', mesVisivel, 1))}
               aria-label="Próximo mês"
               title="Próximo mês"
-              className="rounded p-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="rounded p-1 text-sm text-premium-mudo hover:bg-premium-borda"
             >
               ›
             </button>
@@ -296,7 +295,7 @@ export function SeletorPeriodoFunil({
               onClick={() => setMesVisivel(somarMeses(mesVisivel, 12))}
               aria-label="Próximo ano"
               title="Próximo ano"
-              className="rounded p-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="rounded p-1 text-sm text-premium-mudo hover:bg-premium-borda"
             >
               »
             </button>
@@ -306,7 +305,7 @@ export function SeletorPeriodoFunil({
             onClick={fecharCancelando}
             aria-label="Fechar"
             title="Fechar"
-            className="ml-1 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="ml-1 rounded p-1 text-premium-mudo hover:bg-premium-borda hover:text-premium-texto"
           >
             <svg viewBox="0 0 24 24" className="size-3.5" fill="currentColor" aria-hidden>
               <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
@@ -316,7 +315,7 @@ export function SeletorPeriodoFunil({
 
         <div className="grid grid-cols-7 gap-y-1 text-center text-xs">
           {DIAS_SEMANA.map((d) => (
-            <span key={d.valor} aria-hidden className="text-zinc-500 dark:text-zinc-400">
+            <span key={d.valor} aria-hidden className="text-premium-mudo">
               {d.curto}
             </span>
           ))}
@@ -337,13 +336,13 @@ export function SeletorPeriodoFunil({
                 aria-label={formatarData(dia)}
                 className={`relative mx-auto flex size-8 items-center justify-center text-xs ${
                   eInicio || eFim
-                    ? 'rounded-full bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
+                    ? 'rounded-full bg-premium-acento font-medium text-zinc-950'
                     : noIntervalo
-                      ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                      ? 'bg-premium-borda text-premium-texto'
                       : futuro
-                        ? 'cursor-not-allowed text-zinc-300 dark:text-zinc-600'
-                        : 'rounded-full text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800'
-                } ${foraDoMes && !eInicio && !eFim && !noIntervalo && !futuro ? 'text-zinc-400 dark:text-zinc-600' : ''}`}
+                        ? 'cursor-not-allowed text-premium-mudo/60'
+                        : 'rounded-full text-premium-texto hover:bg-premium-borda'
+                } ${foraDoMes && !eInicio && !eFim && !noIntervalo && !futuro ? 'text-premium-mudo/60' : ''}`}
               >
                 {Number(dia.slice(8, 10))}
               </button>
@@ -351,15 +350,12 @@ export function SeletorPeriodoFunil({
           })}
         </div>
 
-        <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+        <p className="mt-2 text-xs text-premium-secundario">
           {inicioSel ? (
             <>
-              Início: <span className="font-medium text-zinc-900 dark:text-zinc-100">{formatarData(inicioSel)}</span>
+              Início: <span className="font-medium text-premium-texto">{formatarData(inicioSel)}</span>
               {' · '}
-              Fim:{' '}
-              <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                {fimSel ? formatarData(fimSel) : '—'}
-              </span>
+              Fim: <span className="font-medium text-premium-texto">{fimSel ? formatarData(fimSel) : '—'}</span>
             </>
           ) : (
             'Selecione a data inicial'
@@ -367,10 +363,19 @@ export function SeletorPeriodoFunil({
         </p>
 
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={fecharCancelando} className={botaoSecundarioClass}>
+          <button
+            type="button"
+            onClick={fecharCancelando}
+            className="rounded-md border border-premium-borda px-3 py-1.5 text-sm text-premium-secundario transition hover:bg-premium-borda"
+          >
             Cancelar
           </button>
-          <button type="button" onClick={aplicar} disabled={!inicioSel} className={botaoPrimarioClass}>
+          <button
+            type="button"
+            onClick={aplicar}
+            disabled={!inicioSel}
+            className="rounded-md bg-premium-acento px-3 py-1.5 text-sm font-medium text-zinc-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          >
             Aplicar
           </button>
         </div>

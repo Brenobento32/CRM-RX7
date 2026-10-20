@@ -3,14 +3,15 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { botaoSecundarioClass } from '@/components/ui/estilos'
 import type { Funil } from '@/lib/dal/funis'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
 import { SeletorFunil } from './seletor-funil'
 
 const selectClass =
-  'rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
+  'rounded-lg border border-premium-borda bg-premium-card px-2.5 py-2 text-sm text-premium-texto outline-none transition focus:border-premium-acento focus:ring-2 focus:ring-premium-acento/20'
+const botaoClass =
+  'rounded-lg border border-premium-borda px-3 py-2 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto'
 
 /**
  * Toolbar do Kanban: funil selecionado, filtros de Responsável e
@@ -43,51 +44,58 @@ export function BarraFunil({
   const temperaturaAtual = searchParams.get('temperatura') ?? ''
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SeletorFunil funis={funis} funilId={funilId} />
+    <div className="flex flex-wrap items-end gap-2">
+      <SeletorFunil funis={funis} funilId={funilId} variant="premium" />
 
-      <label className="sr-only" htmlFor="filtro-responsavel">
-        Responsável
-      </label>
-      <select
-        id="filtro-responsavel"
-        value={responsavelAtual}
-        onChange={(e) => atualizarParam('responsavel', e.target.value)}
-        className={selectClass}
-      >
-        <option value="">Todos os responsáveis</option>
-        {responsaveis.map((nome) => (
-          <option key={nome} value={nome}>
-            {nome}
-          </option>
-        ))}
-      </select>
+      <div>
+        <label className="mb-1 block text-xs text-premium-mudo" htmlFor="filtro-responsavel">
+          Responsável
+        </label>
+        <select
+          id="filtro-responsavel"
+          value={responsavelAtual}
+          onChange={(e) => atualizarParam('responsavel', e.target.value)}
+          className={selectClass}
+        >
+          <option value="">Todos os responsáveis</option>
+          {responsaveis.map((nome) => (
+            <option key={nome} value={nome}>
+              {nome}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      <label className="sr-only" htmlFor="filtro-temperatura">
-        Temperatura
-      </label>
-      <select
-        id="filtro-temperatura"
-        value={temperaturaAtual}
-        onChange={(e) => atualizarParam('temperatura', e.target.value)}
-        className={selectClass}
-      >
-        <option value="">Todas as temperaturas</option>
-        {TEMPERATURAS.map((t) => (
-          <option key={t} value={t}>
-            {ROTULO_TEMPERATURA[t]}
-          </option>
-        ))}
-      </select>
+      <div>
+        <label className="mb-1 block text-xs text-premium-mudo" htmlFor="filtro-temperatura">
+          Temperatura
+        </label>
+        <select
+          id="filtro-temperatura"
+          value={temperaturaAtual}
+          onChange={(e) => atualizarParam('temperatura', e.target.value)}
+          className={selectClass}
+        >
+          <option value="">Todas as temperaturas</option>
+          {TEMPERATURAS.map((t) => (
+            <option key={t} value={t}>
+              {ROTULO_TEMPERATURA[t]}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <span className="flex-1" />
 
       {podeConfigurar && (
-        <Link href={`/configuracoes/funis/${funilId}`} className={botaoSecundarioClass}>
+        <Link href={`/configuracoes/funis/${funilId}`} className={botaoClass}>
           Configurar funil
         </Link>
       )}
-      <Link href={`/funil/nova?funil=${funilId}`} className={botaoSecundarioClass}>
+      <Link
+        href={`/funil/nova?funil=${funilId}`}
+        className="rounded-lg bg-premium-acento px-3 py-2 text-sm font-medium text-zinc-950 transition hover:brightness-110"
+      >
         + Nova entrada
       </Link>
     </div>

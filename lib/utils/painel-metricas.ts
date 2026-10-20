@@ -1,25 +1,31 @@
 /**
- * Matemática pura e pequena do NOVO dashboard de métricas (funil visual em
- * degraus, donut da meta mensal, barras de "Resultados do período") —
- * nenhuma delas recalcula nada que já vem pronto do banco (`alcancaram`,
- * `conversaoAcumulada`, `totalEntraram`, `ganhos`, `percentual` de meta);
- * só decidem LARGURA/ALTURA/FRAÇÃO visual a partir desses números. Extraídas
- * para serem testáveis sem montar nenhum componente.
+ * Matemática pura e pequena do dashboard de métricas (funil visual em
+ * degraus, donut da meta mensal) — nenhuma delas recalcula nada que já vem
+ * pronto do banco (`alcancaram`, `conversaoAcumulada`, `totalEntraram`,
+ * `percentual` de meta); só decidem LARGURA/FRAÇÃO visual a partir desses
+ * números. Extraídas para serem testáveis sem montar nenhum componente.
  */
 
-/** Largura mínima (%) de um degrau do funil — sempre legível, mesmo pra uma fração minúscula. */
-export const LARGURA_MINIMA_FUNIL = 6
+/** Extremos (%) da largura de um degrau do funil visual — o primeiro (a entrada) e o último, sempre os mesmos, pra qualquer funil. */
+export const LARGURA_MAX_FUNIL = 100
+export const LARGURA_MIN_FUNIL = 40
 
 /**
- * Largura (%) de um degrau do funil visual, a partir de `conversaoAcumulada`
- * (já calculada por `processarMetricasFunil`, nunca recalculada aqui):
- * proporcional, nunca abaixo de {@link LARGURA_MINIMA_FUNIL} (uma fração de
- * 0,1% ainda precisa ser um bloco visível) nem acima de 100%. `null` (sem
- * nenhuma negociação na coorte) usa a largura mínima — nunca 0, nunca NaN.
+ * Largura (%) de um degrau do funil visual, só pela POSIÇÃO — nunca pelo
+ * valor da conversão. O funil é um template visual fixo (mesma forma pra
+ * qualquer funil ou período; só nome/quantidade/cor internos mudam): o
+ * primeiro degrau (`indice` 0, a própria entrada) sempre começa em
+ * {@link LARGURA_MAX_FUNIL}, o último (`indice === totalDegraus - 1`)
+ * sempre termina em {@link LARGURA_MIN_FUNIL}, com os do meio interpolados
+ * linearmente pela posição entre os dois. `totalDegraus` inclui a
+ * linha-base ("Leads entram"), que é sempre o índice 0 — ver `FunilVisual`.
+ * `totalDegraus <= 1` (funil sem nenhuma etapa configurada além da entrada)
+ * devolve a largura máxima, sem dividir por zero.
  */
-export function larguraDegrauFunil(conversaoAcumulada: number | null): number {
-  if (conversaoAcumulada === null) return LARGURA_MINIMA_FUNIL
-  return Math.round(Math.max(Math.min(conversaoAcumulada * 100, 100), LARGURA_MINIMA_FUNIL))
+export function larguraDegrauPorIndice(indice: number, totalDegraus: number): number {
+  if (totalDegraus <= 1) return LARGURA_MAX_FUNIL
+  const passo = (LARGURA_MAX_FUNIL - LARGURA_MIN_FUNIL) / (totalDegraus - 1)
+  return Math.round(LARGURA_MAX_FUNIL - indice * passo)
 }
 
 /**
@@ -30,17 +36,6 @@ export function larguraDegrauFunil(conversaoAcumulada: number | null): number {
  */
 export function temEntradaDireta(conversaoAcumulada: number | null, percentualAnterior: number | null): boolean {
   return percentualAnterior !== null && conversaoAcumulada !== null && conversaoAcumulada > percentualAnterior
-}
-
-/**
- * Altura (px) de uma barra do gráfico "Novos vs. Ganhos", proporcional ao
- * maior valor do conjunto — nunca abaixo de `alturaMinima` (uma barra de
- * valor 0 ainda precisa aparecer, legível, no eixo). `maior <= 0` (os dois
- * valores são zero) devolve `alturaMinima` para todas, sem divisão por zero.
- */
-export function alturaBarraResultado(valor: number, maior: number, alturaMaxima: number, alturaMinima = 8): number {
-  if (maior <= 0) return alturaMinima
-  return Math.max(alturaMinima, Math.round((valor / maior) * alturaMaxima))
 }
 
 /**

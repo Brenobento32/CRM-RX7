@@ -1,33 +1,36 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  alturaBarraResultado,
   fracaoDonut,
-  larguraDegrauFunil,
-  LARGURA_MINIMA_FUNIL,
+  larguraDegrauPorIndice,
+  LARGURA_MAX_FUNIL,
+  LARGURA_MIN_FUNIL,
   temEntradaDireta,
 } from './painel-metricas'
 
-describe('larguraDegrauFunil', () => {
-  it('é proporcional a conversaoAcumulada', () => {
-    expect(larguraDegrauFunil(0.5)).toBe(50)
-    expect(larguraDegrauFunil(1)).toBe(100)
+describe('larguraDegrauPorIndice', () => {
+  it('primeiro degrau (índice 0) sempre na largura máxima, não importa o funil', () => {
+    expect(larguraDegrauPorIndice(0, 5)).toBe(LARGURA_MAX_FUNIL)
+    expect(larguraDegrauPorIndice(0, 2)).toBe(LARGURA_MAX_FUNIL)
   })
 
-  it('nunca passa de 100%', () => {
-    expect(larguraDegrauFunil(1.5)).toBe(100)
+  it('último degrau sempre na largura mínima', () => {
+    expect(larguraDegrauPorIndice(4, 5)).toBe(LARGURA_MIN_FUNIL)
+    expect(larguraDegrauPorIndice(1, 2)).toBe(LARGURA_MIN_FUNIL)
   })
 
-  it('usa a largura mínima para fração minúscula', () => {
-    expect(larguraDegrauFunil(0.001)).toBe(LARGURA_MINIMA_FUNIL)
+  it('degraus do meio interpolados linearmente só pela posição', () => {
+    expect(larguraDegrauPorIndice(2, 5)).toBe(70)
   })
 
-  it('usa a largura mínima quando null (sem coorte)', () => {
-    expect(larguraDegrauFunil(null)).toBe(LARGURA_MINIMA_FUNIL)
+  it('nunca depende do valor de conversão — a mesma posição relativa muda com o total de degraus, nunca com dado algum', () => {
+    expect(larguraDegrauPorIndice(1, 3)).toBe(70)
+    expect(larguraDegrauPorIndice(1, 5)).toBe(85)
   })
 
-  it('usa a largura mínima para 0', () => {
-    expect(larguraDegrauFunil(0)).toBe(LARGURA_MINIMA_FUNIL)
+  it('um único degrau (funil sem etapas) fica na largura máxima, sem dividir por zero', () => {
+    expect(larguraDegrauPorIndice(0, 1)).toBe(LARGURA_MAX_FUNIL)
+    expect(larguraDegrauPorIndice(0, 0)).toBe(LARGURA_MAX_FUNIL)
   })
 })
 
@@ -45,23 +48,6 @@ describe('temEntradaDireta', () => {
     expect(temEntradaDireta(0.5, null)).toBe(false)
     expect(temEntradaDireta(null, 0.5)).toBe(false)
     expect(temEntradaDireta(null, null)).toBe(false)
-  })
-})
-
-describe('alturaBarraResultado', () => {
-  it('proporcional ao maior valor do conjunto', () => {
-    expect(alturaBarraResultado(10, 10, 120)).toBe(120)
-    expect(alturaBarraResultado(5, 10, 120)).toBe(60)
-  })
-
-  it('nunca abaixo da altura mínima, mesmo para 0', () => {
-    expect(alturaBarraResultado(0, 10, 120)).toBe(8)
-    expect(alturaBarraResultado(0, 10, 120, 12)).toBe(12)
-  })
-
-  it('maior <= 0 (os dois valores são zero) devolve a altura mínima, sem dividir por zero', () => {
-    expect(alturaBarraResultado(0, 0, 120)).toBe(8)
-    expect(Number.isFinite(alturaBarraResultado(0, 0, 120))).toBe(true)
   })
 })
 

@@ -6,6 +6,7 @@ import type { ProgressoEmpresa } from '@/lib/dal/metas'
 import { ticketMedio } from '@/lib/utils/financeiro-periodo'
 import { formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '@/lib/utils/formatacao'
 import { fracaoDonut } from '@/lib/utils/painel-metricas'
+import { rotuloMes } from '@/lib/utils/periodo'
 
 import { IconeAlvo } from './icones-metricas'
 
@@ -14,30 +15,34 @@ const ESPESSURA = 18
 const CIRCUNFERENCIA = 2 * Math.PI * RAIO
 
 const CORES: Record<'tcv' | 'mrr', { trilho: string; preenchimento: string; texto: string }> = {
-  tcv: { trilho: 'stroke-zinc-100 dark:stroke-zinc-800', preenchimento: 'stroke-emerald-500 dark:stroke-emerald-400', texto: 'text-emerald-700 dark:text-emerald-400' },
-  mrr: { trilho: 'stroke-zinc-100 dark:stroke-zinc-800', preenchimento: 'stroke-sky-500 dark:stroke-sky-400', texto: 'text-sky-700 dark:text-sky-400' },
+  tcv: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-emerald-400', texto: 'text-emerald-400' },
+  mrr: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-sky-400', texto: 'text-sky-400' },
 }
 
 /**
- * Painel central "Meta mensal" — círculo de progresso com alternância
- * TCV/MRR (estado só de cliente, local, nunca na URL: trocar a aba não
- * recarrega a página nem muda nenhum outro filtro). TCV e MRR NUNCA são
- * somados num percentual único — a troca mostra um dos dois de cada vez,
- * cada um com sua própria meta/realizado/percentual, exatamente como vêm
- * de `obterProgressoMetas` (RPC `metas_progresso`); nenhuma matemática nova
- * aqui além de `ticketMedio` (pura, já existente, `realizado ÷ quantidade`).
+ * Painel "Meta de faturamento" — círculo de progresso com alternância TCV/MRR
+ * (estado só de cliente, local, nunca na URL: trocar a aba não recarrega a
+ * página nem muda nenhum outro filtro). TCV e MRR NUNCA são somados num
+ * percentual único — a troca mostra um dos dois de cada vez, cada um com sua
+ * própria meta/realizado/percentual.
+ *
+ * SEMPRE a meta GERAL da empresa (`progresso` vem de `obterProgressoMetas`,
+ * RPC `metas_progresso`) — não existe meta por funil hoje (a rodada que
+ * tentou vincular este painel ao funil selecionado foi revertida por
+ * decisão de produto). Cabeçalho mostra só o mês — nunca o nome de um funil,
+ * que daria a entender (errado) que a meta é por funil.
  *
  * Sem meta: círculo mostra "—" (nunca 0%, que pareceria "meta batida em
  * 0"), mesma distinção que `TextoPercentual`/`BarraProgresso` já fazem.
  */
-export function DonutMetaMensal({ progresso }: { progresso: ProgressoEmpresa | null }) {
+export function DonutMetaMensal({ progresso, mes }: { progresso: ProgressoEmpresa | null; mes: string }) {
   const [aba, setAba] = useState<'tcv' | 'mrr'>('tcv')
 
   if (!progresso) {
     return (
-      <section className="flex min-h-[460px] flex-col items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white p-5 text-center dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="text-base font-semibold text-zinc-700 dark:text-zinc-300">Meta de faturamento</h2>
-        <p className="text-sm text-zinc-500">Nenhuma meta da empresa visível para o seu papel.</p>
+      <section className="flex min-h-[460px] flex-col items-center justify-center gap-2 rounded-2xl border border-premium-borda bg-premium-card p-5 text-center">
+        <h2 className="text-base font-semibold text-premium-texto">Meta de faturamento</h2>
+        <p className="text-sm text-premium-mudo">Nenhuma meta da empresa visível para o seu papel.</p>
       </section>
     )
   }
@@ -47,56 +52,62 @@ export function DonutMetaMensal({ progresso }: { progresso: ProgressoEmpresa | n
   const ticket = ticketMedio(dados.realizado, dados.quantidade)
 
   return (
-    <section className="flex min-h-[460px] flex-col items-center gap-5 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex w-full items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-base font-semibold text-zinc-800 dark:text-zinc-200">
-          <IconeAlvo className="size-4 text-zinc-400" />
+    <section className="flex min-h-[460px] flex-col items-center gap-4 rounded-2xl border border-premium-borda bg-premium-card p-5">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-1.5 text-base font-semibold text-premium-texto">
+          <IconeAlvo className="size-4 text-premium-acento" />
           Meta de faturamento
         </h2>
-        <div role="tablist" aria-label="TCV ou MRR" className="inline-flex rounded-md border border-zinc-200 p-0.5 dark:border-zinc-800">
-          {(['tcv', 'mrr'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={aba === t}
-              onClick={() => setAba(t)}
-              className={`rounded px-3 py-1.5 text-xs font-medium uppercase transition ${
-                aba === t
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        <span className="shrink-0 rounded-full border border-premium-borda bg-premium-bg/60 px-2.5 py-1 text-xs font-medium text-premium-secundario">
+          {rotuloMes(mes)}
+        </span>
+      </div>
+
+      <div role="tablist" aria-label="TCV ou MRR" className="inline-flex rounded-md border border-premium-borda bg-premium-bg/60 p-0.5">
+        {(['tcv', 'mrr'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={aba === t}
+            onClick={() => setAba(t)}
+            className={`rounded px-4 py-1.5 text-xs font-medium uppercase transition ${
+              aba === t ? 'bg-premium-acento text-zinc-950' : 'text-premium-mudo hover:bg-premium-borda/60 hover:text-premium-texto'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
       <AneDeProgresso percentual={dados.percentual} realizado={dados.realizado} cor={cor} aba={aba} />
 
-      <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-4 text-sm">
-        <div>
-          <dt className="text-xs text-zinc-500">Meta mensal</dt>
-          <dd className="text-base font-semibold tabular-nums">
-            {dados.valorMeta === null ? <span className="text-zinc-400">Não definida</span> : formatarMoeda(dados.valorMeta)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Realizado no mês</dt>
-          <dd className="text-base font-semibold tabular-nums">{formatarMoeda(dados.realizado)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Ticket médio</dt>
-          <dd className="text-base font-semibold tabular-nums">
-            {ticket === null ? <span className="text-zinc-400">—</span> : formatarMoeda(ticket)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Quantidade</dt>
-          <dd className="text-base font-semibold tabular-nums">{dados.quantidade}</dd>
-        </div>
-      </dl>
+      <div className="w-full space-y-3">
+        <dl className="grid grid-cols-2 gap-x-3 text-sm">
+          <div>
+            <dt className="text-xs text-premium-mudo">Meta mensal</dt>
+            <dd className="text-base font-semibold tabular-nums text-premium-texto">
+              {dados.valorMeta === null ? <span className="text-premium-mudo">Não definida</span> : formatarMoeda(dados.valorMeta)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-premium-mudo">Realizado no mês</dt>
+            <dd className={`text-base font-semibold tabular-nums ${cor.texto}`}>{formatarMoeda(dados.realizado)}</dd>
+          </div>
+        </dl>
+        <dl className="grid grid-cols-2 gap-x-3 border-t border-premium-borda pt-3 text-sm">
+          <div>
+            <dt className="text-xs text-premium-mudo">Ticket médio</dt>
+            <dd className="text-base font-semibold tabular-nums text-premium-texto">
+              {ticket === null ? <span className="text-premium-mudo">—</span> : formatarMoeda(ticket)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-premium-mudo">Quantidade</dt>
+            <dd className="text-base font-semibold tabular-nums text-premium-texto">{dados.quantidade}</dd>
+          </div>
+        </dl>
+      </div>
     </section>
   )
 }
@@ -144,13 +155,13 @@ function AneDeProgresso({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
-        <span className="text-2xl font-bold tabular-nums" title={formatarMoeda(realizado)}>
+        <span className="text-2xl font-bold tabular-nums text-premium-texto" title={formatarMoeda(realizado)}>
           {formatarMoedaCompacta(realizado)}
         </span>
         <span className={`text-xl font-bold tabular-nums ${cor.texto}`}>
           {percentual === null ? '—' : formatarPercentual(percentual)}
         </span>
-        <span className="text-xs text-zinc-500">da meta mensal</span>
+        <span className="text-xs text-premium-mudo">da meta mensal</span>
       </div>
     </div>
   )

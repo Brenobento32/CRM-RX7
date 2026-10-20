@@ -23,12 +23,12 @@ export function ContextoFunilSelecionado({
   ]
 
   return (
-    <section className="space-y-2 rounded-lg border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+    <section className="space-y-2 rounded-lg border border-dashed border-premium-borda p-4">
       <div>
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Contexto do funil selecionado</h2>
-        <p className="text-xs text-zinc-500">
-          Funil: <span className="font-medium text-zinc-700 dark:text-zinc-300">{funilNome}</span>. No período de
-          análise selecionado abaixo — nunca entra no cálculo da meta mensal.
+        <h2 className="text-sm font-semibold text-premium-secundario">Contexto do funil selecionado</h2>
+        <p className="text-xs text-premium-mudo">
+          Funil: <span className="font-medium text-premium-secundario">{funilNome}</span>. No período de análise
+          selecionado abaixo — nunca entra no cálculo da meta mensal.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -55,14 +55,14 @@ function CardContextoFunil({
   ticketMedioFunil: number | null
 }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-lg border border-premium-borda bg-premium-card p-4 text-premium-texto">
       <p className="font-semibold">{titulo}</p>
       <dl className="mt-1.5 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
-        <dt className="text-zinc-500">Vendido neste funil</dt>
+        <dt className="text-premium-mudo">Vendido neste funil</dt>
         <dd className="text-right tabular-nums">{formatarMoeda(realizadoFunil)}</dd>
-        <dt className="text-zinc-500">Ticket médio deste funil</dt>
+        <dt className="text-premium-mudo">Ticket médio deste funil</dt>
         <dd className="text-right tabular-nums">
-          {ticketMedioFunil === null ? <span className="text-zinc-400">—</span> : formatarMoeda(ticketMedioFunil)}
+          {ticketMedioFunil === null ? <span className="text-premium-mudo">—</span> : formatarMoeda(ticketMedioFunil)}
         </dd>
       </dl>
     </div>

@@ -29,9 +29,9 @@ const EMOJI_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> =
 
 /** Pill da origem — nunca substitui a cor da borda (que é do nicho). */
 const PILL_ORIGEM: Record<CardFunil['origem'], string> = {
-  formulario: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
-  whatsapp: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  manual: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+  formulario: 'bg-orange-500/15 text-orange-400',
+  whatsapp: 'bg-emerald-500/15 text-emerald-400',
+  manual: 'bg-premium-borda text-premium-secundario',
 }
 
 /** Resumo de campanha pro card: só o nome (ou o id, sem nome) — nunca os outros IDs técnicos aqui (item 8). */
@@ -133,8 +133,8 @@ export function CardConteudo({
       // origem (abaixo) nunca substitui isso.
       style={{ borderLeftColor: corDeNicho(card.nichoCor), borderLeftWidth: 3 }}
       title={card.nichoNome ?? 'Outros'}
-      className={`relative cursor-grab touch-none rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950 ${
-        flutuando ? 'cursor-grabbing shadow-lg ring-2 ring-zinc-900/10' : 'shadow-xs hover:border-zinc-300 dark:hover:border-zinc-700'
+      className={`relative cursor-grab touch-none rounded-lg border border-premium-borda bg-premium-card p-3 text-sm text-premium-texto ${
+        flutuando ? 'cursor-grabbing shadow-lg ring-2 ring-premium-acento/20' : 'shadow-xs hover:border-premium-mudo/50'
       }`}
     >
       {/* 1/2: instituição (ou o nome, se não houver empresa) + pessoa; o menu
@@ -150,7 +150,7 @@ export function CardConteudo({
             href={`/clientes/${card.clienteId}`}
             onClick={(e) => e.stopPropagation()}
             className={`block truncate hover:underline ${
-              card.clienteEmpresa ? 'text-xs font-normal text-zinc-500' : 'font-medium'
+              card.clienteEmpresa ? 'text-xs font-normal text-premium-mudo' : 'font-medium'
             }`}
             title={card.clienteNome}
           >
@@ -168,7 +168,7 @@ export function CardConteudo({
         }}
         aria-label={`Editar proposta de ${card.clienteNome}`}
         title="Editar proposta"
-        className="absolute top-2 left-2 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        className="absolute top-2 left-2 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-borda hover:text-premium-texto"
         {...pararArraste}
       >
         <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
@@ -188,24 +188,20 @@ export function CardConteudo({
           {ROTULO_ORIGEM[card.origem]}
         </span>
         {card.temperatura && (
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          <span className="text-xs font-medium text-premium-secundario">
             {EMOJI_TEMPERATURA[card.temperatura]} {ROTULO_TEMPERATURA[card.temperatura]}
           </span>
         )}
       </div>
 
       {/* 5: tempo parado — sempre visível, calculado a partir de `data_entrada_etapa` (item 1.5). */}
-      <p
-        className={`mt-2 flex items-center gap-1 text-xs ${
-          card.parado ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-zinc-500 dark:text-zinc-400'
-        }`}
-      >
+      <p className={`mt-2 flex items-center gap-1 text-xs ${card.parado ? 'font-medium text-amber-400' : 'text-premium-mudo'}`}>
         <span aria-hidden>⏱</span> {formatarTempoParado(card.msNaEtapa)}
       </p>
 
       {/* 6: telefone — só quando existir (item 1.6). */}
       {card.clienteTelefone && (
-        <p className="mt-1.5 truncate text-xs text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1.5 truncate text-xs text-premium-secundario">
           <span aria-hidden>☎</span> {formatarTelefone(card.clienteTelefone)}
         </p>
       )}
@@ -215,10 +211,10 @@ export function CardConteudo({
 
       {/* 8/9: última atividade, depois próxima ação — só quando existirem (itens 1.8/1.9). */}
       {(card.ultimaAtividade || card.proximaAcao) && (
-        <dl className="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-400">
+        <dl className="mt-2 space-y-1 text-xs text-premium-secundario">
           {card.ultimaAtividade && (
             <div className="flex gap-1">
-              <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Última atividade:</dt>
+              <dt className="shrink-0 font-medium text-premium-secundario">Última atividade:</dt>
               <dd className="truncate">{formatarDataRelativaHora(card.ultimaAtividade.data)}</dd>
             </div>
           )}
@@ -228,7 +224,7 @@ export function CardConteudo({
 
       {/* Campanha (item 8/9 — atribuição) — só quando houver; nunca IDs técnicos aqui. */}
       {campanha && (
-        <p className="mt-2 truncate text-xs text-zinc-500" title={campanha}>
+        <p className="mt-2 truncate text-xs text-premium-mudo" title={campanha}>
           Campanha: {campanha}
         </p>
       )}
@@ -244,7 +240,7 @@ export function CardConteudo({
             e.stopPropagation()
             onAbrirObservacoes(card)
           }}
-          className="mt-2 text-xs font-medium text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
+          className="mt-2 text-xs font-medium text-premium-mudo underline-offset-2 hover:underline"
           {...pararArraste}
         >
           Ver observações
@@ -263,16 +259,12 @@ function ProximaAcao({ titulo, data }: { titulo: string; data: string }) {
 
   return (
     <div className="flex gap-1">
-      <dt className="shrink-0 font-medium text-zinc-700 dark:text-zinc-300">Próxima ação:</dt>
+      <dt className="shrink-0 font-medium text-premium-secundario">Próxima ação:</dt>
       <dd className="truncate" title={titulo}>
         {titulo}{' '}
         <span
           className={
-            atrasada
-              ? 'font-medium text-red-600 dark:text-red-400'
-              : data === hoje
-                ? 'font-medium text-amber-700 dark:text-amber-400'
-                : undefined
+            atrasada ? 'font-medium text-red-400' : data === hoje ? 'font-medium text-amber-400' : undefined
           }
         >
           {quando}

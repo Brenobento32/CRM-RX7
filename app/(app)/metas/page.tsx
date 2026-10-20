@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Fragment } from 'react'
 
-import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { CardsMetaFunil } from '@/components/metas/cards-meta-funil'
+import { PremiumPanel } from '@/components/ui/premium'
 import { removerMetaAction } from '@/lib/actions/metas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import {
@@ -26,6 +27,9 @@ export const metadata: Metadata = {
   title: 'Metas',
 }
 
+/** Botão/link discreto, visual próprio desta tela (não o `botaoSecundarioClass` claro compartilhado). */
+const botaoPremiumClass = 'rounded-md border border-premium-borda px-3 py-1.5 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto'
+
 export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
   const eu = await getUsuarioAtual()
   const { mes: param, erro } = await searchParams
@@ -37,27 +41,19 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
   const gerente = eu.role === 'gerente'
 
   return (
-    <div className="max-w-5xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Metas</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Vendas fechadas em {rotuloMes(mes).toLowerCase()}, pela data de fechamento. Cada venda conta
-            para quem era o responsável da negociação no momento do fechamento
-            (<code>fechamentos.responsavel_id</code>) — nunca o dono atual da carteira.
-          </p>
-          <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Período: {formatarData(primeiroDiaDoMes(mes))} → {formatarData(ultimoDiaDoMes(mes))}
-          </p>
-        </div>
-        <SeletorMes mes={mes} />
-      </div>
+    <div className="@container w-full space-y-6 text-premium-texto">
+      <PageHeaderPremium
+        titulo="Metas"
+        subtitulo={`Vendas fechadas em ${rotuloMes(mes).toLowerCase()}, pela data de fechamento. Cada venda conta para quem era o responsável da negociação no momento do fechamento — nunca o dono atual da carteira.`}
+        acoes={<SeletorMes mes={mes} variant="premium" />}
+        usuario={eu}
+      />
+      <p className="-mt-3 text-sm font-medium text-premium-secundario">
+        Período: {formatarData(primeiroDiaDoMes(mes))} → {formatarData(ultimoDiaDoMes(mes))}
+      </p>
 
       {typeof erro === 'string' && (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-        >
+        <p role="alert" className="rounded-md border border-red-900 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {erro}
         </p>
       )}
@@ -94,8 +90,8 @@ function SecaoMetaEmpresa({
 }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta da empresa</h2>
-      <p className="text-xs text-zinc-500">Todos os funis, todos os responsáveis.</p>
+      <h2 className="text-sm font-semibold text-premium-secundario">Meta da empresa</h2>
+      <p className="text-xs text-premium-mudo">Todos os funis, todos os responsáveis.</p>
       <div className="grid gap-4 sm:grid-cols-2">
         {TIPOS_META.map((tipo) => (
           <CardMeta
@@ -138,11 +134,15 @@ function SecaoMetasFunis({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Metas mensais por funil</h2>
-      <p className="text-xs text-zinc-500">
+      <h2 className="text-sm font-semibold text-premium-secundario">Metas mensais por funil</h2>
+      <p className="text-xs text-premium-mudo">
         Cada funil tem sua própria meta de TCV e de MRR, cadastrada separadamente da meta geral.
       </p>
-      {gerente && <FormMetasFunis mes={mes} progresso={progresso} />}
+      {gerente && (
+        <PremiumPanel>
+          <FormMetasFunis mes={mes} progresso={progresso} />
+        </PremiumPanel>
+      )}
       <CardsMetaFunil progresso={progresso} />
     </section>
   )
@@ -151,8 +151,8 @@ function SecaoMetasFunis({
 function MinhaMeta({ pessoa }: { pessoa: ProgressoPessoa | undefined }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Minha meta</h2>
-      <p className="text-xs text-zinc-500">Todos os funis, só as suas vendas (responsável pelo fechamento).</p>
+      <h2 className="text-sm font-semibold text-premium-secundario">Minha meta</h2>
+      <p className="text-xs text-premium-mudo">Todos os funis, só as suas vendas (responsável pelo fechamento).</p>
       <div className="grid gap-4 sm:grid-cols-2">
         {TIPOS_META.map((tipo) => (
           <CardMeta
@@ -172,7 +172,7 @@ function MinhaMeta({ pessoa }: { pessoa: ProgressoPessoa | undefined }) {
 function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: string }) {
   if (pessoas.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+      <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
         Nenhum closer ativo.
       </p>
     )
@@ -180,10 +180,10 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Desempenho da equipe</h2>
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <h2 className="text-sm font-semibold text-premium-secundario">Desempenho da equipe</h2>
+      <div className="overflow-x-auto rounded-lg border border-premium-borda bg-premium-card">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className="border-b border-premium-borda bg-premium-bg/40 text-xs uppercase tracking-wide text-premium-mudo">
             <tr>
               <th className="px-4 py-3 font-medium" rowSpan={2}>
                 Closer
@@ -205,11 +205,11 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody className="divide-y divide-premium-borda">
             {pessoas.map((p) => (
               <tr key={p.usuarioId}>
                 <td className="px-4 py-3">
-                  <span className="font-medium">{p.nome}</span>
+                  <span className="font-medium text-premium-texto">{p.nome}</span>
                   {p.role !== 'closer' && <Etiqueta>gerente</Etiqueta>}
                   {!p.ativo && <Etiqueta>desativado</Etiqueta>}
                 </td>
@@ -245,10 +245,10 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
 function LinhaTipo({ dados, nome }: { dados: ProgressoMetaTipo; nome: string }) {
   return (
     <>
-      <td className="px-4 py-3 text-right tabular-nums">
-        {dados.valorMeta === null ? <span className="text-zinc-400">Sem meta</span> : formatarMoeda(dados.valorMeta)}
+      <td className="px-4 py-3 text-right tabular-nums text-premium-texto">
+        {dados.valorMeta === null ? <span className="text-premium-mudo">Sem meta</span> : formatarMoeda(dados.valorMeta)}
       </td>
-      <td className="px-4 py-3 text-right tabular-nums">{formatarMoeda(dados.realizado)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-premium-texto">{formatarMoeda(dados.realizado)}</td>
       <td className="px-4 py-3">
         <div className="flex min-w-36 items-center gap-3">
           <div className="flex-1">
@@ -264,11 +264,7 @@ function LinhaTipo({ dados, nome }: { dados: ProgressoMetaTipo; nome: string }) 
 }
 
 function Etiqueta({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-      {children}
-    </span>
-  )
+  return <span className="ml-2 rounded bg-premium-borda px-1.5 py-0.5 text-xs text-premium-secundario">{children}</span>
 }
 
 /** Sem meta: "Definir [TCV/MRR]". Com meta: "Editar" e "Remover". */
@@ -288,7 +284,7 @@ function AcoesMeta({
   if (!metaId) {
     return podeCriar ? (
       <span className="flex justify-end">
-        <Link href={`/metas/nova?alvo=${alvo}&tipo=${tipo}&mes=${mes}`} className={botaoSecundarioClass}>
+        <Link href={`/metas/nova?alvo=${alvo}&tipo=${tipo}&mes=${mes}`} className={botaoPremiumClass}>
           Definir {ROTULO_TIPO_META[tipo]}
         </Link>
       </span>
@@ -297,11 +293,11 @@ function AcoesMeta({
 
   return (
     <span className="flex justify-end gap-2">
-      <Link href={`/metas/${metaId}/editar`} className={botaoSecundarioClass}>
+      <Link href={`/metas/${metaId}/editar`} className={botaoPremiumClass}>
         Editar {ROTULO_TIPO_META[tipo]}
       </Link>
       <form action={removerMetaAction.bind(null, metaId, mes)}>
-        <button type="submit" className={`${botaoSecundarioClass} text-red-700 dark:text-red-400`}>
+        <button type="submit" className={`${botaoPremiumClass} text-red-400 hover:border-red-900 hover:text-red-300`}>
           Remover
         </button>
       </form>

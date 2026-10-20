@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 
-import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
@@ -17,8 +17,6 @@ import { DonutMetaMensal } from '../_components/donut-meta-mensal'
 import { FunilVisual, TaxaPorFunil } from '../_components/funil-visual'
 import { MetaMensal } from '../_components/meta-mensal'
 import { MetricasFunilPainel } from '../_components/metricas-funil'
-import { ResultadosPeriodo } from '../_components/resultados-periodo'
-import { SeletorFunil } from '../_components/seletor-funil'
 import { SeletorPeriodoFunil } from '../_components/seletor-periodo-funil'
 
 export const metadata: Metadata = {
@@ -40,9 +38,9 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
 
   if (!funilSelecionado) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Métricas do funil</h1>
-        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
+      <div className="@container w-full space-y-6">
+        <PageHeaderPremium titulo="Métricas do funil" usuario={usuario} />
+        <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
           Você ainda não tem acesso a nenhum funil. Peça ao gerente para configurar suas permissões.
         </p>
       </div>
@@ -83,33 +81,23 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
 
   return (
     // `@container`: a largura REAL disponível aqui depende da rota (ver
-    // `ROTAS_LARGURA_AMPLIADA` em `components/layout/shell-app.tsx`) e do
-    // estado da sidebar — nunca fixa. Os grids abaixo decidem colunas pela
-    // largura REAL deste container (`@lg:`/`@min-[...]:`), não pelo viewport
+    // `ROTAS_PREMIUM` em `components/layout/shell-app.tsx`) e do estado da
+    // sidebar — nunca fixa. Os grids abaixo decidem colunas pela largura
+    // REAL deste container (`@lg:`/`@min-[...]:`), não pelo viewport
     // (`lg:`/`xl:` mediriam a tela inteira, errado quando a sidebar e o
     // padding já consomem uma fatia variável dela).
-    <div className="@container w-full space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link href="/funil" className="text-sm text-zinc-500 hover:underline">
-            ← Kanban
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold">Métricas do funil</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {usuario.role === 'gerente' ? 'Da equipe inteira.' : 'Das suas negociações.'} Conversão,
-            tempo por etapa e cards parados.
-          </p>
-        </div>
-        {usuario.role === 'gerente' && (
-          <Link href={`/configuracoes/funis/${funilSelecionado.id}`} className={botaoSecundarioClass}>
-            Configurar funil
-          </Link>
-        )}
-      </div>
+    <div className="@container w-full space-y-5 text-premium-texto">
+      <PageHeaderPremium
+        titulo="Métricas do funil"
+        subtitulo={`${usuario.role === 'gerente' ? 'Acompanhe a evolução da equipe' : 'Acompanhe suas negociações'} em cada etapa e o desempenho de vendas no período selecionado.`}
+        usuario={usuario}
+      />
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-start gap-3">
-          <SeletorFunil funis={funis} funilId={funilSelecionado.id} />
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* O seletor de FUNIL saiu daqui: agora mora no cabeçalho do painel
+              "Funil de vendas" (item 9 da rodada) e controla os dois painéis
+              principais (funil + meta). O período continua aqui, global. */}
           {/* key = identidade COMPLETA do período (chave+início+fim), não só a
               chave: força remontar tanto ao trocar de atalho (nunca deixar o
               calendário personalizado visível depois de escolher outro, e
@@ -125,38 +113,48 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
             hoje={hoje}
           />
         </div>
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Período de análise: {periodoLabel}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-lg border border-premium-borda bg-premium-card px-3 py-2 text-sm font-medium tabular-nums text-premium-secundario">
+            {periodoLabel}
+          </span>
+          {usuario.role === 'gerente' && (
+            <Link
+              href={`/configuracoes/funis/${funilSelecionado.id}`}
+              className="rounded-lg border border-premium-borda px-3 py-2 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto"
+            >
+              Configurar funil
+            </Link>
+          )}
+        </div>
       </div>
 
-      {/* Três painéis principais: funil visual (esquerda), meta mensal em
-          círculo (centro), resultados do período em barras (direita). Linha
-          de destaque da tela — mesma altura mínima nos três.
-          `@min-[1100px]`: entre 2 colunas (`@lg`, 512px de container) e 3
-          colunas (1.1fr/1fr/1fr) — valor escolhido para separar telas tipo
-          1366×768 (container ~1062px → 2+1, três colunas ficariam
-          apertadas) de telas tipo 1440×900 (container ~1136px → 3 colunas
-          cabem legíveis); documentado aqui para não ser "mágico". */}
-      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @min-[1100px]:grid-cols-[1.1fr_1fr_1fr]">
-        <div className="flex min-h-[460px] flex-col rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-          <FunilVisual metricas={metricasSelecionado} funilNome={funilSelecionado.nome} />
+      {/* Dois painéis principais: funil visual (esquerda/maior) e meta de
+          faturamento GERAL da empresa (direita — não existe meta por funil;
+          a comparação por funil mora só nos cards abaixo, `MetaMensal`).
+          "Resultados do período" saiu (item 8 de uma rodada anterior).
+          Responsividade já aprovada: celular/tablet vertical pode empilhar,
+          tablet horizontal em diante mostra as duas colunas na mesma linha.
+          `@2xl` (672px de container): com a sidebar em 220px + 24px de
+          padding por lado, um tablet horizontal de 1024px chega em ~756px
+          de container, acima do limiar. Segunda coluna com piso de 320px
+          (`minmax(320px,...)`) pra nunca espremer o donut, primeira com
+          1.15fr (um pouco mais larga — é o painel principal da tela). */}
+      <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <div className="flex min-h-[460px] flex-col rounded-2xl border border-premium-borda bg-premium-card p-5">
+          <FunilVisual metricas={metricasSelecionado} funis={funis} funilId={funilSelecionado.id} />
         </div>
-        <DonutMetaMensal progresso={progressoMes.empresa} />
-        <ResultadosPeriodo
-          resumo={metricasSelecionado.resumo}
-          funilNome={funilSelecionado.nome}
-          periodoLabel={periodoLabel}
-        />
+        <DonutMetaMensal progresso={progressoMes.empresa} mes={mes} />
       </div>
 
       <MetaMensal
         mes={mes}
         progressoEmpresa={progressoMes.empresa}
         progressoFunis={progressoFunisMes}
-        seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" />}
+        seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" variant="premium" />}
       />
 
-      <details className="space-y-6 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-        <summary className="cursor-pointer text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+      <details className="space-y-6 rounded-lg border border-premium-borda bg-premium-card p-4">
+        <summary className="cursor-pointer rounded-md text-sm font-semibold text-premium-secundario transition hover:text-premium-texto">
           Detalhes por etapa
         </summary>
 

@@ -1,40 +1,21 @@
+import { PremiumPanel, ProgressBarPremium, type CorProgresso } from '@/components/ui/premium'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
+
+const CORES_BARRA: CorProgresso = { trilho: 'bg-premium-borda', fill: 'bg-premium-acento', texto: 'text-premium-acento' }
+const CORES_BARRA_ATINGIDA: CorProgresso = { trilho: 'bg-premium-borda', fill: 'bg-emerald-400', texto: 'text-emerald-400' }
 
 /**
  * Barra de progresso da meta. Enche até 100%; acima disso o número mostra o
  * valor real (ex.: 132%) e a barra fica verde.
  */
 export function BarraProgresso({ percentual, rotulo }: { percentual: number | null; rotulo: string }) {
-  if (percentual === null) {
-    return <div aria-hidden className="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800" />
-  }
-
-  const atingida = percentual >= 1
-  return (
-    <div
-      role="progressbar"
-      aria-label={rotulo}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(Math.min(percentual, 1) * 100)}
-      aria-valuetext={formatarPercentual(percentual)}
-      className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"
-    >
-      <div
-        className={`h-full rounded-full ${atingida ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-zinc-900 dark:bg-zinc-100'}`}
-        style={{ width: `${Math.min(percentual, 1) * 100}%` }}
-      />
-    </div>
-  )
+  const atingida = percentual !== null && percentual >= 1
+  return <ProgressBarPremium percentual={percentual} cor={atingida ? CORES_BARRA_ATINGIDA : CORES_BARRA} rotulo={rotulo} />
 }
 
 export function TextoPercentual({ percentual }: { percentual: number | null }) {
-  if (percentual === null) return <span className="text-zinc-400">—</span>
-  return (
-    <span className={percentual >= 1 ? 'font-medium text-emerald-700 dark:text-emerald-400' : undefined}>
-      {formatarPercentual(percentual)}
-    </span>
-  )
+  if (percentual === null) return <span className="text-premium-mudo">—</span>
+  return <span className={percentual >= 1 ? 'font-medium text-emerald-400' : undefined}>{formatarPercentual(percentual)}</span>
 }
 
 type CardProps = {
@@ -50,26 +31,26 @@ type CardProps = {
 /** Objetivo, realizado e percentual de uma meta, em destaque. */
 export function CardMeta({ titulo, valorMeta, realizado, percentual, semMeta, acoes }: CardProps) {
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+    <PremiumPanel>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="font-semibold">{titulo}</h2>
+        <h2 className="font-semibold text-premium-texto">{titulo}</h2>
         {acoes}
       </div>
 
       <dl className="mt-4 grid gap-4 sm:grid-cols-3">
         <div>
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">Objetivo</dt>
-          <dd className="mt-1 text-2xl font-semibold">
-            {valorMeta === null ? <span className="text-base font-normal text-zinc-500">{semMeta}</span> : formatarMoeda(valorMeta)}
+          <dt className="text-sm text-premium-mudo">Objetivo</dt>
+          <dd className="mt-1 text-2xl font-semibold text-premium-texto">
+            {valorMeta === null ? <span className="text-base font-normal text-premium-mudo">{semMeta}</span> : formatarMoeda(valorMeta)}
           </dd>
         </div>
         <div>
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">Realizado</dt>
-          <dd className="mt-1 text-2xl font-semibold">{formatarMoeda(realizado)}</dd>
+          <dt className="text-sm text-premium-mudo">Realizado</dt>
+          <dd className="mt-1 text-2xl font-semibold text-premium-texto">{formatarMoeda(realizado)}</dd>
         </div>
         <div>
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">Atingido</dt>
-          <dd className="mt-1 text-2xl font-semibold">
+          <dt className="text-sm text-premium-mudo">Atingido</dt>
+          <dd className="mt-1 text-2xl font-semibold text-premium-texto">
             <TextoPercentual percentual={percentual} />
           </dd>
         </div>
@@ -78,6 +59,6 @@ export function CardMeta({ titulo, valorMeta, realizado, percentual, semMeta, ac
       <div className="mt-4">
         <BarraProgresso percentual={percentual} rotulo={`Progresso: ${titulo}`} />
       </div>
-    </section>
+    </PremiumPanel>
   )
 }

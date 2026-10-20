@@ -1,12 +1,11 @@
 import Link from 'next/link'
 
-import { botaoSecundarioClass } from '@/components/ui/estilos'
-import { CardMetaFunil, PALETA_FUNIL } from '@/components/metas/cards-meta-funil'
+import { CORES_PROGRESSO, IconBadge, PremiumCard, ProgressBarPremium, StatValue, type CorProgresso } from '@/components/ui/premium'
 import type { ProgressoEmpresa, ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 import { rotuloMes } from '@/lib/utils/periodo'
 
-import { IconeMoeda } from './icones-metricas'
+import { IconeFunil, IconeMoeda, IconeTrofeu } from './icones-metricas'
 
 /**
  * "Meta mensal — [mês/ano]" — mês cheio, navegável pelo PRÓPRIO seletor
@@ -20,6 +19,13 @@ import { IconeMoeda } from './icones-metricas'
  * TCV/MRR, nunca uma divisão da meta geral. O círculo de progresso desta
  * mesma meta mensal vive em `DonutMetaMensal` (painel central do topo da
  * página) — mesmos dados (`progressoEmpresa`), outro lugar na tela.
+ *
+ * Cards próprios deste arquivo (`CardMetaGeral`/`CardMetaFunilPremium`), NÃO
+ * os de `components/metas/cards-meta-funil.tsx`: aquele componente é
+ * compartilhado com `/metas` — `/metas` agora também adotou o visual
+ * premium (ver `app/(app)/metas/page.tsx`), mas por telas diferentes
+ * montarem o grid de forma diferente (aqui junto dos cards gerais, lá numa
+ * grade própria), cada um mantém seus próprios cards.
  */
 export function MetaMensal({
   mes,
@@ -38,17 +44,24 @@ export function MetaMensal({
     progressoFunis.reduce((soma, f) => soma + (f[tipo].valorMeta ?? 0), 0)
 
   return (
-    <section className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="space-y-5 rounded-2xl border border-premium-borda bg-premium-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Meta mensal — {rotuloMes(mes)}</h2>
-          <p className="text-xs text-zinc-500">
-            Mês inteiro, nunca proporcional — todos os responsáveis. Independe do período de análise selecionado abaixo.
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-premium-texto">
+            <IconeTrofeu className="size-4 text-amber-400" />
+            Meta mensal — {rotuloMes(mes)}
+          </h2>
+          <p className="text-xs text-premium-mudo">
+            Acompanhe o desempenho geral e por origem de funil. Mês inteiro, nunca proporcional — independe do período
+            de análise selecionado acima.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {seletorMes}
-          <Link href="/metas" className={botaoSecundarioClass}>
+          <Link
+            href="/metas"
+            className="rounded-md bg-premium-acento px-3.5 py-1.5 text-sm font-medium text-zinc-950 transition hover:brightness-110"
+          >
             Gerenciar metas →
           </Link>
         </div>
@@ -67,72 +80,98 @@ export function MetaMensal({
         <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @5xl:grid-cols-4">
           {progressoEmpresa && (
             <>
-              <CardMetaGeral titulo="TCV geral" dados={progressoEmpresa.tcv} cor="emerald" />
-              <CardMetaGeral titulo="MRR geral" dados={progressoEmpresa.mrr} cor="sky" />
+              <CardMetaGeral titulo="TCV geral" dados={progressoEmpresa.tcv} cor={CORES_PROGRESSO.verde} />
+              <CardMetaGeral titulo="MRR geral" dados={progressoEmpresa.mrr} cor={CORES_PROGRESSO.azul} />
             </>
           )}
           {progressoFunis.map((p, i) => (
-            <CardMetaFunil key={p.funilId} progresso={p} cor={PALETA_FUNIL[i % PALETA_FUNIL.length]} />
+            <CardMetaFunilPremium key={p.funilId} progresso={p} cor={PALETA_FUNIL_PREMIUM[i % PALETA_FUNIL_PREMIUM.length]} />
           ))}
         </div>
       ) : (
-        <p className="text-sm text-zinc-500">Nenhuma meta visível para o seu papel.</p>
+        <p className="text-sm text-premium-mudo">Nenhuma meta visível para o seu papel.</p>
       )}
     </section>
   )
 }
 
-function CardMetaGeral({
-  titulo,
-  dados,
-  cor,
-}: {
-  titulo: string
-  dados: ProgressoEmpresa['tcv']
-  cor: 'emerald' | 'sky'
-}) {
-  const trilho = cor === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-sky-100 dark:bg-sky-950'
-  const fill = cor === 'emerald' ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-sky-500 dark:bg-sky-400'
-  const icone = cor === 'emerald' ? 'text-emerald-500 dark:text-emerald-400' : 'text-sky-500 dark:text-sky-400'
+/** Paleta por POSIÇÃO (ciclo) dos cards de funil — nunca pelo nome do funil, um funil novo recicla a partir do início. */
+const PALETA_FUNIL_PREMIUM: CorProgresso[] = [
+  CORES_PROGRESSO.roxo,
+  CORES_PROGRESSO.rosa,
+  CORES_PROGRESSO.ambar,
+  CORES_PROGRESSO.teal,
+  CORES_PROGRESSO.laranja,
+  CORES_PROGRESSO.azul,
+]
 
+function CardMetaGeral({ titulo, dados, cor }: { titulo: string; dados: ProgressoEmpresa['tcv']; cor: CorProgresso }) {
   return (
-    <div className="flex min-h-[170px] flex-col justify-center space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-      <p className="flex items-center gap-1.5 font-semibold">
-        <IconeMoeda className={`size-4 ${icone}`} />
-        {titulo}
-      </p>
+    <PremiumCard
+      as={Link}
+      href="/metas"
+      className="flex min-h-[180px] flex-col justify-center gap-3 bg-premium-bg/40 p-4 transition hover:border-premium-mudo/40"
+    >
+      <div className="flex items-center justify-between">
+        <p className="flex items-center gap-2 font-semibold text-premium-texto">
+          <IconBadge icone={IconeMoeda} cor={cor.texto} fundo={cor.trilho} />
+          {titulo}
+        </p>
+        <span className="text-premium-mudo">›</span>
+      </div>
       <dl className="grid grid-cols-3 gap-3 text-sm">
-        <div>
-          <dt className="text-xs text-zinc-500">Meta</dt>
-          <dd className="font-medium tabular-nums">
-            {dados.valorMeta === null ? <span className="text-zinc-400">Não definida</span> : formatarMoeda(dados.valorMeta)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Realizado</dt>
-          <dd className="font-medium tabular-nums">{formatarMoeda(dados.realizado)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-zinc-500">Atingido</dt>
-          <dd className="font-medium tabular-nums">
-            {dados.percentual === null ? <span className="text-zinc-400">—</span> : formatarPercentual(dados.percentual)}
-          </dd>
-        </div>
+        <StatValue rotulo="Meta" cor="text-premium-texto" valor={dados.valorMeta === null ? <span className="text-premium-mudo">Não definida</span> : formatarMoeda(dados.valorMeta)} />
+        <StatValue rotulo="Realizado" cor="text-premium-texto" valor={formatarMoeda(dados.realizado)} />
+        <StatValue
+          rotulo="Atingido"
+          cor={cor.texto}
+          valor={dados.percentual === null ? <span className="text-premium-mudo">—</span> : formatarPercentual(dados.percentual)}
+        />
       </dl>
-      {dados.percentual === null ? (
-        <div aria-hidden className={`h-2.5 rounded-full ${trilho}`} />
-      ) : (
-        <div
-          role="progressbar"
-          aria-label={`Progresso: ${titulo}`}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(Math.min(dados.percentual, 1) * 100)}
-          className={`h-2.5 overflow-hidden rounded-full ${trilho}`}
-        >
-          <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.min(dados.percentual, 1) * 100}%` }} />
-        </div>
-      )}
+      <ProgressBarPremium percentual={dados.percentual} cor={cor} rotulo={`Progresso: ${titulo}`} />
+      <p className="text-xs text-premium-mudo">
+        {dados.percentual === null ? 'Sem meta' : formatarPercentual(dados.percentual)} da meta ·{' '}
+        <span className="tabular-nums">{dados.valorMeta === null ? '—' : formatarMoeda(dados.valorMeta)}</span>
+      </p>
+    </PremiumCard>
+  )
+}
+
+/**
+ * Card de funil do dashboard escuro — TCV e MRR SEMPRE em barras separadas
+ * (nunca somadas, mesma regra de `/metas`), mesmos dados de
+ * `ProgressoFunilMeta` (RPC `metas_funis_progresso`).
+ */
+function CardMetaFunilPremium({ progresso, cor }: { progresso: ProgressoFunilMeta; cor: CorProgresso }) {
+  return (
+    <PremiumCard className="flex min-h-[180px] flex-col justify-center gap-3 bg-premium-bg/40 p-4">
+      <div className="flex items-center justify-between">
+        <p className="flex items-center gap-2 font-semibold text-premium-texto">
+          <IconBadge icone={IconeFunil} cor={cor.texto} fundo={cor.trilho} />
+          {progresso.funilNome}
+        </p>
+        <span className="text-premium-mudo">›</span>
+      </div>
+      <LinhaMetaFunilPremium titulo="TCV" dados={progresso.tcv} cor={cor} />
+      <LinhaMetaFunilPremium titulo="MRR" dados={progresso.mrr} cor={cor} />
+    </PremiumCard>
+  )
+}
+
+function LinhaMetaFunilPremium({ titulo, dados, cor }: { titulo: string; dados: ProgressoFunilMeta['tcv']; cor: CorProgresso }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="font-medium text-premium-secundario">{titulo}</span>
+        <span className={`font-semibold tabular-nums ${cor.texto}`}>
+          {dados.percentual === null ? '—' : formatarPercentual(dados.percentual)}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between text-sm tabular-nums">
+        <span className="font-medium text-premium-texto">{formatarMoeda(dados.realizado)}</span>
+        <span className="text-xs text-premium-mudo">{dados.valorMeta === null ? 'Sem meta' : `de ${formatarMoeda(dados.valorMeta)}`}</span>
+      </div>
+      <ProgressBarPremium percentual={dados.percentual} cor={cor} rotulo={`Progresso: ${titulo}`} />
     </div>
   )
 }
@@ -154,7 +193,7 @@ function AvisoDivergencia({
 }) {
   if (totalMeta === null || somaMetasFunis === 0 || totalMeta === somaMetasFunis) return null
   return (
-    <p className="text-xs text-amber-700 dark:text-amber-400">
+    <p className="text-xs text-amber-400">
       A soma das metas {rotulo} dos funis ({formatarMoeda(somaMetasFunis)}) difere da meta {rotulo} total (
       {formatarMoeda(totalMeta)}).
     </p>
