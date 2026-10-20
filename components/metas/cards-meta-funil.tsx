@@ -8,7 +8,7 @@ import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
  * Inbound". Um funil novo (sexto, sétimo…) recicla a paleta a partir do
  * início; nunca hardcoded para 2 funis.
  */
-const PALETA_FUNIL = [
+export const PALETA_FUNIL = [
   { trilha: 'bg-violet-100 dark:bg-violet-950', fill: 'bg-violet-500 dark:bg-violet-400' },
   { trilha: 'bg-orange-100 dark:bg-orange-950', fill: 'bg-orange-500 dark:bg-orange-400' },
   { trilha: 'bg-teal-100 dark:bg-teal-950', fill: 'bg-teal-500 dark:bg-teal-400' },
@@ -17,7 +17,7 @@ const PALETA_FUNIL = [
   { trilha: 'bg-amber-100 dark:bg-amber-950', fill: 'bg-amber-500 dark:bg-amber-400' },
 ] as const
 
-type CorFunil = (typeof PALETA_FUNIL)[number]
+export type CorFunil = (typeof PALETA_FUNIL)[number]
 
 /**
  * Um card por funil ATIVO — a lista vem de `obterProgressoMetasFunis`
@@ -42,9 +42,15 @@ export function CardsMetaFunil({ progresso }: { progresso: ProgressoFunilMeta[] 
   )
 }
 
-function CardMetaFunil({ progresso, cor }: { progresso: ProgressoFunilMeta; cor: CorFunil }) {
+/**
+ * Exportado para o grid único de `/funil/metricas` (`MetaMensal`), que
+ * combina os cards de funil com os cards gerais (TCV/MRR) numa mesma grade —
+ * `CardsMetaFunil` (acima) continua existindo à parte para `/metas`, que usa
+ * sua própria grade só de funis.
+ */
+export function CardMetaFunil({ progresso, cor }: { progresso: ProgressoFunilMeta; cor: CorFunil }) {
   return (
-    <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="flex min-h-[170px] flex-col justify-center space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
       <h3 className="font-semibold">{progresso.funilNome}</h3>
       <LinhaMetaFunil titulo="TCV" dados={progresso.tcv} cor={cor} />
       <LinhaMetaFunil titulo="MRR" dados={progresso.mrr} cor={cor} />

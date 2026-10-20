@@ -1,7 +1,11 @@
 import type { ResumoFunil } from '@/lib/utils/funil-metricas'
 import { alturaBarraResultado } from '@/lib/utils/painel-metricas'
 
-const ALTURA_MAXIMA = 120
+import { IconeBarras } from './icones-metricas'
+
+const ALTURA_MAXIMA = 240
+/** Linhas de grade horizontais discretas, em frações da altura máxima — só decoração, nenhum dado. */
+const LINHAS_GRADE = [0.25, 0.5, 0.75]
 
 /**
  * Painel "Resultados do período" — Novos (coorte: negociações criadas no
@@ -15,7 +19,16 @@ const ALTURA_MAXIMA = 120
  * sobre cada uma, legenda abaixo, estado zero legível (barra na altura
  * mínima, número "0" visível).
  */
-export function ResultadosPeriodo({ resumo, funilNome }: { resumo: ResumoFunil; funilNome: string }) {
+export function ResultadosPeriodo({
+  resumo,
+  funilNome,
+  periodoLabel,
+}: {
+  resumo: ResumoFunil
+  funilNome: string
+  /** Período de análise já formatado (ex.: "01/10/2026 → 20/10/2026") — só exibição, nunca recalculado aqui. */
+  periodoLabel: string
+}) {
   const maior = Math.max(resumo.totalEntraram, resumo.ganhos)
   const barras = [
     {
@@ -37,37 +50,49 @@ export function ResultadosPeriodo({ resumo, funilNome }: { resumo: ResumoFunil; 
   return (
     <section
       aria-label="Resultados do período"
-      className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+      className="flex min-h-[460px] flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"
     >
-      <div>
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Resultados do período</h2>
-        <p className="text-xs text-zinc-500">
-          Funil selecionado — <span className="font-medium text-zinc-700 dark:text-zinc-300">{funilNome}</span>, período de
-          análise.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-1.5 text-base font-semibold text-zinc-800 dark:text-zinc-200">
+            <IconeBarras className="size-4 text-zinc-400" />
+            Resultados do período
+          </h2>
+          <p className="text-xs text-zinc-500">
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{funilNome}</span> — {periodoLabel}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
+          {barras.map((b) => (
+            <span key={b.chave} className="flex items-center gap-1.5" title={b.detalhe}>
+              <span aria-hidden className={`size-2 rounded-full ${b.cor}`} />
+              {b.rotulo}
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-1 items-end justify-center gap-10 pt-2">
+      <div className="relative flex flex-1 items-end justify-center gap-16">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0" style={{ height: ALTURA_MAXIMA }}>
+          {LINHAS_GRADE.map((f) => (
+            <div
+              key={f}
+              className="absolute inset-x-0 border-t border-dashed border-zinc-200 dark:border-zinc-800"
+              style={{ bottom: ALTURA_MAXIMA * f }}
+            />
+          ))}
+        </div>
         {barras.map((b) => (
-          <div key={b.chave} className="flex flex-col items-center gap-1.5" title={`${b.rotulo}: ${b.detalhe}`}>
-            <span className="text-xl font-semibold tabular-nums">{b.valor}</span>
+          <div key={b.chave} className="relative z-10 flex flex-col items-center gap-2" title={`${b.rotulo}: ${b.detalhe}`}>
+            <span className="text-2xl font-bold tabular-nums">{b.valor}</span>
             <div
               role="img"
               aria-label={`${b.rotulo}: ${b.valor}. ${b.detalhe}`}
-              className={`w-16 rounded-t-md transition-[height] ${b.cor}`}
+              className={`w-24 rounded-t-md transition-[height] ${b.cor}`}
               style={{ height: alturaBarraResultado(b.valor, maior, ALTURA_MAXIMA) }}
             />
-            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{b.rotulo}</span>
+            <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">{b.rotulo}</span>
           </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-4 border-t border-zinc-200 pt-2 text-xs text-zinc-500 dark:border-zinc-800">
-        {barras.map((b) => (
-          <span key={b.chave} className="flex items-center gap-1.5">
-            <span aria-hidden className={`size-2 rounded-full ${b.cor}`} />
-            {b.detalhe}
-          </span>
         ))}
       </div>
     </section>

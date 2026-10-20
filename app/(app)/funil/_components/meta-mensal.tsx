@@ -1,9 +1,12 @@
 import Link from 'next/link'
 
-import { CardsMetaFunil } from '@/components/metas/cards-meta-funil'
+import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { CardMetaFunil, PALETA_FUNIL } from '@/components/metas/cards-meta-funil'
 import type { ProgressoEmpresa, ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 import { rotuloMes } from '@/lib/utils/periodo'
+
+import { IconeMoeda } from './icones-metricas'
 
 /**
  * "Meta mensal — [mês/ano]" — mês cheio, navegável pelo PRÓPRIO seletor
@@ -35,40 +38,45 @@ export function MetaMensal({
     progressoFunis.reduce((soma, f) => soma + (f[tipo].valorMeta ?? 0), 0)
 
   return (
-    <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta mensal — {rotuloMes(mes)}</h2>
+          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Meta mensal — {rotuloMes(mes)}</h2>
           <p className="text-xs text-zinc-500">
             Mês inteiro, nunca proporcional — todos os responsáveis. Independe do período de análise selecionado abaixo.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {seletorMes}
-          <Link href="/metas" className="text-sm text-zinc-500 hover:underline">
+          <Link href="/metas" className={botaoSecundarioClass}>
             Gerenciar metas →
           </Link>
         </div>
       </div>
 
-      {progressoEmpresa ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <CardMetaGeral titulo="TCV geral" dados={progressoEmpresa.tcv} cor="emerald" />
-          <CardMetaGeral titulo="MRR geral" dados={progressoEmpresa.mrr} cor="sky" />
+      {progressoEmpresa && progressoFunis.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          <AvisoDivergencia totalMeta={progressoEmpresa.tcv.valorMeta} somaMetasFunis={somaMetasFunis('tcv')} rotulo="TCV" />
+          <AvisoDivergencia totalMeta={progressoEmpresa.mrr.valorMeta} somaMetasFunis={somaMetasFunis('mrr')} rotulo="MRR" />
         </div>
-      ) : (
-        <p className="text-sm text-zinc-500">Nenhuma meta da empresa visível para o seu papel.</p>
       )}
 
-      {progressoFunis.length > 0 && (
-        <div className="space-y-2 border-t border-dashed border-zinc-200 pt-3 dark:border-zinc-800">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Meta mensal por funil</p>
-            <AvisoDivergencia totalMeta={progressoEmpresa?.tcv.valorMeta ?? null} somaMetasFunis={somaMetasFunis('tcv')} rotulo="TCV" />
-            <AvisoDivergencia totalMeta={progressoEmpresa?.mrr.valorMeta ?? null} somaMetasFunis={somaMetasFunis('mrr')} rotulo="MRR" />
-          </div>
-          <CardsMetaFunil progresso={progressoFunis} />
+      {progressoEmpresa || progressoFunis.length > 0 ? (
+        // Mesma lógica de `@container` da página (`/funil/metricas/page.tsx`):
+        // colunas pela largura REAL do container, não pelo viewport.
+        <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @5xl:grid-cols-4">
+          {progressoEmpresa && (
+            <>
+              <CardMetaGeral titulo="TCV geral" dados={progressoEmpresa.tcv} cor="emerald" />
+              <CardMetaGeral titulo="MRR geral" dados={progressoEmpresa.mrr} cor="sky" />
+            </>
+          )}
+          {progressoFunis.map((p, i) => (
+            <CardMetaFunil key={p.funilId} progresso={p} cor={PALETA_FUNIL[i % PALETA_FUNIL.length]} />
+          ))}
         </div>
+      ) : (
+        <p className="text-sm text-zinc-500">Nenhuma meta visível para o seu papel.</p>
       )}
     </section>
   )
@@ -85,11 +93,15 @@ function CardMetaGeral({
 }) {
   const trilho = cor === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-sky-100 dark:bg-sky-950'
   const fill = cor === 'emerald' ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-sky-500 dark:bg-sky-400'
+  const icone = cor === 'emerald' ? 'text-emerald-500 dark:text-emerald-400' : 'text-sky-500 dark:text-sky-400'
 
   return (
-    <div className="space-y-2.5 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <p className="font-semibold">{titulo}</p>
-      <dl className="grid grid-cols-3 gap-2 text-sm">
+    <div className="flex min-h-[170px] flex-col justify-center space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+      <p className="flex items-center gap-1.5 font-semibold">
+        <IconeMoeda className={`size-4 ${icone}`} />
+        {titulo}
+      </p>
+      <dl className="grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-xs text-zinc-500">Meta</dt>
           <dd className="font-medium tabular-nums">

@@ -79,8 +79,16 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
   }
   const caminhoBaseMetaMes = `/funil/metricas?${queryOperacional.toString()}&`
 
+  const periodoLabel = `${formatarData(periodo.inicio)} → ${formatarData(periodo.fim)}`
+
   return (
-    <div className="space-y-6">
+    // `@container`: a largura REAL disponível aqui depende da rota (ver
+    // `ROTAS_LARGURA_AMPLIADA` em `components/layout/shell-app.tsx`) e do
+    // estado da sidebar — nunca fixa. Os grids abaixo decidem colunas pela
+    // largura REAL deste container (`@lg:`/`@min-[...]:`), não pelo viewport
+    // (`lg:`/`xl:` mediriam a tela inteira, errado quando a sidebar e o
+    // padding já consomem uma fatia variável dela).
+    <div className="@container w-full space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Link href="/funil" className="text-sm text-zinc-500 hover:underline">
@@ -117,20 +125,27 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
             hoje={hoje}
           />
         </div>
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Período de análise: {formatarData(periodo.inicio)} → {formatarData(periodo.fim)}
-        </p>
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Período de análise: {periodoLabel}</p>
       </div>
 
       {/* Três painéis principais: funil visual (esquerda), meta mensal em
-          círculo (centro), resultados do período em barras (direita). No
-          desktop, três colunas; empilha a partir de `lg` para baixo. */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+          círculo (centro), resultados do período em barras (direita). Linha
+          de destaque da tela — mesma altura mínima nos três.
+          `@min-[1100px]`: entre 2 colunas (`@lg`, 512px de container) e 3
+          colunas (1.1fr/1fr/1fr) — valor escolhido para separar telas tipo
+          1366×768 (container ~1062px → 2+1, três colunas ficariam
+          apertadas) de telas tipo 1440×900 (container ~1136px → 3 colunas
+          cabem legíveis); documentado aqui para não ser "mágico". */}
+      <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @min-[1100px]:grid-cols-[1.1fr_1fr_1fr]">
+        <div className="flex min-h-[460px] flex-col rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
           <FunilVisual metricas={metricasSelecionado} funilNome={funilSelecionado.nome} />
         </div>
         <DonutMetaMensal progresso={progressoMes.empresa} />
-        <ResultadosPeriodo resumo={metricasSelecionado.resumo} funilNome={funilSelecionado.nome} />
+        <ResultadosPeriodo
+          resumo={metricasSelecionado.resumo}
+          funilNome={funilSelecionado.nome}
+          periodoLabel={periodoLabel}
+        />
       </div>
 
       <MetaMensal

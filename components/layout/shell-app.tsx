@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { createContext, useContext, useState } from 'react'
 
 import { IconeExpandir, IconeRecolher } from './icones'
@@ -10,6 +11,16 @@ import {
 } from './preferencia-sidebar'
 
 const ContextoSidebar = createContext<{ recolhida: boolean; alternar: () => void } | null>(null)
+
+/**
+ * Rotas que podem usar mais largura que o padrão do CRM (`max-w-6xl`,
+ * ~1152px) — hoje só o dashboard de métricas do funil, que tem três painéis
+ * lado a lado e desperdiça espaço em monitores largos com o teto padrão.
+ * Allowlist explícita por pathname exato (nunca `startsWith`/prefixo): uma
+ * tela nova só ganha mais largura se for adicionada aqui de propósito,
+ * nunca "por engano" por estar debaixo da mesma rota.
+ */
+const ROTAS_LARGURA_AMPLIADA = new Set(['/funil/metricas'])
 
 /**
  * Casca da área autenticada: sidebar fixa + conteúdo.
@@ -28,6 +39,7 @@ export function ShellApp({
   children: React.ReactNode
 }) {
   const [recolhida, setRecolhida] = useState(recolhidaInicial)
+  const larguraAmpliada = ROTAS_LARGURA_AMPLIADA.has(usePathname())
 
   function alternar() {
     const nova = !recolhida
@@ -45,7 +57,9 @@ export function ShellApp({
           {sidebar}
         </aside>
         <main className="flex-1 pl-60 transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-16 motion-reduce:transition-none">
-          <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
+          <div className={larguraAmpliada ? 'mx-auto max-w-[1600px] px-8 py-8' : 'mx-auto max-w-6xl px-8 py-8'}>
+            {children}
+          </div>
         </main>
       </div>
     </ContextoSidebar.Provider>

@@ -7,8 +7,10 @@ import { ticketMedio } from '@/lib/utils/financeiro-periodo'
 import { formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '@/lib/utils/formatacao'
 import { fracaoDonut } from '@/lib/utils/painel-metricas'
 
-const RAIO = 60
-const ESPESSURA = 14
+import { IconeAlvo } from './icones-metricas'
+
+const RAIO = 96
+const ESPESSURA = 18
 const CIRCUNFERENCIA = 2 * Math.PI * RAIO
 
 const CORES: Record<'tcv' | 'mrr', { trilho: string; preenchimento: string; texto: string }> = {
@@ -33,8 +35,8 @@ export function DonutMetaMensal({ progresso }: { progresso: ProgressoEmpresa | n
 
   if (!progresso) {
     return (
-      <section className="flex flex-col items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white p-4 text-center dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta mensal</h2>
+      <section className="flex min-h-[460px] flex-col items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white p-5 text-center dark:border-zinc-800 dark:bg-zinc-950">
+        <h2 className="text-base font-semibold text-zinc-700 dark:text-zinc-300">Meta de faturamento</h2>
         <p className="text-sm text-zinc-500">Nenhuma meta da empresa visível para o seu papel.</p>
       </section>
     )
@@ -45,9 +47,12 @@ export function DonutMetaMensal({ progresso }: { progresso: ProgressoEmpresa | n
   const ticket = ticketMedio(dados.realizado, dados.quantidade)
 
   return (
-    <section className="flex flex-col items-center gap-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <section className="flex min-h-[460px] flex-col items-center gap-5 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex w-full items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Meta mensal</h2>
+        <h2 className="flex items-center gap-1.5 text-base font-semibold text-zinc-800 dark:text-zinc-200">
+          <IconeAlvo className="size-4 text-zinc-400" />
+          Meta de faturamento
+        </h2>
         <div role="tablist" aria-label="TCV ou MRR" className="inline-flex rounded-md border border-zinc-200 p-0.5 dark:border-zinc-800">
           {(['tcv', 'mrr'] as const).map((t) => (
             <button
@@ -56,7 +61,7 @@ export function DonutMetaMensal({ progresso }: { progresso: ProgressoEmpresa | n
               role="tab"
               aria-selected={aba === t}
               onClick={() => setAba(t)}
-              className={`rounded px-2.5 py-1 text-xs font-medium uppercase transition ${
+              className={`rounded px-3 py-1.5 text-xs font-medium uppercase transition ${
                 aba === t
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                   : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -70,24 +75,26 @@ export function DonutMetaMensal({ progresso }: { progresso: ProgressoEmpresa | n
 
       <AneDeProgresso percentual={dados.percentual} realizado={dados.realizado} cor={cor} aba={aba} />
 
-      <dl className="grid w-full grid-cols-2 gap-3 text-sm">
+      <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-4 text-sm">
         <div>
           <dt className="text-xs text-zinc-500">Meta mensal</dt>
-          <dd className="font-medium tabular-nums">
+          <dd className="text-base font-semibold tabular-nums">
             {dados.valorMeta === null ? <span className="text-zinc-400">Não definida</span> : formatarMoeda(dados.valorMeta)}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-zinc-500">Realizado no mês</dt>
-          <dd className="font-medium tabular-nums">{formatarMoeda(dados.realizado)}</dd>
+          <dd className="text-base font-semibold tabular-nums">{formatarMoeda(dados.realizado)}</dd>
         </div>
         <div>
           <dt className="text-xs text-zinc-500">Ticket médio</dt>
-          <dd className="font-medium tabular-nums">{ticket === null ? <span className="text-zinc-400">—</span> : formatarMoeda(ticket)}</dd>
+          <dd className="text-base font-semibold tabular-nums">
+            {ticket === null ? <span className="text-zinc-400">—</span> : formatarMoeda(ticket)}
+          </dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-500">Quantidade de vendas</dt>
-          <dd className="font-medium tabular-nums">{dados.quantidade}</dd>
+          <dt className="text-xs text-zinc-500">Quantidade</dt>
+          <dd className="text-base font-semibold tabular-nums">{dados.quantidade}</dd>
         </div>
       </dl>
     </section>
@@ -136,14 +143,14 @@ function AneDeProgresso({
           className={`transition-[stroke-dashoffset] ${cor.preenchimento}`}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 text-center">
-        <span className="text-lg font-semibold tabular-nums" title={formatarMoeda(realizado)}>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
+        <span className="text-2xl font-bold tabular-nums" title={formatarMoeda(realizado)}>
           {formatarMoedaCompacta(realizado)}
         </span>
-        <span className={`text-sm font-semibold tabular-nums ${cor.texto}`}>
+        <span className={`text-xl font-bold tabular-nums ${cor.texto}`}>
           {percentual === null ? '—' : formatarPercentual(percentual)}
         </span>
-        <span className="text-[11px] text-zinc-500">da meta mensal</span>
+        <span className="text-xs text-zinc-500">da meta mensal</span>
       </div>
     </div>
   )

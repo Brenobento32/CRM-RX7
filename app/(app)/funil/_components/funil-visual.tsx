@@ -1,8 +1,10 @@
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
-import { corDeFundoAgenda } from '@/lib/utils/etapas'
+import { classeTextoAgenda, corDeFundoAgenda } from '@/lib/utils/etapas'
 import { filtrarPipelinePrincipal, type MetricaEtapa, type MetricasFunil } from '@/lib/utils/funil-metricas'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 import { larguraDegrauFunil, temEntradaDireta } from '@/lib/utils/painel-metricas'
+
+import { IconeFunil } from './icones-metricas'
 
 /**
  * Funil visual — números absolutos e percentuais, lado a lado com a tabela
@@ -40,18 +42,29 @@ export function FunilVisual({ metricas, funilNome }: { metricas: MetricasFunil; 
   const larguras = pipeline.map((etapa) => larguraDegrauFunil(etapa.conversaoAcumulada))
 
   return (
-    <section aria-label="Funil de conversão visual" className="space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Funil de vendas</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{funilNome}</p>
-        <p className="text-xs text-zinc-500">Conversão da coorte — evolução até o momento.</p>
-        <p className="text-xs text-zinc-400">
-          Leads de origens diferentes podem entrar direto numa etapa mais avançada — por isso os números nem sempre
-          diminuem etapa a etapa.
-        </p>
+    <section aria-label="Funil de conversão visual" className="flex h-full flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-1.5 text-base font-semibold text-zinc-800 dark:text-zinc-200">
+            <IconeFunil className="size-4 shrink-0 text-zinc-400" />
+            Funil de vendas
+          </h2>
+          <p className="truncate text-sm text-zinc-600 dark:text-zinc-400" title={funilNome}>
+            {funilNome}
+          </p>
+          <p
+            className="text-[11px] text-zinc-400"
+            title="Leads de origens diferentes podem entrar direto numa etapa mais avançada — por isso os números nem sempre diminuem etapa a etapa."
+          >
+            Conversão da coorte — evolução até o momento.
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          Leads entraram <span className="tabular-nums">{resumo.totalEntraram}</span>
+        </span>
       </div>
 
-      <ol className="space-y-3">
+      <ol className="space-y-1">
         <LinhaFunilBase quantidade={resumo.totalEntraram} />
         {pipeline.map((etapa, i) => (
           <LinhaFunil
@@ -67,7 +80,7 @@ export function FunilVisual({ metricas, funilNome }: { metricas: MetricasFunil; 
       </ol>
 
       {(perdido || recuperacao.length > 0) && (
-        <div className="flex flex-wrap gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <div className="mt-auto flex flex-wrap gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
           <p className="w-full text-xs text-zinc-500">
             Fora da sequência principal — não são &ldquo;próxima etapa&rdquo;:
           </p>
@@ -82,7 +95,7 @@ export function FunilVisual({ metricas, funilNome }: { metricas: MetricasFunil; 
 }
 
 /** Altura (px) de cada degrau/trapezoide do funil — mesma para todos, só a largura varia. */
-const ALTURA_DEGRAU = 40
+const ALTURA_DEGRAU = 56
 
 /** `clip-path: polygon(...)` de um trapezoide CENTRALIZADO: `topo`/`base` em % (0–100) da largura total do container. */
 function trapezoide(topo: number, base: number): string {
@@ -92,17 +105,15 @@ function trapezoide(topo: number, base: number): string {
 
 function LinhaFunilBase({ quantidade }: { quantidade: number }) {
   return (
-    <li className="space-y-1.5">
-      <div className="flex items-center justify-center gap-2 text-center text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        Leads entraram
-        <span className="text-base font-semibold tabular-nums">{quantidade}</span>
-      </div>
+    <li className="space-y-1">
       <div
-        aria-hidden
-        className="mx-auto w-full rounded-t-md bg-zinc-800 dark:bg-zinc-300"
+        className="mx-auto flex w-full items-center justify-center gap-2 rounded-t-lg bg-zinc-800 text-white dark:bg-zinc-300 dark:text-zinc-900"
         style={{ height: ALTURA_DEGRAU }}
-      />
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-xs text-zinc-500">
+      >
+        <span className="text-sm font-medium">Leads entraram</span>
+        <span className="text-lg font-bold tabular-nums">{quantidade}</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-[11px] text-zinc-500">
         <span>
           <strong className="tabular-nums">100%</strong> desde a entrada
         </span>
@@ -135,45 +146,43 @@ function LinhaFunil({
 }) {
   const largura = larguraDegrauFunil(etapa.conversaoAcumulada)
   const entradaDireta = temEntradaDireta(etapa.conversaoAcumulada, percentualAnterior)
+  const corTexto = classeTextoAgenda(etapa.cor)
 
   return (
-    <li className="space-y-1.5">
-      <div className="flex flex-wrap items-center justify-center gap-2 text-center text-sm font-medium">
-        <PontoEtapa cor={etapa.cor} />
-        {etapa.nome}
-        <span className="text-base font-semibold tabular-nums">{etapa.alcancaram}</span>
-        {entradaDireta && (
-          <span
-            className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-normal text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-            title="Esta etapa alcançou mais negociações que a etapa anterior — algumas entraram direto aqui, sem passar pela anterior"
-          >
-            inclui entradas diretas
-          </span>
-        )}
-      </div>
+    <li className="space-y-1">
       <div
-        aria-hidden
-        className="mx-auto w-full transition-[clip-path]"
+        className="relative mx-auto flex w-full items-center justify-center transition-[clip-path]"
         style={{
           height: ALTURA_DEGRAU,
           clipPath: trapezoide(larguraAnterior, largura),
           backgroundColor: corDeFundoAgenda(etapa.cor),
         }}
-      />
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-center text-xs text-zinc-500">
-        {percentualAnterior !== null ? (
-          <span>
-            <strong className="tabular-nums">{formatarPercentual(percentualAnterior)}</strong> da etapa anterior
+      >
+        <div className={`flex w-full max-w-[94%] items-center justify-between gap-2 px-2 ${corTexto}`}>
+          <span className="flex min-w-0 items-baseline gap-1.5 text-sm font-medium">
+            <span className="truncate">{etapa.nome}</span>
+            <span className="shrink-0 text-lg font-bold tabular-nums">{etapa.alcancaram}</span>
           </span>
-        ) : (
-          <span className="text-zinc-400">— da etapa anterior</span>
-        )}
+          {percentualAnterior !== null && (
+            <span className="shrink-0 text-sm font-semibold tabular-nums">{formatarPercentual(percentualAnterior)}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 pt-0.5 text-center text-[11px] text-zinc-500">
         {etapa.conversaoAcumulada !== null ? (
           <span>
             <strong className="tabular-nums">{formatarPercentual(etapa.conversaoAcumulada)}</strong> desde a entrada
           </span>
         ) : (
           <span className="text-zinc-400">— desde a entrada</span>
+        )}
+        {entradaDireta && (
+          <span
+            className="rounded bg-amber-100 px-1.5 py-0.5 font-normal text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+            title="Esta etapa alcançou mais negociações que a etapa anterior — algumas entraram direto aqui, sem passar pela anterior"
+          >
+            inclui entradas diretas
+          </span>
         )}
       </div>
     </li>
