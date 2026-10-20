@@ -9,15 +9,26 @@ function iniciais(nome: string): string {
   return (primeira + ultima).toUpperCase() || '?'
 }
 
-/** Foto do usuário ou, sem foto, as iniciais do nome. */
+/**
+ * Foto do usuário ou, sem foto, as iniciais do nome.
+ *
+ * `variant="premium"`: usado só pela `Topbar` (casca sempre no design system
+ * premium, claro ou escuro pelo `data-theme` da shell) — tokens `premium-*`
+ * em vez do `dark:` de SO, senão as iniciais ficariam na cor errada ao
+ * alternar o tema do app sem mudar o tema do sistema operacional. As outras
+ * telas que usam `Avatar` (`/configuracoes/usuarios`) continuam com o
+ * `variant="padrao"` de sempre.
+ */
 export function Avatar({
   nome,
   fotoUrl,
   tamanho = 'md',
+  variant = 'padrao',
 }: {
   nome: string
   fotoUrl: string | null
   tamanho?: keyof typeof TAMANHOS
+  variant?: 'padrao' | 'premium'
 }) {
   const px = TAMANHOS[tamanho]
 
@@ -37,7 +48,11 @@ export function Avatar({
   return (
     <span
       aria-hidden
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-zinc-200 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-medium ${
+        variant === 'premium'
+          ? 'bg-premium-borda text-premium-secundario'
+          : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+      }`}
       style={{ width: px, height: px, fontSize: px * 0.38 }}
     >
       {iniciais(nome)}

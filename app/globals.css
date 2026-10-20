@@ -11,6 +11,57 @@
   --chart-grade: #e4e4e7;
   --chart-texto: #52525b;
   --chart-cursor: rgb(0 0 0 / 0.04);
+
+  /**
+   * Design system "premium" — telas autenticadas que adotaram o visual
+   * escuro (sidebar/topbar sempre; `/funil/metricas`, `/metas`, `/funil`
+   * nesta rodada — ver `ROTAS_PREMIUM` em `components/layout/shell-app.tsx`).
+   * Fundo azul-petróleo muito escuro (não zinc puro), cada camada um tom
+   * mais clara que a anterior; verde Scorpion só como DESTAQUE pontual
+   * (ativo, botão primário, progresso), nunca como grande superfície.
+   * Classes utilitárias via `@theme inline` abaixo: `bg-premium-bg`,
+   * `bg-premium-elevado`, `bg-premium-card`, `border-premium-borda`,
+   * `text-premium-texto`, `text-premium-secundario`, `text-premium-mudo`,
+   * `bg-premium-acento`/`text-premium-acento`, `bg-premium-acento-suave`.
+   */
+  --premium-bg: #0a0e16;
+  --premium-elevado: #0d1220;
+  --premium-card: #121829;
+  --premium-borda: #232a3a;
+  --premium-texto: #f1f4f8;
+  --premium-secundario: #aab2c0;
+  --premium-mudo: #70788c;
+  --premium-acento: #2dd4a7;
+  --premium-acento-suave: rgb(45 212 167 / 0.12);
+}
+
+/**
+ * Modo claro do design system "premium" — mesmos papéis semânticos, valores
+ * invertidos (fundo branco, bordas cinza médio/escuro, texto quase preto).
+ * Alternado por `data-theme="light"` (ver `ContextoTema`/`ShellApp` em
+ * `components/layout/shell-app.tsx`); sem o atributo, o escuro acima
+ * continua sendo o padrão. `--premium-acento` fica um pouco mais escuro
+ * aqui (`#0f9d75` em vez de `#2dd4a7`) só pra manter contraste de texto em
+ * AA sobre fundo branco — a MESMA variável em ambos os modos é o que deixa
+ * a cor de destaque pronta pra um dia virar configurável por RGB da
+ * marca/logo (troca só o valor, nunca o nome usado nos componentes).
+ *
+ * Seletor de ATRIBUTO puro (`[data-theme=...]`), nunca `:root[data-theme=...]`:
+ * `:root` SEMPRE se refere ao `<html>`, não ao elemento que de fato carrega o
+ * atributo — que é a `div` da shell (`group/shell` em `shell-app.tsx`), não a
+ * raiz do documento. `:root[data-theme='light']` nunca casaria nada aqui;
+ * variáveis CSS cascateiam normalmente pros descendentes de qualquer jeito.
+ */
+[data-theme='light'] {
+  --premium-bg: #ffffff;
+  --premium-elevado: #f6f7f9;
+  --premium-card: #ffffff;
+  --premium-borda: #d3d8e0;
+  --premium-texto: #15181f;
+  --premium-secundario: #4b5563;
+  --premium-mudo: #8b93a3;
+  --premium-acento: #0f9d75;
+  --premium-acento-suave: rgb(15 157 117 / 0.1);
 }
 
 @theme inline {
@@ -21,6 +72,16 @@
 
   --color-chart-serie: var(--chart-serie);
   --color-chart-trilha: var(--chart-trilha);
+
+  --color-premium-bg: var(--premium-bg);
+  --color-premium-elevado: var(--premium-elevado);
+  --color-premium-card: var(--premium-card);
+  --color-premium-borda: var(--premium-borda);
+  --color-premium-texto: var(--premium-texto);
+  --color-premium-secundario: var(--premium-secundario);
+  --color-premium-mudo: var(--premium-mudo);
+  --color-premium-acento: var(--premium-acento);
+  --color-premium-acento-suave: var(--premium-acento-suave);
 }
 
 @media (prefers-color-scheme: dark) {

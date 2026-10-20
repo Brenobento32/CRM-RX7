@@ -85,10 +85,11 @@ function subitemAtivo(pathname: string, filhos: Subitem[]): string | undefined {
     .sort((a, b) => b.href.length - a.href.length)[0]?.href
 }
 
+/** `pl-[10px]` compensa os 2px do `border-l-2` — o texto fica alinhado igual, ativo ou não. */
 const linhaBase =
-  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0'
-const linhaAtiva = 'bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
-const linhaInativa = 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+  'flex items-center gap-3 rounded-md border-l-2 border-transparent py-2 pr-3 pl-[10px] text-sm transition group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:border-l-0 group-data-[sidebar=recolhida]/shell:px-0'
+const linhaAtiva = 'border-premium-acento bg-premium-acento-suave font-medium text-premium-acento'
+const linhaInativa = 'text-premium-secundario hover:bg-premium-card hover:text-premium-texto'
 
 /**
  * Client pelo `usePathname` (item ativo) e pelo estado dos grupos abertos.
@@ -175,12 +176,12 @@ function GrupoMenu({
         aria-expanded={aberto}
         aria-controls={idLista}
         className={`${linhaBase} w-full group-data-[sidebar=recolhida]/shell:hidden ${
-          ativoGrupo ? 'font-medium text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800' : linhaInativa
+          ativoGrupo ? 'border-premium-acento bg-premium-acento-suave font-medium text-premium-acento' : linhaInativa
         }`}
       >
         <grupo.Icone />
         <span className="flex-1 truncate text-left">{grupo.rotulo}</span>
-        <IconeSeta className={`size-4 text-zinc-400 transition-transform motion-reduce:transition-none ${aberto ? 'rotate-90' : ''}`} />
+        <IconeSeta className={`size-4 text-premium-mudo transition-transform motion-reduce:transition-none ${aberto ? 'rotate-90' : ''}`} />
       </button>
 
       {aberto && (
@@ -203,8 +204,8 @@ function GrupoMenu({
       </Link>
 
       <div className="absolute top-0 left-full z-40 hidden pl-2 group-data-[sidebar=recolhida]/shell:group-focus-within/item:block group-data-[sidebar=recolhida]/shell:group-hover/item:block">
-        <div className="min-w-44 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
-          <p className="px-3 py-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{grupo.rotulo}</p>
+        <div className="min-w-44 rounded-md border border-premium-borda bg-premium-card p-1 shadow-lg shadow-black/40">
+          <p className="px-3 py-1.5 text-xs font-semibold tracking-wide text-premium-mudo uppercase">{grupo.rotulo}</p>
           <ul className="space-y-0.5">
             {filhos.map((f) => (
               <li key={f.href}>

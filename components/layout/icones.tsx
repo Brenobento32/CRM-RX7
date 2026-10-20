@@ -111,3 +111,40 @@ export const IconeSeta = (p: Props) => (
     <path d="m9 6 6 6-6 6" />
   </Svg>
 )
+
+/** Sino de notificação — decorativo (sem backend de notificações hoje). */
+export const IconeSino = (p: Props) => (
+  <Svg {...p}>
+    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </Svg>
+)
+
+/** Seta pequena para baixo — dropdown do usuário, conectores do funil. */
+export const IconeSetaBaixo = (p: Props) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+)
+
+/** Sol — alternância de tema, estado "modo claro". */
+export const IconeSol = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+  </Svg>
+)
+
+/** Lua — alternância de tema, estado "modo escuro". */
+export const IconeLua = (p: Props) => (
+  <Svg {...p}>
+    <path d="M20.8 14.5A8.5 8.5 0 1 1 9.5 3.2a7 7 0 0 0 11.3 11.3Z" />
+  </Svg>
+)
+
+/** Lápis — "Editar perfil" no menu do usuário (mesmo traço do botão "Editar proposta" do card do Kanban). */
+export const IconeEditar = (p: Props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={`shrink-0 ${p.className ?? 'size-5'}`}>
+    <path d="M16.862 4.487a1.875 1.875 0 1 1 2.652 2.652L7.5 19.153l-4.243 1.06 1.06-4.242 12.545-12.484Z" />
+  </svg>
+)
