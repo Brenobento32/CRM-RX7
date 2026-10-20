@@ -328,6 +328,7 @@ export type Database = {
           id: string
           nome: string
           ordem: number
+          participa_conversao: boolean
           pos_fechamento: boolean
           sistema: boolean
           tipo: Database["public"]["Enums"]["tipo_etapa"]
@@ -344,6 +345,7 @@ export type Database = {
           id?: string
           nome: string
           ordem: number
+          participa_conversao?: boolean
           pos_fechamento?: boolean
           sistema?: boolean
           tipo?: Database["public"]["Enums"]["tipo_etapa"]
@@ -360,6 +362,7 @@ export type Database = {
           id?: string
           nome?: string
           ordem?: number
+          participa_conversao?: boolean
           pos_fechamento?: boolean
           sistema?: boolean
           tipo?: Database["public"]["Enums"]["tipo_etapa"]
@@ -2256,11 +2259,13 @@ export type Database = {
         Returns: {
           alcancaram: number
           cor: Database["public"]["Enums"]["cor_etapa"]
+          desqualificados: number
           etapa_id: string
           nome: string
           ordem: number
           parados_7_dias: number
           parados_medio_segundos: number
+          participa_conversao: boolean
           permanencias: number
           pos_fechamento: boolean
           quantidade: number

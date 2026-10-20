@@ -7,11 +7,44 @@ import {
   corDeNicho,
   COR_AGENDA_PADRAO,
   PALETA_ETAPAS,
+  participaConversaoNormalizada,
   podeMoverNegociacaoColaborador,
   podeVerEtapaColaborador,
   sdrPodeMoverPara,
   TEXTO_SOBRE_COR,
 } from '@/lib/utils/etapas'
+
+describe('participaConversaoNormalizada', () => {
+  it('ganha: sempre true, mesmo que o gerente tenha desmarcado o checkbox', () => {
+    expect(
+      participaConversaoNormalizada({ tipo: 'ganha', posFechamento: false, escolhaDoGerente: false }),
+    ).toBe(true)
+  })
+
+  it('perdida: sempre false, mesmo que o gerente tenha marcado o checkbox', () => {
+    expect(
+      participaConversaoNormalizada({ tipo: 'perdida', posFechamento: false, escolhaDoGerente: true }),
+    ).toBe(false)
+  })
+
+  it('pós-fechamento (recuperação): sempre false, mesmo que o gerente tenha marcado o checkbox', () => {
+    expect(
+      participaConversaoNormalizada({ tipo: 'aberta', posFechamento: true, escolhaDoGerente: true }),
+    ).toBe(false)
+  })
+
+  it('aberta principal (não pós-fechamento, checkbox marcado): true', () => {
+    expect(
+      participaConversaoNormalizada({ tipo: 'aberta', posFechamento: false, escolhaDoGerente: true }),
+    ).toBe(true)
+  })
+
+  it('aberta lateral (não pós-fechamento, checkbox desmarcado): false', () => {
+    expect(
+      participaConversaoNormalizada({ tipo: 'aberta', posFechamento: false, escolhaDoGerente: false }),
+    ).toBe(false)
+  })
+})
 
 describe('corDeFundoAgenda', () => {
   it('usa o hex da paleta quando há cor', () => {

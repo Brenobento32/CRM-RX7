@@ -126,8 +126,13 @@ export const PERIODOS_FUNIL_DIAS = ['7d', '15d', '30d', '90d'] as const satisfie
 
 export type PeriodoFunil = { chave: ChavePeriodoFunil; inicio: string; fim: string }
 
+/**
+ * Padrão quando `?periodo=` está ausente/inválido na URL: "Este mês" — nunca
+ * "30 dias" (decisão explícita: o botão "Este mês" tem que aparecer ativo
+ * por padrão ao abrir a tela pela primeira vez, sem precisar de clique).
+ */
 export function chavePeriodoFunil(valor: unknown): ChavePeriodoFunil {
-  return (PERIODOS_FUNIL as readonly unknown[]).includes(valor) ? (valor as ChavePeriodoFunil) : '30d'
+  return (PERIODOS_FUNIL as readonly unknown[]).includes(valor) ? (valor as ChavePeriodoFunil) : 'mes'
 }
 
 function dataValida(valor: unknown): valor is string {
@@ -161,8 +166,12 @@ export function resolverPeriodoFunil(
     case 'ano':
       return { chave, inicio: `${hoje.slice(0, 4)}-01-01`, fim: hoje }
     case 'personalizado': {
+      // Mesmo padrão do fallback geral (nunca 30 dias): sem datas válidas,
+      // cai no intervalo de "Este mês" — chave continua 'personalizado'
+      // (o usuário escolheu essa opção de propósito), só o intervalo usado
+      // enquanto não há datas muda.
       if (!dataValida(personalizado.inicio) || !dataValida(personalizado.fim)) {
-        return { chave, inicio: somarDias(hoje, -29), fim: hoje }
+        return { chave, inicio: `${hoje.slice(0, 7)}-01`, fim: hoje }
       }
       const [inicio, fim] =
         personalizado.inicio <= personalizado.fim

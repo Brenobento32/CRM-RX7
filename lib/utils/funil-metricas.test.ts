@@ -11,6 +11,7 @@ function linha(overrides: Partial<LinhaFunilMetricasRpc>): LinhaFunilMetricasRpc
     tipo: 'aberta',
     ordem: 1000,
     pos_fechamento: false,
+    participa_conversao: true,
     quantidade: 0,
     valor: 0,
     alcancaram: 0,
@@ -19,6 +20,7 @@ function linha(overrides: Partial<LinhaFunilMetricasRpc>): LinhaFunilMetricasRpc
     parados_medio_segundos: null,
     parados_7_dias: 0,
     total_entraram: 0,
+    desqualificados: 0,
     ...overrides,
   }
 }
@@ -205,6 +207,36 @@ describe('filtrarPipelinePrincipal', () => {
     expect(pipeline.map((e) => e.nome)).toEqual(['Lead Novo', 'Reunião', 'Fechado'])
   })
 
+  it('No Show nunca pertence ao pipeline principal', () => {
+    const dados = [
+      ...funilExemplo(),
+      linha({
+        etapa_id: 'no-show',
+        nome: 'No Show',
+        ordem: 750,
+        participa_conversao: false,
+        quantidade: 1,
+        alcancaram: 3,
+        total_entraram: 10,
+      }),
+    ]
+    const { etapas } = processarMetricasFunil(dados)
+    const pipeline = filtrarPipelinePrincipal(etapas)
+    expect(pipeline.map((e) => e.nome)).not.toContain('No Show')
+  })
+
+  it('Perdido nunca pertence ao pipeline principal (já coberto acima, reforçado por tipo)', () => {
+    const { etapas } = processarMetricasFunil(funilExemplo())
+    const pipeline = filtrarPipelinePrincipal(etapas)
+    expect(pipeline.some((e) => e.tipo === 'perdida')).toBe(false)
+  })
+
+  it('Recuperação (pós-fechamento) nunca pertence ao pipeline principal (já coberto acima, reforçado por flag)', () => {
+    const { etapas } = processarMetricasFunil(funilExemplo())
+    const pipeline = filtrarPipelinePrincipal(etapas)
+    expect(pipeline.some((e) => e.posFechamento)).toBe(false)
+  })
+
   it('o gráfico usa os MESMOS objetos da tabela — nenhum valor recalculado', () => {
     // Mesma garantia que "a tabela diz MQL=70, o gráfico tem que dizer
     // MQL=70": filtrarPipelinePrincipal nunca copia/recalcula, só filtra —
@@ -222,5 +254,244 @@ describe('filtrarPipelinePrincipal', () => {
     const { etapas } = processarMetricasFunil(dados)
     const pipeline = filtrarPipelinePrincipal(etapas)
     expect(pipeline.map((e) => e.nome)).toEqual(['Lead Novo', 'Reunião', 'Fechado'])
+  })
+})
+
+/**
+ * Cenário real que motivou a correção: Reunião agendada = 10, No Show = 3,
+ * Reunião realizada = 7. ANTES desta correção, "No Show" era uma etapa
+ * `aberta` comum (`posFechamento = false`) igual qualquer outra — entrava no
+ * meio da sequência e virava a "etapa anterior" de Reunião realizada,
+ * resultando em 7 ÷ 3 = 233,3% (errado: não existe conversão acima de 100%
+ * entre etapas consecutivas reais do pipeline aqui). Depois da correção,
+ * Reunião realizada compara com Reunião agendada (sua verdadeira antecessora
+ * no pipeline, pulando o No Show): 7 ÷ 10 = 70%.
+ */
+describe('No Show não contamina a conversão do pipeline principal (cenário real)', () => {
+  function funilComNoShow(): LinhaFunilMetricasRpc[] {
+    return [
+      linha({
+        etapa_id: 'agendada',
+        nome: 'Reunião agendada',
+        ordem: 1000,
+        quantidade: 4,
+        valor: 40000,
+        parados_7_dias: 1,
+        alcancaram: 10,
+        total_entraram: 10,
+      }),
+      linha({
+        etapa_id: 'no-show',
+        nome: 'No Show',
+        ordem: 1500,
+        pos_fechamento: false,
+        participa_conversao: false,
+        // quantidade (estado atual) e alcancaram (coorte) DIFERENTES de
+        // propósito — mesmo exemplo do pedido: "quantidade atual = 2,
+        // alcancaram na coorte = 3" — prova que cada agregado usa o número
+        // certo, nunca confunde os dois.
+        quantidade: 2,
+        valor: 1500,
+        parados_7_dias: 1,
+        alcancaram: 3,
+        total_entraram: 10,
+      }),
+      linha({
+        etapa_id: 'realizada',
+        nome: 'Reunião realizada',
+        ordem: 2000,
+        quantidade: 7,
+        valor: 70000,
+        parados_7_dias: 2,
+        alcancaram: 7,
+        total_entraram: 10,
+      }),
+      linha({
+        etapa_id: 'fechado',
+        nome: 'Fechado',
+        tipo: 'ganha',
+        ordem: 100000,
+        quantidade: 2,
+        valor: 20000,
+        alcancaram: 2,
+        total_entraram: 10,
+      }),
+    ]
+  }
+
+  it('conversão de Reunião realizada é 7/10 = 70%, nunca 7/3', () => {
+    const { etapas } = processarMetricasFunil(funilComNoShow())
+    const agendada = etapas.find((e) => e.etapaId === 'agendada')!
+    expect(agendada.proxima?.nome).toBe('Reunião realizada')
+    expect(agendada.conversaoProxima).toBeCloseTo(0.7)
+    expect(agendada.conversaoProxima).not.toBeCloseTo(7 / 3)
+  })
+
+  it('No Show nunca é a "próxima etapa" de ninguém, e ela mesma não tem "próxima"', () => {
+    const { etapas } = processarMetricasFunil(funilComNoShow())
+    const noShow = etapas.find((e) => e.etapaId === 'no-show')!
+    expect(noShow.proxima).toBeNull()
+    expect(noShow.conversaoProxima).toBeNull()
+    expect(etapas.every((e) => e.proxima?.nome !== 'No Show')).toBe(true)
+  })
+
+  it('No Show continua disponível na coleção completa de etapas (pro Kanban/badge lateral), só fora do pipeline', () => {
+    const { etapas } = processarMetricasFunil(funilComNoShow())
+    const noShow = etapas.find((e) => e.etapaId === 'no-show')
+    expect(noShow).toBeDefined()
+    expect(noShow?.quantidade).toBe(2)
+    expect(noShow?.alcancaram).toBe(3)
+    expect(filtrarPipelinePrincipal(etapas).map((e) => e.nome)).toEqual(['Reunião agendada', 'Reunião realizada', 'Fechado'])
+  })
+
+  it('uma taxa de conversão acima de 100% (entrada direta) continua exibida por inteiro, nunca limitada', () => {
+    // Mais chegaram em "Reunião realizada" do que o total de "Reunião agendada" alcançou — entradas diretas de outra origem.
+    const dados = funilComNoShow().map((l) => (l.etapa_id === 'realizada' ? { ...l, alcancaram: 15 } : l))
+    const { etapas } = processarMetricasFunil(dados)
+    const agendada = etapas.find((e) => e.etapaId === 'agendada')!
+    expect(agendada.conversaoProxima).toBeCloseTo(1.5)
+    expect(agendada.conversaoProxima).toBeGreaterThan(1)
+  })
+
+  // ---------------------------------------------------------------------
+  // Correção desta rodada: No Show vazava nos AGREGADOS do resumo
+  // (oportunidades/pipelineValor/parados), que somam direto sobre `etapas`
+  // e não passavam por `filtrarPipelinePrincipal` — só a conversão/gráfico
+  // tinham sido corrigidos na rodada anterior.
+  // ---------------------------------------------------------------------
+
+  it('No Show fica fora de "oportunidades" (só Reunião agendada + Reunião realizada contam: 4 + 7 = 11)', () => {
+    const { resumo } = processarMetricasFunil(funilComNoShow())
+    expect(resumo.oportunidades).toBe(11)
+  })
+
+  it('No Show fica fora de "pipelineValor" (só 40000 + 70000 = 110000, nunca soma o 1500 do No Show)', () => {
+    const { resumo } = processarMetricasFunil(funilComNoShow())
+    expect(resumo.pipelineValor).toBe(110000)
+  })
+
+  it('No Show fica fora de "parados" (há +7 dias) — só 1 + 2 = 3, nunca soma o 1 do No Show', () => {
+    const { resumo } = processarMetricasFunil(funilComNoShow())
+    expect(resumo.parados).toBe(3)
+  })
+
+  it('etapas abertas normais (fora do No Show) continuam contando normalmente nos agregados', () => {
+    // Guarda de regressão: a correção exclui só o No Show, nunca as demais
+    // etapas abertas normais do pipeline.
+    const { resumo } = processarMetricasFunil(funilComNoShow())
+    expect(resumo.oportunidades).toBeGreaterThan(0)
+    expect(resumo.pipelineValor).toBeGreaterThan(0)
+  })
+
+  it('recuperação (pós-fechamento) também continua fora destes agregados (comportamento pré-existente, preservado)', () => {
+    const { resumo } = processarMetricasFunil(funilExemplo())
+    // funilExemplo: Lead Novo (3) + Reunião (2) = 5 — Recuperação (1, valor 5000) de fora, igual antes desta rodada.
+    expect(resumo.oportunidades).toBe(5)
+    expect(resumo.pipelineValor).toBe(0)
+  })
+
+  it('o badge lateral do No Show deve usar `alcancaram` (coorte), nunca `quantidade` (estado atual) — os dois são diferentes neste fixture', () => {
+    const { etapas } = processarMetricasFunil(funilComNoShow())
+    const noShow = etapas.find((e) => e.etapaId === 'no-show')!
+    expect(noShow.quantidade).toBe(2)
+    expect(noShow.alcancaram).toBe(3)
+    expect(noShow.alcancaram).not.toBe(noShow.quantidade)
+  })
+})
+
+/**
+ * Cálculo DEFINITIVO: pipeline principal usa o marcador estruturado
+ * (`participa_conversao`/`participaConversao`), nunca o nome — provado aqui
+ * com uma etapa que NÃO se chama "No Show" nenhum pouco, só marcada
+ * `participa_conversao: false`. Se o filtro dependesse do nome, esta etapa
+ * continuaria contaminando a sequência.
+ */
+describe('participaConversao — cálculo definitivo, não depende de nome', () => {
+  function funilComEtapaLateralGenerica(): LinhaFunilMetricasRpc[] {
+    return [
+      linha({
+        etapa_id: 'agendada',
+        nome: 'Reunião agendada',
+        ordem: 1000,
+        quantidade: 4,
+        valor: 40000,
+        parados_7_dias: 1,
+        alcancaram: 10,
+        total_entraram: 10,
+      }),
+      linha({
+        etapa_id: 'lateral-generica',
+        nome: 'Agendamento duplicado', // nome qualquer, nunca "No Show"
+        ordem: 1500,
+        pos_fechamento: false,
+        participa_conversao: false,
+        quantidade: 2,
+        valor: 1500,
+        parados_7_dias: 1,
+        alcancaram: 3,
+        total_entraram: 10,
+      }),
+      linha({
+        etapa_id: 'realizada',
+        nome: 'Reunião realizada',
+        ordem: 2000,
+        quantidade: 7,
+        valor: 70000,
+        parados_7_dias: 2,
+        alcancaram: 7,
+        total_entraram: 10,
+      }),
+      linha({
+        etapa_id: 'fechado',
+        nome: 'Fechado',
+        tipo: 'ganha',
+        ordem: 100000,
+        quantidade: 2,
+        valor: 20000,
+        alcancaram: 2,
+        total_entraram: 10,
+      }),
+    ]
+  }
+
+  it('etapa com participa_conversao=false fica fora do pipeline principal, mesmo com nome genérico', () => {
+    const { etapas } = processarMetricasFunil(funilComEtapaLateralGenerica())
+    const pipeline = filtrarPipelinePrincipal(etapas)
+    expect(pipeline.map((e) => e.nome)).not.toContain('Agendamento duplicado')
+  })
+
+  it('conversão principal pula a etapa marcada, igual faria com No Show por nome', () => {
+    const { etapas } = processarMetricasFunil(funilComEtapaLateralGenerica())
+    const agendada = etapas.find((e) => e.etapaId === 'agendada')!
+    expect(agendada.proxima?.nome).toBe('Reunião realizada')
+    expect(agendada.conversaoProxima).toBeCloseTo(0.7)
+  })
+
+  it('oportunidades/pipelineValor/parados excluem a etapa marcada, mesmo com nome genérico', () => {
+    const { resumo } = processarMetricasFunil(funilComEtapaLateralGenerica())
+    expect(resumo.oportunidades).toBe(11) // 4 + 7, nunca +2 da lateral
+    expect(resumo.pipelineValor).toBe(110000) // 40000 + 70000, nunca +1500
+    expect(resumo.parados).toBe(3) // 1 + 2, nunca +1
+  })
+
+})
+
+/**
+ * `desqualificados` — total único da coorte (`etapas_funil`-independente,
+ * mesmo padrão de `totalEntraram`), repassado pro resumo sem recalcular.
+ */
+describe('resumo.desqualificados', () => {
+  it('repassa o total vindo da RPC, igual totalEntraram', () => {
+    const dados = funilExemplo().map((l) => ({ ...l, desqualificados: 3 }))
+    const { resumo } = processarMetricasFunil(dados)
+    expect(resumo.desqualificados).toBe(3)
+  })
+
+  it('não depende de nenhuma etapa específica — é um total da coorte, não por etapa', () => {
+    // Mesmo variando quantidade/valor/tipo das etapas, o número vem de UMA
+    // ÚNICA coluna repetida (primeira linha), nunca de uma soma por etapa.
+    const dados = funilExemplo({ perdido: { quantidade: 99 } }).map((l) => ({ ...l, desqualificados: 2 }))
+    const { resumo } = processarMetricasFunil(dados)
+    expect(resumo.desqualificados).toBe(2)
   })
 })

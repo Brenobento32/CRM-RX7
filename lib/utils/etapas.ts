@@ -113,6 +113,32 @@ export function calcularDataChegada(dataFormulario: string | null | undefined, c
   return criadoEm
 }
 
+/**
+ * Normaliza `etapas_funil.participa_conversao` a partir do tipo/zona reais
+ * da etapa — NUNCA do nome. Usada tanto na criação (`criarEtapa`, tipo
+ * sempre 'aberta') quanto na edição (`editarEtapa`, qualquer tipo) em
+ * `lib/dal/etapas.ts`: a mesma regra, pura e testável, pra servidor nunca
+ * confiar só na constraint do banco pra dar uma mensagem clara (aliás, nem
+ * precisaria mandar nada incoerente pro banco de jeito nenhum).
+ *
+ * - ganha: sempre true (o funil nunca fecha se a etapa de fechamento não
+ *   "participasse" — a RPC trataria "ganha" como lateral).
+ * - perdida ou pós-fechamento (recuperação): sempre false — nenhuma das
+ *   duas é um degrau do pipeline principal.
+ * - aberta normal (não pós-fechamento): a ÚNICA combinação livre — usa a
+ *   escolha do gerente no formulário (true = etapa principal comum, false =
+ *   estado lateral aberto, ex.: No Show).
+ */
+export function participaConversaoNormalizada(input: {
+  tipo: TipoEtapa
+  posFechamento: boolean
+  escolhaDoGerente: boolean
+}): boolean {
+  if (input.tipo === 'ganha') return true
+  if (input.tipo === 'perdida' || input.posFechamento) return false
+  return input.escolhaDoGerente
+}
+
 export const ROTULO_TIPO_ETAPA: Record<TipoEtapa, string> = {
   aberta: 'Aberta',
   ganha: 'Ganha (fechamento)',

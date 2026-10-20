@@ -32,7 +32,7 @@ export default async function NovaEtapaPage({ params }: PageProps<'/configuracoe
 
       <EtapaForm
         action={criarEtapaAction.bind(null, funilId)}
-        valoresIniciais={{ cor: 'ciano', posFechamento: 'pipeline' }}
+        valoresIniciais={{ cor: 'ciano', posFechamento: 'pipeline', participaConversao: true }}
         mostrarZona
         rotuloEnviar="Criar etapa"
         cancelarHref={`/configuracoes/funis/${funilId}`}

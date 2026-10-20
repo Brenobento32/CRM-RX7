@@ -17,8 +17,8 @@ import { criarEtapaSchema, direcaoSchema, editarEtapaSchema } from '@/lib/valida
 
 export type EstadoFormEtapa = {
   erro?: string
-  campos?: { nome?: string[]; cor?: string[]; posFechamento?: string[] }
-  valores?: { nome?: string; cor?: string; posFechamento?: string }
+  campos?: { nome?: string[]; cor?: string[]; posFechamento?: string[]; participaConversao?: string[] }
+  valores?: { nome?: string; cor?: string; posFechamento?: string; participaConversao?: boolean }
 }
 
 const uuid = z.uuid()
@@ -37,12 +37,14 @@ export async function criarEtapaAction(
   _estado: EstadoFormEtapa | undefined,
   formData: FormData,
 ): Promise<EstadoFormEtapa> {
-  const valores = {
+  const valoresForm = {
     nome: String(formData.get('nome') ?? ''),
     cor: String(formData.get('cor') ?? ''),
     posFechamento: String(formData.get('posFechamento') ?? 'pipeline'),
+    participaConversao: formData.get('participaConversao') === 'on' ? 'on' : '',
   }
-  const parsed = criarEtapaSchema.safeParse(valores)
+  const parsed = criarEtapaSchema.safeParse(valoresForm)
+  const valores = { ...valoresForm, participaConversao: parsed.data?.participaConversao }
   if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
 
   const r = await criarEtapa(funilId, parsed.data)
@@ -59,13 +61,14 @@ export async function editarEtapaAction(
   formData: FormData,
 ): Promise<EstadoFormEtapa> {
   const nome = formData.get('nome')
-  const valores = {
+  const valoresForm = {
     nome: typeof nome === 'string' ? nome : undefined,
     cor: String(formData.get('cor') ?? ''),
+    participaConversao: formData.get('participaConversao') === 'on' ? 'on' : '',
   }
+  const parsed = editarEtapaSchema.safeParse(valoresForm)
+  const valores = { ...valoresForm, participaConversao: parsed.data?.participaConversao }
   if (!uuid.safeParse(id).success) return { erro: 'Etapa inválida.', valores }
-
-  const parsed = editarEtapaSchema.safeParse(valores)
   if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
 
   const r = await editarEtapa(id, parsed.data)

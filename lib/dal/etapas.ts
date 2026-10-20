@@ -5,7 +5,7 @@ import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
-import type { CorEtapa, EtapaKanban, TipoEtapa } from '@/lib/utils/etapas'
+import { participaConversaoNormalizada, type CorEtapa, type EtapaKanban, type TipoEtapa } from '@/lib/utils/etapas'
 import type { CriarEtapaInput, Direcao, EditarEtapaInput } from '@/lib/validations/etapa'
 
 export type Etapa = EtapaKanban & {
@@ -18,6 +18,8 @@ export type Etapa = EtapaKanban & {
   posFechamento: boolean
   /** Etapa onde leads automáticos (formulário) e reativação entram. No máximo uma por funil. */
   etapaInicial: boolean
+  /** Marcador estruturado (`etapas_funil.participa_conversao`) — ver `lib/utils/funil-metricas.ts`. */
+  participaConversao: boolean
 }
 
 export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean }
@@ -25,7 +27,8 @@ export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean 
 /** Distância padrão entre etapas quando não há vizinho de um dos lados. */
 const PASSO = 1000
 
-const COLUNAS = 'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento, etapa_inicial'
+const COLUNAS =
+  'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento, etapa_inicial, participa_conversao'
 
 function paraEtapa(e: {
   id: string
@@ -39,6 +42,7 @@ function paraEtapa(e: {
   ativo: boolean
   pos_fechamento: boolean
   etapa_inicial: boolean
+  participa_conversao: boolean
 }): Etapa {
   return {
     id: e.id,
@@ -52,6 +56,7 @@ function paraEtapa(e: {
     ativo: e.ativo,
     posFechamento: e.pos_fechamento,
     etapaInicial: e.etapa_inicial,
+    participaConversao: e.participa_conversao,
   }
 }
 
@@ -185,6 +190,12 @@ export async function criarEtapa(funilId: string, input: CriarEtapaInput): Promi
       ? zona.limite + PASSO
       : zona.limite - PASSO
 
+  const participaConversao = participaConversaoNormalizada({
+    tipo: 'aberta',
+    posFechamento: input.posFechamento,
+    escolhaDoGerente: input.participaConversao,
+  })
+
   const { error } = await supabase.from('etapas_funil').insert({
     funil_id: funilId,
     nome: input.nome,
@@ -192,6 +203,7 @@ export async function criarEtapa(funilId: string, input: CriarEtapaInput): Promi
     ordem,
     tipo: 'aberta',
     pos_fechamento: input.posFechamento,
+    participa_conversao: participaConversao,
   })
 
   return error ? traduzirErro(error) : { ok: true }
@@ -203,7 +215,20 @@ export async function editarEtapa(id: string, input: EditarEtapaInput): Promise<
   if (!atual) return { ok: false, mensagem: 'Etapa não encontrada.' }
 
   // Sistema: só a cor. O trigger recusaria mudar o nome de qualquer jeito.
-  const alteracoes = atual.sistema || !input.nome ? { cor: input.cor } : { nome: input.nome, cor: input.cor }
+  const nomeECor = atual.sistema || !input.nome ? { cor: input.cor } : { nome: input.nome, cor: input.cor }
+
+  // Mesma normalização de `criarEtapa` (`participaConversaoNormalizada`):
+  // nenhuma etapa travada (ganha/perdida/recuperação) chega a esta tela com
+  // o controle destravado (ver EtapaForm), mas um campo desabilitado também
+  // não é enviado no FormData — sem isto, o valor cairia sempre em `false`
+  // (checkbox ausente), inclusive pra "ganha".
+  const participaConversao = participaConversaoNormalizada({
+    tipo: atual.tipo,
+    posFechamento: atual.posFechamento,
+    escolhaDoGerente: input.participaConversao,
+  })
+
+  const alteracoes = { ...nomeECor, participa_conversao: participaConversao }
 
   const supabase = await createClient()
   const { error } = await supabase.from('etapas_funil').update(alteracoes).eq('id', id)

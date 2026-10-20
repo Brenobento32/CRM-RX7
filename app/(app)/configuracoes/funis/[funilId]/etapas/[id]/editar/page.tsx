@@ -32,8 +32,14 @@ export default async function EditarEtapaPage({
 
       <EtapaForm
         action={editarEtapaAction.bind(null, funilId, etapa.id)}
-        valoresIniciais={{ nome: etapa.nome, cor: etapa.cor }}
+        valoresIniciais={{
+          nome: etapa.nome,
+          cor: etapa.cor,
+          participaConversao: etapa.participaConversao,
+        }}
         nomeTravado={etapa.sistema}
+        tipo={etapa.tipo}
+        posFechamentoFixo={etapa.posFechamento}
         rotuloEnviar="Salvar"
         cancelarHref={`/configuracoes/funis/${funilId}`}
       />

@@ -38,11 +38,11 @@ describe('chavePeriodoFunil', () => {
     expect(chavePeriodoFunil('personalizado')).toBe('personalizado')
   })
 
-  it('cai em 30d para qualquer valor inválido/ausente', () => {
-    expect(chavePeriodoFunil(undefined)).toBe('30d')
-    expect(chavePeriodoFunil('mes_anterior')).toBe('30d') // atalho de outra tela, não existe aqui
-    expect(chavePeriodoFunil('lixo')).toBe('30d')
-    expect(chavePeriodoFunil(['7d'])).toBe('30d')
+  it('cai em "mes" (Este mês) para qualquer valor inválido/ausente — nunca 30 dias', () => {
+    expect(chavePeriodoFunil(undefined)).toBe('mes')
+    expect(chavePeriodoFunil('mes_anterior')).toBe('mes') // atalho de outra tela, não existe aqui
+    expect(chavePeriodoFunil('lixo')).toBe('mes')
+    expect(chavePeriodoFunil(['7d'])).toBe('mes')
   })
 })
 
@@ -123,20 +123,20 @@ describe('resolverPeriodoFunil', () => {
     })
   })
 
-  it('personalizado sem datas (ou inválidas) cai em 30 dias', () => {
+  it('personalizado sem datas (ou inválidas) cai no intervalo de "Este mês" — nunca 30 dias', () => {
     expect(resolverPeriodoFunil('personalizado', {}, HOJE)).toEqual({
       chave: 'personalizado',
-      inicio: '2026-09-16',
+      inicio: '2026-10-01',
       fim: HOJE,
     })
     expect(resolverPeriodoFunil('personalizado', { inicio: 'lixo', fim: '2026-10-15' }, HOJE)).toEqual({
       chave: 'personalizado',
-      inicio: '2026-09-16',
+      inicio: '2026-10-01',
       fim: HOJE,
     })
     expect(resolverPeriodoFunil('personalizado', { inicio: ['2026-10-01'], fim: '2026-10-15' }, HOJE)).toEqual({
       chave: 'personalizado',
-      inicio: '2026-09-16',
+      inicio: '2026-10-01',
       fim: HOJE,
     })
   })
