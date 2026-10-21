@@ -133,7 +133,7 @@ function AvisoRetorno({ params }: { params: Record<string, string | string[] | u
   const mensagem =
     texto(params.mensagem) ??
     (motivo === 'conta'
-      ? `A conta ${conta ?? 'escolhida'} não é a agenda da empresa. Entre com a conta comercial da Scorpion.`
+      ? `A conta ${conta ?? 'escolhida'} não é a agenda da empresa. Entre com a conta comercial da empresa.`
       : (MOTIVOS[motivo ?? ''] ?? 'Não foi possível conectar ao Google.'))
 
   return (

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: { default: "CRM - RX7", template: "%s · CRM - RX7" },
-  description: "CRM comercial da Scorpion",
+  description: "CRM - RX7: gestão comercial, funil de vendas e agenda",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
