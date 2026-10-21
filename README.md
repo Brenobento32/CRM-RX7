@@ -1,4 +1,4 @@
-# Scorpion CRM
+# CRM - RX7
 
 CRM comercial da Scorpion — gestão de clientes, funil de vendas, agenda e
 relatórios, com permissões distintas para gerente e closer.

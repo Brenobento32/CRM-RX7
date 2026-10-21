@@ -33,8 +33,8 @@ só é necessário se você for trabalhar na integração de WhatsApp.
 ## 2. Clonar o repositório
 
 ```bash
-git clone https://github.com/Scopion2026/scorpion-crm.git
-cd scorpion-crm
+git clone https://github.com/Brenobento32/CRM-RX7.git
+cd CRM-RX7
 ```
 
 ## 3. Instalar dependências
