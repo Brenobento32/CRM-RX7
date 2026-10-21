@@ -12,7 +12,7 @@ export default async function EsqueciSenhaPage({ searchParams }: PageProps<'/esq
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-widest text-zinc-500">Scorpion</p>
+        <p className="text-sm font-semibold uppercase tracking-widest text-zinc-500">CRM - RX7</p>
         <h1 className="mt-1 text-2xl font-semibold">Esqueci minha senha</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Informe o e-mail cadastrado. Se ele existir no CRM, você recebe um link para redefinir a senha.

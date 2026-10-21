@@ -19,7 +19,7 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
       <div className="flex h-16 items-center gap-2.5 border-b border-premium-borda px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
         <LogoScorpion />
         <span className="truncate text-base font-semibold tracking-tight text-premium-texto group-data-[sidebar=recolhida]/shell:hidden">
-          Scorpion CRM
+          CRM - RX7
         </span>
       </div>
 

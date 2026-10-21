@@ -15,7 +15,7 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
     <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-8">
         <p className="text-sm font-semibold uppercase tracking-widest text-zinc-500">
-          Scorpion
+          CRM - RX7
         </p>
         <h1 className="mt-1 text-2xl font-semibold">Entrar no CRM</h1>
       </div>

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Scorpion CRM", template: "%s · Scorpion CRM" },
+  title: { default: "CRM - RX7", template: "%s · CRM - RX7" },
   description: "CRM comercial da Scorpion",
 };
 
