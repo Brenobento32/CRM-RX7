@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
 import { enviarFormularioPublicoAction } from '@/lib/actions/formulario-publico'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/publico'
 
 export const metadata: Metadata = {
   title: 'Fale conosco',
@@ -25,7 +25,7 @@ export default async function FormularioPublicoPage({ params, searchParams }: Pr
   const [{ id }, busca] = await Promise.all([params, searchParams])
   if (!UUID.test(id)) notFound()
 
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   const { data } = await supabase.rpc('formulario_rx7_publico', { p_fonte: id })
   const form = data?.[0]
   if (!form) notFound()

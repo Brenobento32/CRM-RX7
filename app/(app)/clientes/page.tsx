@@ -14,6 +14,7 @@ import {
   type OrigemFiltroCliente,
   type StatusCliente,
 } from '@/lib/dal/clientes'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
 
@@ -44,7 +45,7 @@ const ABAS_ORIGEM: { valor: OrigemFiltroCliente; rotulo: string }[] = [
 export default async function ClientesPage({
   searchParams,
 }: PageProps<'/clientes'>) {
-  const usuario = await getUsuarioAtual()
+  const [usuario, empresa] = await Promise.all([getUsuarioAtual(), getEmpresaAtual()])
   const params = await searchParams
 
   const busca = typeof params.q === 'string' ? params.q.slice(0, 100) : ''
@@ -100,12 +101,15 @@ export default async function ClientesPage({
             {gerente ? 'Todos os clientes da equipe.' : 'Sua carteira de clientes.'}
           </p>
         </div>
-        <Link
-          href="/clientes/novo"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          Novo cliente
-        </Link>
+        {/* Empresa somente leitura (arquivo): o banco recusa a gravação; a tela nem oferece. */}
+        {empresa.somenteLeitura ? null : (
+          <Link
+            href="/clientes/novo"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            Novo cliente
+          </Link>
+        )}
       </div>
 
       <nav className="flex gap-1" aria-label="Origem">

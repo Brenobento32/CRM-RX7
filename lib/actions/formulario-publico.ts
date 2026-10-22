@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/publico'
 
 /**
  * Envio do formulário público AVANTE (sem login). A empresa, o funil e a etapa
@@ -45,7 +45,9 @@ export async function enviarFormularioPublicoAction(formData: FormData): Promise
   const d = parsed.data
   if (!d.telefone && !d.email) redirect(`${destino}?erro=${encodeURIComponent('Informe telefone ou e-mail.')}`)
 
-  const supabase = await createClient()
+  // Sempre como visitante anônimo: a sessão de quem está logado no CRM não
+  // entra aqui (a empresa vem da fonte, nunca da sessão).
+  const supabase = createPublicClient()
   const { data, error } = await supabase.rpc('enviar_formulario_rx7', {
     p_fonte: d.fonte,
     p_envio: d.envio,
