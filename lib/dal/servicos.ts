@@ -65,7 +65,7 @@ export async function listarServicosComUso(): Promise<ServicoComUso[]> {
 
   const { data, error } = await supabase
     .from('servicos')
-    .select(`${COLUNAS}, uso:negociacao_servicos(count)`)
+    .select(`${COLUNAS}, uso:negociacao_servicos!negociacao_servicos_servico_id_tenant_fkey(count)`)
 
   if (error) throw new Error('Não foi possível carregar os serviços.', { cause: error })
   return ordenarServicos(

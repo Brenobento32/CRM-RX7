@@ -301,6 +301,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "conversas_cliente_id_tenant_fkey"
+            columns: ["tenant_id", "cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "conversas_cliente_id_fkey"
             columns: ["cliente_id"]
             isOneToOne: false
@@ -745,6 +752,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "formularios_nicho_id_tenant_fkey"
+            columns: ["tenant_id", "nicho_id"]
+            isOneToOne: false
+            referencedRelation: "nichos"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "formularios_nicho_id_fkey"
             columns: ["nicho_id"]
             isOneToOne: false
@@ -926,6 +940,13 @@ export type Database = {
           usuario_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mensagem_reacoes_mensagem_id_tenant_fkey"
+            columns: ["tenant_id", "mensagem_id"]
+            isOneToOne: false
+            referencedRelation: "mensagens"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "mensagem_reacoes_mensagem_id_fkey"
             columns: ["mensagem_id"]
@@ -1141,6 +1162,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "negociacao_servicos_negociacao_id_tenant_fkey"
+            columns: ["tenant_id", "negociacao_id"]
+            isOneToOne: false
+            referencedRelation: "negociacoes"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "negociacao_servicos_servico_id_tenant_fkey"
+            columns: ["tenant_id", "servico_id"]
+            isOneToOne: false
+            referencedRelation: "servicos"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "negociacao_servicos_negociacao_id_fkey"
             columns: ["negociacao_id"]
             isOneToOne: false
@@ -1265,6 +1300,27 @@ export type Database = {
           valor_proposta?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "negociacoes_cliente_id_tenant_fkey"
+            columns: ["tenant_id", "cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "negociacoes_funil_id_tenant_fkey"
+            columns: ["tenant_id", "funil_id"]
+            isOneToOne: false
+            referencedRelation: "funis"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "negociacoes_nicho_id_tenant_fkey"
+            columns: ["tenant_id", "nicho_id"]
+            isOneToOne: false
+            referencedRelation: "nichos"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "negociacoes_cliente_id_fkey"
             columns: ["cliente_id"]
@@ -1600,6 +1656,13 @@ export type Database = {
           resposta_texto?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "respostas_lead_pergunta_id_tenant_fkey"
+            columns: ["tenant_id", "pergunta_id"]
+            isOneToOne: false
+            referencedRelation: "perguntas"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "respostas_lead_negociacao_id_fkey"
             columns: ["negociacao_id"]

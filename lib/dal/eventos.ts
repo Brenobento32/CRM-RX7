@@ -273,7 +273,7 @@ export async function listarOpcoesClientes(): Promise<OpcaoCliente[]> {
 
   const { data, error } = await supabase
     .from('clientes')
-    .select('id, nome, empresa, owner_id, negociacoes(id, created_at, etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))')
+    .select('id, nome, empresa, owner_id, negociacoes!negociacoes_cliente_id_tenant_fkey(id, created_at, etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))')
     .is('deleted_at', null)
     .order('nome')
     .limit(1000)

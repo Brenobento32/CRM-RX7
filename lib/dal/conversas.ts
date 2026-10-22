@@ -756,7 +756,7 @@ export async function obterReacoesDaConversa(conversaId: string): Promise<Reacao
 
   const { data, error } = await supabase
     .from('mensagem_reacoes')
-    .select('mensagem_id, usuario_id, emoji, mensagens!inner(conversa_id), profiles(nome)')
+    .select('mensagem_id, usuario_id, emoji, mensagens!mensagem_reacoes_mensagem_id_tenant_fkey!inner(conversa_id), profiles(nome)')
     .eq('mensagens.conversa_id', conversaId)
 
   if (error) {
@@ -825,7 +825,7 @@ export async function listarConversasParaEncaminhar(conversaAtualId: string): Pr
 
   const { data, error } = await supabase
     .from('conversas')
-    .select('id, ultima_mensagem_em, clientes!inner(id, nome, empresa, deleted_at)')
+    .select('id, ultima_mensagem_em, clientes!conversas_cliente_id_tenant_fkey!inner(id, nome, empresa, deleted_at)')
     .not('cliente_id', 'is', null)
     .is('clientes.deleted_at', null)
     .neq('id', conversaAtualId)

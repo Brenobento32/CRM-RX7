@@ -253,11 +253,11 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
       `id, tipo_cliente, nome, empresa, cpf, cnpj, telefone, whatsapp, email,
        responsavel, cargo, instagram, observacoes, owner_id, created_at, updated_at,
        dono:profiles!clientes_owner_id_fkey(nome),
-       negociacoes(
+       negociacoes!negociacoes_cliente_id_tenant_fkey(
          id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento, origem,
          etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
-         funil:funis(nome),
-         vinculos:negociacao_servicos(servico:servicos(nome, ativo))
+         funil:funis!negociacoes_funil_id_tenant_fkey(nome),
+         vinculos:negociacao_servicos!negociacao_servicos_negociacao_id_tenant_fkey(servico:servicos!negociacao_servicos_servico_id_tenant_fkey(nome, ativo))
        )`,
     )
     .eq('id', id)

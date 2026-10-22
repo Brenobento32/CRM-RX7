@@ -34,7 +34,7 @@ export type PropostaFechada = {
   responsavel: string | null
 }
 
-const SERVICOS = 'vinculos:negociacao_servicos(servico:servicos(id, nome, categoria, ativo))'
+const SERVICOS = 'vinculos:negociacao_servicos!negociacao_servicos_negociacao_id_tenant_fkey(servico:servicos!negociacao_servicos_servico_id_tenant_fkey(id, nome, categoria, ativo))'
 
 function servicosDe(vinculos: { servico: Servico | null }[]): Servico[] {
   return ordenarServicos(vinculos.flatMap((v) => (v.servico ? [v.servico] : [])))

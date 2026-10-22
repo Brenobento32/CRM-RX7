@@ -73,8 +73,8 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
        objecao_principal, valor_proposta, forma_pagamento,
        etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
        cliente:clientes!negociacoes_cliente_id_fkey(nome, deleted_at),
-       vinculos:negociacao_servicos(servico:servicos(id, nome, categoria, ativo)),
-       fechamento:fechamentos(valor_vendido, data_fechamento, contrato_enviado, contrato_assinado,
+       vinculos:negociacao_servicos!negociacao_servicos_negociacao_id_tenant_fkey(servico:servicos!negociacao_servicos_servico_id_tenant_fkey(id, nome, categoria, ativo)),
+       fechamento:fechamentos!fechamentos_negociacao_id_fkey(valor_vendido, data_fechamento, contrato_enviado, contrato_assinado,
          link_contrato, status_pagamento, status_onboarding, observacoes, tipo_venda,
          anulado_em, motivo_anulacao)`,
     )
@@ -183,7 +183,7 @@ export async function listarNegociacoesArquivadas(funilId?: string | null): Prom
     .select(
       `id, cliente_id, motivo_arquivamento, arquivada_em, temperatura, origem,
        cliente:clientes!negociacoes_cliente_id_fkey(nome, empresa),
-       nicho:nichos(nome),
+       nicho:nichos!negociacoes_nicho_id_tenant_fkey(nome),
        responsavel:profiles!negociacoes_owner_id_fkey(nome)`,
     )
     .not('arquivada_em', 'is', null)
@@ -579,7 +579,7 @@ export async function listarRespostasLead(negociacaoId: string): Promise<Respost
 
   const { data, error } = await supabase
     .from('respostas_lead')
-    .select('resposta_texto, resposta_opcao, pergunta:perguntas(texto, ordem)')
+    .select('resposta_texto, resposta_opcao, pergunta:perguntas!respostas_lead_pergunta_id_tenant_fkey(texto, ordem)')
     .eq('negociacao_id', negociacaoId)
 
   if (error) {

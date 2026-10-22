@@ -64,7 +64,7 @@ export async function listarNichosComUso(): Promise<NichoComUso[]> {
 
   const { data, error } = await supabase
     .from('nichos')
-    .select('id, nome, slug, cor, ativo, ordem, negociacoes:negociacoes(count), formularios:formularios(count)')
+    .select('id, nome, slug, cor, ativo, ordem, negociacoes:negociacoes!negociacoes_nicho_id_tenant_fkey(count), formularios:formularios!formularios_nicho_id_tenant_fkey(count)')
     .order('ordem')
     .order('created_at')
 
