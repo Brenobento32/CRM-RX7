@@ -18,7 +18,7 @@ type Props = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Formulário público de captação de uma fonte "Formulário RX7". Não expõe
+ * Formulário público de captação de uma fonte "Formulário AVANTE". Não expõe
  * nada da empresa além do nome; o envio cai no funil/etapa da fonte.
  */
 export default async function FormularioPublicoPage({ params, searchParams }: Props) {

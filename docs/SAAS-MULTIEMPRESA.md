@@ -1,4 +1,4 @@
-# CRM - RX7 SaaS — decisões técnicas da base multiempresa
+# AVANTE (CRM-RX7 SaaS) — decisões técnicas da base multiempresa
 
 Estado: **T1 escrita e testada só na cópia local. Não aplicada em produção.**
 Migration: `supabase/migrations/20261022130000_tenants_base.sql`.

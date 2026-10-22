@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "CRM - RX7", template: "%s · CRM - RX7" },
-  description: "CRM - RX7: gestão comercial, funil de vendas e agenda",
+  title: { default: "AVANTE", template: "%s · AVANTE" },
+  description: "AVANTE: gestão comercial, funil de vendas e agenda — Rio X7 Agência Digital",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <span className="font-semibold">CRM - RX7 · Super Admin</span>
+          <span className="font-semibold">AVANTE · Super Admin</span>
           <nav className="flex gap-4 text-sm">
             <Link href="/admin" className="hover:underline">Empresas</Link>
             <Link href="/admin/planos" className="hover:underline">Planos</Link>

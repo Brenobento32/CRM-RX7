@@ -24,7 +24,7 @@ export type ItemCatalogo = {
 export const CATALOGO: ItemCatalogo[] = [
   {
     tipo: 'formulario_rx7',
-    nome: 'Formulário RX7',
+    nome: 'Formulário AVANTE',
     descricao: 'Página pública de captação hospedada pelo próprio CRM. Basta divulgar o link.',
     situacao: 'pronto',
     rotuloSituacao: 'Disponível',
@@ -52,7 +52,7 @@ export const CATALOGO: ItemCatalogo[] = [
   {
     tipo: 'respondi',
     nome: 'Respondi da empresa',
-    descricao: 'Webhook do Respondi da própria empresa (não o da Scorpion). Ainda não testado com o Respondi real.',
+    descricao: 'Webhook do Respondi da própria empresa. Ainda não testado com o Respondi real.',
     situacao: 'pronto',
     rotuloSituacao: 'Disponível — confirmar no primeiro envio',
     usaToken: true,

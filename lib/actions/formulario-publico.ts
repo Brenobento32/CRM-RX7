@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
 /**
- * Envio do formulário público RX7 (sem login). A empresa, o funil e a etapa
+ * Envio do formulário público AVANTE (sem login). A empresa, o funil e a etapa
  * vêm da fonte no banco (`enviar_formulario_rx7`); o visitante só manda os
  * dados. `envio` é gerado na renderização: reenviar a mesma página não
  * duplica o lead. A isca (campo invisível) e o limite por minuto ficam no banco.

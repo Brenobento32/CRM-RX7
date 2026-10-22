@@ -1,6 +1,6 @@
-# CRM - RX7
+# AVANTE (CRM-RX7)
 
-CRM comercial da Scorpion — gestão de clientes, funil de vendas, agenda e
+CRM comercial AVANTE, da Rio X7 Agência Digital — gestão de clientes, funil de vendas, agenda e
 relatórios, com permissões distintas para gerente e closer.
 
 ## Rodando localmente

@@ -18,9 +18,9 @@ export function Sidebar({ usuario, empresa }: { usuario: UsuarioAtual; empresa: 
   return (
     <>
       <div className="flex h-16 items-center gap-2.5 border-b border-premium-borda px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
-        <LogoScorpion />
+        <LogoMarca />
         <span className="truncate text-base font-semibold tracking-tight text-premium-texto group-data-[sidebar=recolhida]/shell:hidden">
-          CRM - RX7
+          AVANTE
         </span>
       </div>
 
@@ -49,20 +49,20 @@ export function Sidebar({ usuario, empresa }: { usuario: UsuarioAtual; empresa: 
 }
 
 /**
- * Marca simples — quadrado com a cor de destaque + "S" (nenhum logo-arquivo
- * da Scorpion existe no repositório hoje). Decorativo. Usa `bg-premium-acento`
+ * Marca simples — quadrado com a cor de destaque + "A" de AVANTE (nenhum logo-arquivo
+ * existe no repositório hoje). Decorativo. Usa `bg-premium-acento`
  * (nunca uma cor literal) de propósito: é a mesma variável usada em todo o
  * resto do design system — no dia em que a cor de destaque virar configurável
  * por RGB da marca/logo (ver `app/globals.css`), a logo já muda junto, sem
  * precisar editar este arquivo.
  */
-function LogoScorpion() {
+function LogoMarca() {
   return (
     <span
       aria-hidden
       className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-premium-acento text-sm font-bold text-zinc-950"
     >
-      S
+      A
     </span>
   )
 }

@@ -22,7 +22,7 @@ const ROTAS_PUBLICAS = ['/login']
  * -> redireciona pra área interna" impediria a troca do código antes mesmo
  * de o Route Handler rodar).
  */
-// `/f/<id>`: formulário público de captação (Formulário RX7), sem login.
+// `/f/<id>`: formulário público de captação (Formulário AVANTE), sem login.
 const ROTAS_LIVRES = ['/sem-acesso', '/esqueci-senha', '/auth/callback', '/f']
 
 /** Logadas, mas fora de qualquer empresa. */

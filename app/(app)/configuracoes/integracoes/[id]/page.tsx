@@ -223,16 +223,16 @@ function Instrucoes({ fonte }: { fonte: Fonte }) {
         {fonte.tipo === 'google_sheets' && (
           <>
             <p className="text-zinc-600 dark:text-zinc-400">
-              Na planilha: Extensões → Apps Script. Guarde o token em Propriedades do script (<code>RX7_TOKEN</code>) e crie
+              Na planilha: Extensões → Apps Script. Guarde o token em Propriedades do script (<code>AVANTE_TOKEN</code>) e crie
               um acionador &quot;Ao enviar formulário&quot; ou &quot;Ao editar&quot; para esta função:
             </p>
-            <code className={codigo}>{`function enviarLeadRx7(e) {
+            <code className={codigo}>{`function enviarLeadAvante(e) {
   const linha = e.range.getRow();
   const aba = e.range.getSheet();
   const [nome, telefone, email] = aba.getRange(linha, 1, 1, 3).getValues()[0];
   UrlFetchApp.fetch('${end.webhook}', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    headers: { Authorization: 'Bearer ' + PropertiesService.getScriptProperties().getProperty('RX7_TOKEN') },
+    headers: { Authorization: 'Bearer ' + PropertiesService.getScriptProperties().getProperty('AVANTE_TOKEN') },
     payload: JSON.stringify({
       external_id: aba.getSheetId() + ':' + linha,
       dados: { nome: nome, telefone: String(telefone), email: email }
