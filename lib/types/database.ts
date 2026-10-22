@@ -1082,6 +1082,7 @@ export type Database = {
           funil_id?: string | null
           id?: string
           periodo_mes: string
+          tenant_id: string
           tipo_meta?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           usuario_id?: string | null
@@ -1340,6 +1341,7 @@ export type Database = {
           nome: string
           ordem?: number
           slug: string
+          tenant_id: string
         }
         Update: {
           ativo?: boolean
@@ -1636,6 +1638,7 @@ export type Database = {
           created_at?: string
           id?: string
           nome: string
+          tenant_id: string
           updated_at?: string
         }
         Update: {
@@ -1647,6 +1650,104 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      fontes_leads: {
+        Row: {
+          configuracao: Json
+          created_at: string
+          criado_por: string | null
+          etapa_id: string
+          formulario_id: string | null
+          funil_id: string
+          id: string
+          nicho_id: string | null
+          nome: string
+          responsavel_id: string
+          revogada_em: string | null
+          status: Database["public"]["Enums"]["fonte_lead_status"]
+          tenant_id: string
+          tipo: Database["public"]["Enums"]["fonte_lead_tipo"]
+          token_prefixo: string | null
+          ultimo_erro: string | null
+          ultimo_erro_em: string | null
+          ultimo_lead_em: string | null
+          updated_at: string
+          validada_em: string | null
+        }
+        Insert: { [_ in never]: never }
+        Update: { [_ in never]: never }
+        Relationships: []
+      }
+      ingestao_eventos: {
+        Row: {
+          erro_codigo: string | null
+          erro_mensagem: string | null
+          external_id: string | null
+          fonte_id: string
+          id: number
+          negociacao_id: string | null
+          recebido_em: string
+          resultado: string
+          tenant_id: string
+        }
+        Insert: { [_ in never]: never }
+        Update: { [_ in never]: never }
+        Relationships: []
+      }
+      ingestao_credenciais: {
+        Row: {
+          ativo: boolean
+          criado_em: string
+          criado_por: string | null
+          id: string
+          nome: string
+          prefixo: string
+          revogado_em: string | null
+          tenant_id: string
+          ultimo_uso_em: string | null
+        }
+        Insert: { [_ in never]: never }
+        Update: { [_ in never]: never }
+        Relationships: []
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          id: string
+          nome: string
+          slug: string
+          somente_leitura: boolean
+          status: Database["public"]["Enums"]["tenant_status"]
+          tipo: Database["public"]["Enums"]["tenant_tipo"]
+          updated_at: string
+        }
+        Insert: { [_ in never]: never }
+        Update: { [_ in never]: never }
+        Relationships: []
+      }
+      tenant_memberships: {
+        Row: {
+          ativo: boolean
+          convidado_por: string | null
+          created_at: string
+          id: string
+          papel: Database["public"]["Enums"]["tenant_papel"]
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: { [_ in never]: never }
+        Update: { [_ in never]: never }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_memberships_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_conexoes: {
         Row: {
@@ -2337,6 +2438,183 @@ export type Database = {
         Returns: undefined
       }
       negociacao_owner: { Args: { p_negociacao_id: string }; Returns: string }
+      definir_membro_tenant: {
+        Args: {
+          p_tenant: string
+          p_user: string
+          p_papel: Database["public"]["Enums"]["tenant_papel"]
+          p_ativo?: boolean
+        }
+        Returns: string
+      }
+      tenant_atual: { Args: never; Returns: string }
+      gerar_credencial_ingestao: { Args: { p_nome: string }; Returns: string }
+      is_super_admin: { Args: never; Returns: boolean }
+      criar_fonte_lead: {
+        Args: {
+          p_tipo: Database["public"]["Enums"]["fonte_lead_tipo"]
+          p_nome: string
+          p_funil: string
+          p_etapa: string
+          p_responsavel: string
+          p_configuracao?: Json
+        }
+        Returns: { id: string; token: string | null }[]
+      }
+      atualizar_fonte_lead: {
+        Args: { p_id: string; p_nome: string; p_funil: string; p_etapa: string; p_responsavel: string; p_configuracao?: Json | null }
+        Returns: undefined
+      }
+      definir_status_fonte: {
+        Args: { p_id: string; p_status: Database["public"]["Enums"]["fonte_lead_status"] }
+        Returns: undefined
+      }
+      revogar_fonte_lead: { Args: { p_id: string }; Returns: undefined }
+      girar_token_fonte: { Args: { p_id: string }; Returns: string }
+      definir_segredo_fonte: { Args: { p_id: string; p_segredo: string }; Returns: undefined }
+      formulario_rx7_publico: {
+        Args: { p_fonte: string }
+        Returns: { nome: string; empresa: string; ativo: boolean }[]
+      }
+      enviar_formulario_rx7: {
+        Args: {
+          p_fonte: string
+          p_envio: string
+          p_nome: string
+          p_telefone: string | null
+          p_email: string | null
+          p_empresa?: string | null
+          p_mensagem?: string | null
+          p_isca?: string | null
+        }
+        Returns: boolean
+      }
+      admin_listar_empresas: {
+        Args: { p_tenant?: string }
+        Returns: {
+          id: string
+          nome: string
+          slug: string
+          tipo: Database["public"]["Enums"]["tenant_tipo"]
+          status: Database["public"]["Enums"]["tenant_status"]
+          somente_leitura: boolean
+          criado_em: string
+          usuarios_ativos: number
+          administradores: string[]
+          plano_codigo: string | null
+          plano_nome: string | null
+          assinatura_status: Database["public"]["Enums"]["assinatura_status"] | null
+          ciclo: Database["public"]["Enums"]["assinatura_ciclo"] | null
+          teste_ate: string | null
+          renovacao_em: string | null
+          cancelada_em: string | null
+          integracoes_em_uso: number
+        }[]
+      }
+      admin_listar_planos: {
+        Args: never
+        Returns: {
+          id: string
+          codigo: string
+          nome: string
+          preco_mensal: number | null
+          preco_anual: number | null
+          limite_usuarios: number | null
+          limite_integracoes: number | null
+          dias_teste: number | null
+          recursos: string[]
+          status: Database["public"]["Enums"]["plano_status"]
+          ordem: number
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      admin_salvar_plano: {
+        Args: {
+          p_codigo: string
+          p_nome: string
+          p_preco_mensal: number | null
+          p_preco_anual: number | null
+          p_limite_usuarios: number | null
+          p_limite_integracoes: number | null
+          p_dias_teste: number | null
+          p_recursos: string[]
+          p_status: Database["public"]["Enums"]["plano_status"]
+        }
+        Returns: string
+      }
+      admin_definir_assinatura: {
+        Args: {
+          p_tenant: string
+          p_plano_codigo: string
+          p_status: Database["public"]["Enums"]["assinatura_status"]
+          p_ciclo: Database["public"]["Enums"]["assinatura_ciclo"]
+          p_renovacao_em: string | null
+          p_teste_ate: string | null
+          p_motivo: string
+          p_provedor?: string | null
+          p_provedor_assinatura_id?: string | null
+        }
+        Returns: undefined
+      }
+      admin_suspender_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }
+      admin_reativar_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }
+      admin_listar_auditoria: {
+        Args: { p_tenant?: string; p_limite?: number }
+        Returns: {
+          id: number
+          criado_em: string
+          acao: string
+          tenant_id: string | null
+          empresa: string | null
+          ator_email: string | null
+          detalhes: Json
+        }[]
+      }
+      admin_historico_assinatura: {
+        Args: { p_tenant: string }
+        Returns: {
+          criado_em: string
+          de_status: Database["public"]["Enums"]["assinatura_status"] | null
+          para_status: Database["public"]["Enums"]["assinatura_status"]
+          de_plano: string | null
+          para_plano: string
+          origem: string
+          motivo: string | null
+          ator_email: string | null
+        }[]
+      }
+      minha_assinatura: {
+        Args: never
+        Returns: {
+          empresa: string
+          plano_codigo: string | null
+          plano_nome: string | null
+          status: Database["public"]["Enums"]["assinatura_status"] | null
+          ciclo: Database["public"]["Enums"]["assinatura_ciclo"] | null
+          inicio_em: string | null
+          teste_ate: string | null
+          renovacao_em: string | null
+          cancelada_em: string | null
+          preco_mensal: number | null
+          preco_anual: number | null
+          limite_usuarios: number | null
+          usuarios_ativos: number
+          limite_integracoes: number | null
+          integracoes_em_uso: number
+          recursos: string[] | null
+        }[]
+      }
+      revogar_credencial_ingestao: { Args: { p_id: string }; Returns: undefined }
+      membros_empresa_atual: {
+        Args: never
+        Returns: {
+          usuario_id: string
+          papel: Database["public"]["Enums"]["tenant_papel"]
+          role: Database["public"]["Enums"]["user_role"]
+          ativo: boolean
+        }[]
+      }
       nomes_de_usuarios: {
         Args: { p_ids: string[] }
         Returns: {
@@ -2454,6 +2732,14 @@ export type Database = {
       tipo_pergunta: "texto_livre" | "escolha_unica" | "escolha_multipla"
       tipo_venda: "tcv" | "mrr"
       user_role: "gerente" | "closer" | "sdr"
+      tenant_papel: "admin_empresa" | "gerente" | "sdr" | "closer"
+      tenant_status: "teste" | "ativo" | "suspenso" | "cancelado" | "arquivo"
+      tenant_tipo: "assinante" | "interno" | "arquivo"
+      plano_status: "rascunho" | "ativo" | "inativo"
+      assinatura_status: "teste" | "ativa" | "vencida" | "suspensa" | "cancelada"
+      assinatura_ciclo: "mensal" | "anual"
+      fonte_lead_tipo: "formulario_rx7" | "webhook" | "respondi" | "google_sheets" | "meta_lead_ads" | "whatsapp_cloud"
+      fonte_lead_status: "ativa" | "pausada" | "revogada"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2627,6 +2913,14 @@ export const Constants = {
       tipo_pergunta: ["texto_livre", "escolha_unica", "escolha_multipla"],
       tipo_venda: ["tcv", "mrr"],
       user_role: ["gerente", "closer", "sdr"],
+      tenant_papel: ["admin_empresa", "gerente", "sdr", "closer"],
+      tenant_status: ["teste", "ativo", "suspenso", "cancelado", "arquivo"],
+      tenant_tipo: ["assinante", "interno", "arquivo"],
+      plano_status: ["rascunho", "ativo", "inativo"],
+      assinatura_status: ["teste", "ativa", "vencida", "suspensa", "cancelada"],
+      assinatura_ciclo: ["mensal", "anual"],
+      fonte_lead_tipo: ["formulario_rx7", "webhook", "respondi", "google_sheets", "meta_lead_ads", "whatsapp_cloud"],
+      fonte_lead_status: ["ativa", "pausada", "revogada"],
     },
   },
 } as const

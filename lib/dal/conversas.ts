@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import {
@@ -347,7 +348,8 @@ export async function enviarMensagemImagem(
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
-  const caminho = `${conversaId}/${crypto.randomUUID()}.${extensaoDeMime(arquivo.type)}`
+  // {empresa}/{conversa}/{arquivo}: a policy do Storage confere a empresa e a conversa.
+  const caminho = `${(await getEmpresaAtual()).id}/${conversaId}/${crypto.randomUUID()}.${extensaoDeMime(arquivo.type)}`
 
   const { error: erroUpload } = await supabase.storage
     .from(BUCKET_MIDIA)
@@ -426,7 +428,8 @@ export async function enviarMensagemDocumento(
   }
 
   const supabase = await createClient()
-  const caminho = `${conversaId}/${crypto.randomUUID()}.${extensaoDocumentoDeMime(arquivo.type)}`
+  // {empresa}/{conversa}/{arquivo}: a policy do Storage confere a empresa e a conversa.
+  const caminho = `${(await getEmpresaAtual()).id}/${conversaId}/${crypto.randomUUID()}.${extensaoDocumentoDeMime(arquivo.type)}`
 
   const { error: erroUpload } = await supabase.storage
     .from(BUCKET_MIDIA)
@@ -507,7 +510,8 @@ export async function enviarMensagemAudio(
 
   const supabase = await createClient()
   const duracaoArredondada = Math.round(duracaoSegundos) || null
-  const caminho = `${conversaId}/${crypto.randomUUID()}.${extensaoAudioDeMime(arquivo.type)}`
+  // {empresa}/{conversa}/{arquivo}: a policy do Storage confere a empresa e a conversa.
+  const caminho = `${(await getEmpresaAtual()).id}/${conversaId}/${crypto.randomUUID()}.${extensaoAudioDeMime(arquivo.type)}`
 
   const { error: erroUpload } = await supabase.storage
     .from(BUCKET_MIDIA)

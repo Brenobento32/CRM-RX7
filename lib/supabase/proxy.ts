@@ -18,10 +18,13 @@ import type { Database } from '@/lib/types/database'
  * 2. As `claims` devolvidas servem só para checagem otimista (redirecionar
  *    quem não está logado). Elas vêm de um JWT validado, mas o papel de
  *    gerente/closer deve ser relido do banco antes de qualquer escrita.
+ *
+ * `cabecalhos`: os headers que seguem para o app (o `proxy.ts` remove o
+ * header interno de empresa vindo do browser e põe o da URL).
  */
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, cabecalhos: Headers = request.headers) {
   let response = NextResponse.next({
-    request: { headers: request.headers },
+    request: { headers: cabecalhos },
   })
 
   const supabase = createServerClient<Database>(
@@ -38,7 +41,7 @@ export async function updateSession(request: NextRequest) {
           }
 
           response = NextResponse.next({
-            request: { headers: request.headers },
+            request: { headers: cabecalhos },
           })
 
           for (const { name, value, options } of cookiesToSet) {

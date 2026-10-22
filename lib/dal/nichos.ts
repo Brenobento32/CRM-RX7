@@ -3,6 +3,7 @@ import 'server-only'
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { CampoNicho, NichoInput } from '@/lib/validations/nicho'
@@ -93,7 +94,7 @@ function slugificar(nome: string): string {
 
 export async function criarNicho(input: NichoInput): Promise<ResultadoNicho> {
   await exigirGerente()
-  const supabase = await createClient()
+  const [supabase, empresa] = await Promise.all([createClient(), getEmpresaAtual()])
   const base = slugificar(input.nome) || 'nicho'
 
   const { data: maiorOrdem } = await supabase
@@ -110,7 +111,7 @@ export async function criarNicho(input: NichoInput): Promise<ResultadoNicho> {
     const slug = tentativa === 0 ? base : `${base}-${tentativa + 1}`
     const { error } = await supabase
       .from('nichos')
-      .insert({ nome: input.nome, cor: input.cor, ativo: input.ativo, slug, ordem })
+      .insert({ tenant_id: empresa.id, nome: input.nome, cor: input.cor, ativo: input.ativo, slug, ordem })
 
     if (!error) return { ok: true }
     if (error.code === '23505' && error.message.includes('slug')) continue

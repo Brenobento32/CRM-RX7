@@ -40,6 +40,16 @@ const ITENS_GERENTE: Item[] = [
     titulo: 'WhatsApp',
     descricao: 'Funil e responsável padrão da conexão WhatsApp.',
   },
+  {
+    href: '/configuracoes/integracoes',
+    titulo: 'Integrações',
+    descricao: 'Credenciais do webhook de leads desta empresa.',
+  },
+  {
+    href: '/configuracoes/assinatura',
+    titulo: 'Minha assinatura',
+    descricao: 'Plano, situação, limites e consumo (administrador da empresa).',
+  },
 ]
 
 const ITENS_CLOSER: Item[] = [

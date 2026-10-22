@@ -3,6 +3,7 @@ import 'server-only'
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { CampoServico, ServicoInput } from '@/lib/validations/servico'
 
@@ -95,8 +96,10 @@ export type ResultadoServico = { ok: true } | { ok: false; mensagem: string; cam
 
 export async function criarServico(input: ServicoInput): Promise<ResultadoServico> {
   await exigirGerente()
-  const supabase = await createClient()
-  const { error } = await supabase.from('servicos').insert({ nome: input.nome, categoria: input.categoria })
+  const [supabase, empresa] = await Promise.all([createClient(), getEmpresaAtual()])
+  const { error } = await supabase
+    .from('servicos')
+    .insert({ tenant_id: empresa.id, nome: input.nome, categoria: input.categoria })
   return error ? traduzirErro(error) : { ok: true }
 }
 

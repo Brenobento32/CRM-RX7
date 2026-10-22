@@ -19,13 +19,27 @@
  * As rotas POST verificam o JWT aqui dentro (getUser + is_gerente), e o
  * /callback só aceita um `state` de uso único criado por um gerente.
  *
+ * Multiempresa: uma conexão por empresa. A empresa da chamada POST vem do
+ * header `x-rx7-tenant` e é validada pelo banco (`tenant_atual()` + papel de
+ * gerente nela). O `state` do OAuth é assinado (HMAC) com a empresa e
+ * gravado no banco (uso único, 10 min); no /callback a empresa sai do estado
+ * gravado e precisa bater com a assinada — nunca de um parâmetro da URL.
+ * Desconectar uma empresa revoga e apaga só o token dela.
+ *
  * Secrets (npx supabase secrets set …):
  *   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
- *   GOOGLE_CONTA_PERMITIDA   e-mail da única conta aceita na conexão
- *   CRM_URLS_PERMITIDAS      origens do CRM para onde o /callback pode voltar,
- *                            separadas por vírgula (ex.: http://localhost:3000,https://crm…)
+ *   GOOGLE_OAUTH_STATE_SECRET  chave do HMAC do state (≥ 32 caracteres)
+ *   GOOGLE_OAUTH_REDIRECT_URI  opcional: callback cadastrado no Google (padrão:
+ *                              <SUPABASE_URL>/functions/v1/agenda-google/callback)
+ *   CRM_URLS_PERMITIDAS        origens do CRM para onde o /callback pode voltar,
+ *                              separadas por vírgula (localhost, domínio da Hostinger…)
+ * A conta Google aceita por empresa fica em tenant_configuracoes.google_conta_permitida
+ * (vazio = qualquer conta do gerente).
  */
 import { createClient } from 'npm:@supabase/supabase-js@2'
+
+import { assinarEstado, verificarEstado } from '../_shared/estado-oauth.ts'
+import { HEADER_TENANT, slugDaRequisicao } from '../_shared/requisicao.ts'
 
 const ESCOPO = 'https://www.googleapis.com/auth/calendar.readonly'
 const GOOGLE_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -58,14 +72,14 @@ const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') ?? ''
 const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') ?? ''
-const contaPermitida = (Deno.env.get('GOOGLE_CONTA_PERMITIDA') ?? '').trim().toLowerCase()
+const segredoEstado = Deno.env.get('GOOGLE_OAUTH_STATE_SECRET') ?? ''
 const origensPermitidas = (Deno.env.get('CRM_URLS_PERMITIDAS') ?? '')
   .split(',')
   .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean)
 
-/** Precisa ser idêntica à cadastrada no Google Cloud. */
-const redirectUri = `${url}/functions/v1/agenda-google/callback`
+/** Precisa ser idêntica à cadastrada no Google Cloud (configurável para o domínio futuro). */
+const redirectUri = Deno.env.get('GOOGLE_OAUTH_REDIRECT_URI') ?? `${url}/functions/v1/agenda-google/callback`
 
 const admin = createClient(url, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -171,22 +185,33 @@ async function google<T>(token: string, caminho: string, params: Record<string, 
 // Ações
 // ---------------------------------------------------------------------------
 
-async function iniciar(usuarioId: string, retorno: unknown) {
-  if (!clientId || !clientSecret || !contaPermitida) {
+type Contexto = { usuarioId: string; tenantId: string }
+
+async function iniciar(ctx: Contexto, retorno: unknown) {
+  if (!clientId || !clientSecret || segredoEstado.length < 32) {
     return erro(500, 'configuracao', 'Integração Google não configurada (secrets ausentes).')
   }
   if (!origemPermitida(retorno)) {
     return erro(400, 'retorno_invalido', 'Endereço de retorno não permitido.')
   }
 
-  const nonce = crypto.randomUUID() + crypto.randomUUID().replaceAll('-', '')
-  const { error } = await admin
-    .from('agenda_google_oauth_estados')
-    .insert({ nonce, usuario_id: usuarioId, retorno })
-  if (error) return erro(500, 'estado', 'Não foi possível iniciar a conexão.')
+  // Estado gravado com a empresa e o gerente (uso único, 10 min; o banco
+  // confere de novo que ele é gerente da empresa).
+  const { data: nonce, error } = await admin.rpc('agenda_google_criar_estado', {
+    p_tenant: ctx.tenantId,
+    p_usuario: ctx.usuarioId,
+    p_retorno: retorno,
+  })
+  if (error || typeof nonce !== 'string') return erro(500, 'estado', 'Não foi possível iniciar a conexão.')
 
-  // Limpeza oportunista de estados vencidos.
-  await admin.from('agenda_google_oauth_estados').delete().lt('expira_em', new Date().toISOString())
+  const { data: config } = await admin
+    .from('tenant_configuracoes')
+    .select('google_conta_permitida')
+    .eq('tenant_id', ctx.tenantId)
+    .maybeSingle()
+  const contaPermitida = config?.google_conta_permitida ?? null
+
+  const state = await assinarEstado(segredoEstado, { n: nonce, t: ctx.tenantId })
 
   const destino = new URL(GOOGLE_AUTH)
   destino.search = new URLSearchParams({
@@ -198,29 +223,30 @@ async function iniciar(usuarioId: string, retorno: unknown) {
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: 'true',
-    login_hint: contaPermitida,
-    state: nonce,
+    ...(contaPermitida ? { login_hint: contaPermitida } : {}),
+    state,
   }).toString()
 
   return json(200, { ok: true, url: destino.toString() })
 }
 
+type Estado = { tenant_id: string; usuario_id: string; retorno: string; expirado: boolean }
+
 async function callback(req: Request) {
   const params = new URL(req.url).searchParams
-  const nonce = params.get('state') ?? ''
+  const invalido = () =>
+    new Response('Link de conexão inválido ou já usado. Volte ao CRM e tente de novo.', { status: 400 })
 
-  // Uso único: o DELETE devolve a linha e ela deixa de existir.
-  const { data: estados } = await admin
-    .from('agenda_google_oauth_estados')
-    .delete()
-    .eq('nonce', nonce)
-    .select('usuario_id, retorno, expira_em')
+  // 1. Assinatura: state forjado ou alterado nem chega ao banco.
+  const assinado = segredoEstado.length >= 32 ? await verificarEstado(segredoEstado, params.get('state') ?? '') : null
+  if (!assinado) return invalido()
 
-  const estado = estados?.[0]
-  if (!estado) return new Response('Link de conexão inválido ou já usado. Volte ao CRM e tente de novo.', { status: 400 })
-  if (new Date(estado.expira_em) < new Date()) {
-    return voltar(estado.retorno, { google: 'erro', motivo: 'expirado' })
-  }
+  // 2. Uso único: a linha deixa de existir nesta leitura.
+  const { data: estados } = await admin.rpc('agenda_google_consumir_estado', { p_nonce: assinado.n })
+  const estado = (estados as Estado[] | null)?.[0]
+  // 3. A empresa vem do estado gravado e precisa bater com a assinada.
+  if (!estado || estado.tenant_id !== assinado.t) return invalido()
+  if (estado.expirado) return voltar(estado.retorno, { google: 'erro', motivo: 'expirado' })
 
   const negado = params.get('error')
   if (negado) return voltar(estado.retorno, { google: 'erro', motivo: negado === 'access_denied' ? 'negado' : 'google' })
@@ -238,19 +264,22 @@ async function callback(req: Request) {
     const primaria = await google<{ id: string }>(tokens.access_token, '/calendars/primary')
     const email = primaria.id.toLowerCase()
 
-    if (email !== contaPermitida) {
-      await fetch(`${GOOGLE_REVOKE}?token=${encodeURIComponent(tokens.refresh_token)}`, { method: 'POST' })
-      return voltar(estado.retorno, { google: 'erro', motivo: 'conta', conta: email })
-    }
-
+    // Grava só na empresa do estado; o banco recusa conta não permitida
+    // para a empresa e quem não for mais gerente dela.
     const { error } = await admin.rpc('agenda_google_salvar_conexao', {
+      p_tenant: estado.tenant_id,
       p_conta_email: email,
       p_calendar_id: primaria.id,
       p_escopos: escopos,
       p_refresh_token: tokens.refresh_token,
       p_usuario_id: estado.usuario_id,
     })
-    if (error) throw new Error(`Falha ao gravar a conexão: ${error.message}`)
+    if (error) {
+      await fetch(`${GOOGLE_REVOKE}?token=${encodeURIComponent(tokens.refresh_token)}`, { method: 'POST' }).catch(() => {})
+      if (error.code === '42501') return voltar(estado.retorno, { google: 'erro', motivo: 'conta' })
+      if (error.code === 'RX002' || error.code === 'RX003') return voltar(estado.retorno, { google: 'erro', motivo: 'plano' })
+      throw new Error(`Falha ao gravar a conexão: ${error.code}`)
+    }
 
     return voltar(estado.retorno, { google: 'conectado' })
   } catch (e) {
@@ -261,8 +290,8 @@ async function callback(req: Request) {
 
 type Credencial = { conta_email: string; calendar_id: string; refresh_token: string }
 
-async function credencial(): Promise<Credencial | null> {
-  const { data, error } = await admin.rpc('agenda_google_obter_credencial')
+async function credencial(tenantId: string): Promise<Credencial | null> {
+  const { data, error } = await admin.rpc('agenda_google_obter_credencial', { p_tenant: tenantId })
   if (error) throw new Error(`Falha ao ler a credencial: ${error.message}`)
   return (data as Credencial[])[0] ?? null
 }
@@ -291,8 +320,8 @@ function inteiroEntre(v: unknown, min: number, max: number, padrao: number) {
   return Math.min(Math.max(n, min), max)
 }
 
-async function diagnostico(corpo: Record<string, unknown>) {
-  const cred = await credencial()
+async function diagnostico(ctx: Contexto, corpo: Record<string, unknown>) {
+  const cred = await credencial(ctx.tenantId)
   if (!cred) return erro(409, 'desconectado', 'Nenhuma conta Google conectada.')
 
   const diasPassado = inteiroEntre(corpo.dias_passado, 0, 365, 90)
@@ -380,7 +409,7 @@ async function diagnostico(corpo: Record<string, unknown>) {
     })
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : String(e)
-    await admin.rpc('agenda_google_registrar_erro', { p_erro: mensagem })
+    await admin.rpc('agenda_google_registrar_erro', { p_tenant: ctx.tenantId, p_erro: mensagem })
     if (e instanceof ErroGoogle && e.codigo === 'reconectar') {
       return erro(409, 'reconectar', 'O Google recusou o acesso salvo. Conecte a conta de novo.')
     }
@@ -389,13 +418,14 @@ async function diagnostico(corpo: Record<string, unknown>) {
   }
 }
 
-async function desconectar() {
-  const cred = await credencial()
+/** Revoga e apaga só a conexão desta empresa. */
+async function desconectar(ctx: Contexto) {
+  const cred = await credencial(ctx.tenantId)
   if (cred) {
     // Revoga no Google; se falhar (já revogado), segue removendo do CRM.
     await fetch(`${GOOGLE_REVOKE}?token=${encodeURIComponent(cred.refresh_token)}`, { method: 'POST' }).catch(() => {})
   }
-  const { error } = await admin.rpc('agenda_google_remover_conexao')
+  const { error } = await admin.rpc('agenda_google_remover_conexao', { p_tenant: ctx.tenantId })
   if (error) return erro(500, 'remover', 'Não foi possível remover a conexão.')
   return json(200, { ok: true })
 }
@@ -404,23 +434,33 @@ async function desconectar() {
 // Entrada
 // ---------------------------------------------------------------------------
 
-/** Mesma regra da RLS: o JWT de quem chama passa por `is_gerente()`. */
-async function exigirGerente(req: Request): Promise<string | Response> {
+/**
+ * Mesma regra da RLS: o JWT de quem chama + a empresa da aba passam por
+ * `tenant_atual()` e `is_gerente()` no banco.
+ */
+async function exigirGerente(req: Request): Promise<Contexto | Response> {
   const authorization = req.headers.get('Authorization')
   if (!authorization) return erro(401, 'nao_autenticado', 'Sessão ausente.')
 
+  const slug = slugDaRequisicao(req.headers)
+  if (!slug) return erro(403, 'sem_empresa', 'Empresa não informada.')
+
   const comoUsuario = createClient(url, anonKey, {
-    global: { headers: { Authorization: authorization } },
+    global: { headers: { Authorization: authorization, [HEADER_TENANT]: slug } },
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
   const { data: usuario } = await comoUsuario.auth.getUser()
   if (!usuario?.user) return erro(401, 'nao_autenticado', 'Sessão inválida.')
 
-  const { data: gerente, error } = await comoUsuario.rpc('is_gerente')
+  const [{ data: tenantId }, { data: gerente, error }] = await Promise.all([
+    comoUsuario.rpc('tenant_atual'),
+    comoUsuario.rpc('is_gerente'),
+  ])
+  if (!tenantId) return erro(403, 'sem_empresa', 'Empresa não informada ou sem acesso.')
   if (error || gerente !== true) return erro(403, 'sem_permissao', 'Somente gerentes gerenciam a agenda Google.')
 
-  return usuario.user.id
+  return { usuarioId: usuario.user.id, tenantId: tenantId as string }
 }
 
 Deno.serve(async (req) => {
@@ -429,8 +469,8 @@ Deno.serve(async (req) => {
   if (req.method === 'GET' && caminho.endsWith('/callback')) return callback(req)
   if (req.method !== 'POST') return erro(405, 'metodo', 'Use POST.')
 
-  const gerente = await exigirGerente(req)
-  if (gerente instanceof Response) return gerente
+  const ctx = await exigirGerente(req)
+  if (ctx instanceof Response) return ctx
 
   let corpo: Record<string, unknown>
   try {
@@ -442,11 +482,11 @@ Deno.serve(async (req) => {
   try {
     switch (corpo.acao) {
       case 'iniciar':
-        return await iniciar(gerente, corpo.retorno)
+        return await iniciar(ctx, corpo.retorno)
       case 'diagnostico':
-        return await diagnostico(corpo)
+        return await diagnostico(ctx, corpo)
       case 'desconectar':
-        return await desconectar()
+        return await desconectar(ctx)
       default:
         return erro(400, 'pedido_invalido', 'Ação desconhecida.')
     }

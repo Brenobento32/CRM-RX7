@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useRotaInterna } from '@/lib/empresa/use-rota-interna'
 import { useState } from 'react'
 
 import type { Database } from '@/lib/types/database'
@@ -69,6 +69,8 @@ const MENU: (ItemSimples | Grupo)[] = [
       { href: '/configuracoes/nichos', rotulo: 'Nichos' },
       { href: '/configuracoes/servicos', rotulo: 'Serviços' },
       { href: '/configuracoes/agenda', rotulo: 'Agenda Google', somenteGerente: true },
+      { href: '/configuracoes/integracoes', rotulo: 'Integrações', somenteGerente: true },
+      { href: '/configuracoes/assinatura', rotulo: 'Assinatura', somenteGerente: true },
     ],
   },
 ]
@@ -101,7 +103,7 @@ const linhaInativa = 'text-premium-secundario hover:bg-premium-card hover:text-p
  * também chega lá: Tab do ícone entra no painel).
  */
 export function SidebarNav({ papel }: { papel: Papel }) {
-  const pathname = usePathname()
+  const pathname = useRotaInterna()
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
 
   return (

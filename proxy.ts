@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
+import {
+  COOKIE_EMPRESA,
+  HEADER_EMPRESA,
+  caminhoDaEmpresa,
+  separarPrefixo,
+  slugValido,
+} from '@/lib/empresa/rota'
 import { updateSession } from '@/lib/supabase/proxy'
 
 /** Rotas acessíveis sem sessão — redirecionam para a área interna se já houver uma. */
@@ -15,33 +22,51 @@ const ROTAS_PUBLICAS = ['/login']
  * -> redireciona pra área interna" impediria a troca do código antes mesmo
  * de o Route Handler rodar).
  */
-const ROTAS_LIVRES = ['/sem-acesso', '/esqueci-senha', '/auth/callback']
+// `/f/<id>`: formulário público de captação (Formulário RX7), sem login.
+const ROTAS_LIVRES = ['/sem-acesso', '/esqueci-senha', '/auth/callback', '/f']
+
+/** Logadas, mas fora de qualquer empresa. */
+const ROTAS_SEM_EMPRESA = ['/empresas', '/redefinir-senha', '/admin']
 
 function corresponde(pathname: string, rotas: string[]) {
   return rotas.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`))
 }
 
 /**
- * Renova a sessão e faz o redirect otimista:
+ * Renova a sessão, resolve a empresa da URL e faz o redirect otimista:
+ * - `/e/<slug>/x` → reescreve para `/x` com o slug num header interno;
+ * - área interna sem prefixo → completa com a empresa da aba de origem
+ *   (Referer do mesmo site) ou, numa aba nova, com a última usada;
  * - sem sessão fora das rotas públicas → /login (guardando o destino em `next`)
  * - com sessão na tela de login → área interna
  *
- * A checagem definitiva fica na DAL (`verifySession`) e na RLS.
+ * Nada aqui autoriza: a checagem definitiva fica na DAL e no banco
+ * (`tenant_atual()` + RLS).
  */
 export async function proxy(request: NextRequest) {
-  const { response, claims } = await updateSession(request)
-  const { pathname, search } = request.nextUrl
+  // O header interno nunca pode vir do browser.
+  const cabecalhos = new Headers(request.headers)
+  cabecalhos.delete(HEADER_EMPRESA)
 
-  if (corresponde(pathname, ROTAS_LIVRES)) {
+  const { pathname, search } = request.nextUrl
+  const prefixo = separarPrefixo(pathname)
+  if (prefixo) cabecalhos.set(HEADER_EMPRESA, prefixo.slug)
+
+  const { response, claims } = await updateSession(request, cabecalhos)
+  const rota = prefixo ? prefixo.resto : pathname
+
+  if (prefixo && (corresponde(rota, ROTAS_LIVRES) || corresponde(rota, ROTAS_PUBLICAS) || corresponde(rota, ROTAS_SEM_EMPRESA))) {
+    return redirecionar(urlCom(request, rota, search), response)
+  }
+
+  if (corresponde(rota, ROTAS_LIVRES)) {
     return response
   }
 
-  const publica = corresponde(pathname, ROTAS_PUBLICAS)
+  const publica = corresponde(rota, ROTAS_PUBLICAS)
 
   if (!claims && !publica) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.search = ''
+    const url = urlCom(request, '/login', '')
     if (pathname !== '/') {
       url.searchParams.set('next', `${pathname}${search}`)
     }
@@ -49,13 +74,62 @@ export async function proxy(request: NextRequest) {
   }
 
   if (claims && publica) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    url.search = ''
-    return redirecionar(url, response)
+    return redirecionar(urlCom(request, '/', ''), response)
   }
 
-  return response
+  if (publica || corresponde(rota, ROTAS_SEM_EMPRESA)) {
+    return response
+  }
+
+  if (prefixo) {
+    const reescrita = NextResponse.rewrite(urlCom(request, rota, search), {
+      request: { headers: cabecalhos },
+    })
+    copiarSessao(response, reescrita)
+    reescrita.cookies.set(COOKIE_EMPRESA, prefixo.slug, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: request.nextUrl.protocol === 'https:',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 180,
+    })
+    return reescrita
+  }
+
+  // Área interna sem prefixo (links e redirects internos): mesma empresa da aba.
+  const slug = empresaDaAbaDeOrigem(request) ?? cookieEmpresa(request)
+  if (slug) {
+    return redirecionar(urlCom(request, caminhoDaEmpresa(slug, rota), search), response)
+  }
+
+  const escolher = urlCom(request, '/empresas', '')
+  if (rota !== '/') escolher.searchParams.set('next', `${rota}${search}`)
+  return redirecionar(escolher, response)
+}
+
+/** Empresa do Referer, só se for deste mesmo site. */
+function empresaDaAbaDeOrigem(request: NextRequest): string | null {
+  const referer = request.headers.get('referer')
+  if (!referer) return null
+  try {
+    const origem = new URL(referer)
+    if (origem.origin !== request.nextUrl.origin) return null
+    return separarPrefixo(origem.pathname)?.slug ?? null
+  } catch {
+    return null
+  }
+}
+
+function cookieEmpresa(request: NextRequest): string | null {
+  const valor = request.cookies.get(COOKIE_EMPRESA)?.value
+  return slugValido(valor) ? valor : null
+}
+
+function urlCom(request: NextRequest, pathname: string, search: string) {
+  const url = request.nextUrl.clone()
+  url.pathname = pathname
+  url.search = search
+  return url
 }
 
 /**
@@ -64,10 +138,19 @@ export async function proxy(request: NextRequest) {
  */
 function redirecionar(url: URL, response: NextResponse) {
   const redirect = NextResponse.redirect(url)
-  for (const cookie of response.cookies.getAll()) {
-    redirect.cookies.set(cookie)
-  }
+  copiarSessao(response, redirect)
   return redirect
+}
+
+function copiarSessao(de: NextResponse, para: NextResponse) {
+  for (const cookie of de.cookies.getAll()) {
+    para.cookies.set(cookie)
+  }
+  // Anti-cache que `updateSession` põe quando renova a sessão.
+  for (const nome of ['cache-control', 'expires', 'pragma']) {
+    const valor = de.headers.get(nome)
+    if (valor) para.headers.set(nome, valor)
+  }
 }
 
 export const config = {

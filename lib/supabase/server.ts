@@ -1,8 +1,9 @@
 import 'server-only'
 
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
+import { HEADER_EMPRESA, HEADER_TENANT_BANCO, slugValido } from '@/lib/empresa/rota'
 import { publicEnv } from '@/lib/env/public'
 import type { Database } from '@/lib/types/database'
 
@@ -19,15 +20,24 @@ import type { Database } from '@/lib/types/database'
  * garante que um closer só enxergue a própria carteira mesmo que alguma query
  * esqueça o filtro por `owner_id`.
  *
- * No Next.js 16 `cookies()` é assíncrono, por isso esta função é `async`.
+ * Empresa: o slug da URL (`/e/<slug>`, repassado pelo `proxy.ts`) vai em
+ * `x-rx7-tenant` em toda chamada. O banco só aceita se o usuário tiver vínculo
+ * ativo nela (`tenant_atual()`); sem empresa, nenhum dado comercial aparece.
+ *
+ * No Next.js 16 `cookies()` e `headers()` são assíncronos, por isso esta
+ * função é `async`.
  */
 export async function createClient() {
-  const cookieStore = await cookies()
+  const [cookieStore, cabecalhos] = await Promise.all([cookies(), headers()])
+  const empresa = cabecalhos.get(HEADER_EMPRESA)
 
   return createServerClient<Database>(
     publicEnv.supabaseUrl,
     publicEnv.supabaseAnonKey,
     {
+      global: {
+        headers: slugValido(empresa) ? { [HEADER_TENANT_BANCO]: empresa } : {},
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()

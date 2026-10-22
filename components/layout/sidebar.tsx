@@ -1,4 +1,5 @@
 import type { UsuarioAtual } from '@/lib/dal/auth'
+import type { EmpresaAtual } from '@/lib/dal/empresa'
 
 import { BotaoRecolherSidebar } from './shell-app'
 import { SidebarNav } from './sidebar-nav'
@@ -13,7 +14,7 @@ import { SidebarNav } from './sidebar-nav'
  * pra não duplicar a mesma informação em dois lugares da tela. O rodapé
  * daqui guarda só a ação de recolher/expandir o menu.
  */
-export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
+export function Sidebar({ usuario, empresa }: { usuario: UsuarioAtual; empresa: EmpresaAtual }) {
   return (
     <>
       <div className="flex h-16 items-center gap-2.5 border-b border-premium-borda px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
@@ -21,6 +22,21 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
         <span className="truncate text-base font-semibold tracking-tight text-premium-texto group-data-[sidebar=recolhida]/shell:hidden">
           CRM - RX7
         </span>
+      </div>
+
+      {/* Empresa ativa desta aba. Trocar é navegação completa (outra empresa,
+          outra árvore de dados), por isso <a> e não <Link>. */}
+      <div className="border-b border-premium-borda px-4 py-2.5 group-data-[sidebar=recolhida]/shell:hidden">
+        <p className="truncate text-xs font-medium text-premium-texto" title={empresa.nome}>
+          {empresa.nome}
+        </p>
+        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-premium-mudo">
+          {empresa.somenteLeitura ? <span>Somente leitura</span> : null}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- troca de empresa recarrega tudo de propósito */}
+          <a href="/empresas" className="underline-offset-2 hover:underline">
+            Trocar empresa
+          </a>
+        </div>
       </div>
 
       <SidebarNav papel={usuario.role} />

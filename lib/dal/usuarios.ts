@@ -3,6 +3,7 @@ import 'server-only'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { CorEtapa } from '@/lib/utils/etapas'
 import type {
@@ -75,28 +76,63 @@ export async function listarUsuarios(): Promise<Usuario[]> {
   await exigirGerente()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, nome, email, telefone, foto_url, role, ativo, cor_agenda')
-    .order('ativo', { ascending: false })
-    .order('nome')
+  const [{ data, error }, membros] = await Promise.all([
+    supabase.from('profiles').select('id, nome, email, telefone, foto_url, ativo, cor_agenda').order('nome'),
+    membrosDaEmpresa(),
+  ])
 
   if (error) throw new Error('Não foi possível carregar os usuários.', { cause: error })
-  return data.map(paraUsuario)
+  return data
+    .flatMap((p) => {
+      const membro = membros.get(p.id)
+      return membro ? [paraUsuario({ ...p, role: membro.role, ativo: membro.ativo })] : []
+    })
+    .sort((a, b) => Number(b.ativo) - Number(a.ativo))
 }
 
 export async function obterUsuario(id: string): Promise<Usuario | null> {
   await exigirGerente()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, nome, email, telefone, foto_url, role, ativo, cor_agenda')
-    .eq('id', id)
-    .maybeSingle()
+  const [{ data, error }, membros] = await Promise.all([
+    supabase.from('profiles').select('id, nome, email, telefone, foto_url, ativo, cor_agenda').eq('id', id).maybeSingle(),
+    membrosDaEmpresa(),
+  ])
 
   if (error) throw new Error('Não foi possível carregar o usuário.', { cause: error })
-  return data ? paraUsuario(data) : null
+  const membro = membros.get(id)
+  return data && membro ? paraUsuario({ ...data, role: membro.role, ativo: membro.ativo }) : null
+}
+
+/**
+ * Papel e acesso NA EMPRESA (vínculo em `tenant_memberships`), via
+ * `definir_membro_tenant` — o banco exige `admin_empresa` da empresa e mantém
+ * pelo menos um admin ativo. Não mexe no login nem em outras empresas.
+ */
+async function definirVinculo(id: string, papel: Papel, ativo: boolean): Promise<ResultadoUsuario> {
+  const [supabase, empresa, membros] = await Promise.all([createClient(), getEmpresaAtual(), membrosDaEmpresa()])
+  const atual = membros.get(id)
+  // admin_empresa aparece como "gerente" na tela; mantê-lo gerente não o rebaixa.
+  const papelEmpresa = atual?.papel === 'admin_empresa' && papel === 'gerente' ? 'admin_empresa' : papel
+
+  const { error } = await supabase.rpc('definir_membro_tenant', {
+    p_tenant: empresa.id,
+    p_user: id,
+    p_papel: papelEmpresa,
+    p_ativo: ativo,
+  })
+  if (!error) return { ok: true, id }
+  if (error.code === '42501') {
+    return { ok: false, campo: 'role', mensagem: 'Somente o administrador da empresa altera papel e acesso.' }
+  }
+  if (error.code === '23514') {
+    return { ok: false, campo: 'role', mensagem: 'A empresa precisa manter ao menos um administrador ativo.' }
+  }
+  if (error.code === 'RX001') {
+    return { ok: false, campo: 'ativo', mensagem: 'O plano da empresa atingiu o limite de usuários ativos.' }
+  }
+  console.error('definir vínculo na empresa', error)
+  return { ok: false, mensagem: 'Não foi possível salvar o papel na empresa.' }
 }
 
 function paraUsuario(p: {
@@ -145,7 +181,7 @@ export async function coresEmUso(exceto?: string): Promise<Partial<Record<CorEta
   return uso
 }
 
-type RespostaFuncao = { ok: boolean; codigo?: string; mensagem?: string; usuario_id?: string }
+type RespostaFuncao = { ok: boolean; codigo?: string; mensagem?: string; usuario_id?: string; existente?: boolean }
 
 /** Chama a Edge Function com a sessão do gerente e normaliza o erro. */
 async function chamarAdmin(corpo: Record<string, unknown>): Promise<RespostaFuncao> {
@@ -173,13 +209,27 @@ export async function criarUsuario(
 ): Promise<ResultadoUsuario> {
   await exigirGerente()
 
-  const r = await chamarAdmin({ acao: 'criar', ...input })
+  // A Edge Function convida para a empresa desta aba (header): e-mail que já
+  // existe em outra empresa ganha só o vínculo, sem nova identidade; o banco
+  // exige admin_empresa desta empresa.
+  const r = await chamarAdmin({
+    acao: 'convidar',
+    nome: input.nome,
+    email: input.email,
+    senha: input.senha,
+    telefone: input.telefone,
+    papel: input.role,
+  })
   if (!r.ok || !r.usuario_id) {
     return {
       ok: false,
-      campo: r.codigo === 'email_existe' ? 'email' : r.codigo === 'senha_fraca' ? 'senha' : undefined,
+      campo: r.codigo === 'senha_fraca' ? 'senha' : undefined,
       mensagem: r.mensagem ?? 'Não foi possível criar o usuário.',
     }
+  }
+  if (r.existente) {
+    // Identidade de outra empresa: perfil, foto e cor são dela; não mexemos.
+    return { ok: true, id: r.usuario_id, aviso: 'Usuário já existia e foi vinculado a esta empresa.' }
   }
 
   // O usuário já existe; se só a cor ou a foto falharem, a criação não é desfeita.
@@ -211,17 +261,20 @@ export async function editarUsuario(
   }
 
   const supabase = await createClient()
+  // O perfil é global (nome, telefone, cor); o papel é da empresa.
   const { error } = await supabase
     .from('profiles')
-    .update({ nome: input.nome, telefone: input.telefone, role: input.role, cor_agenda: input.cor_agenda })
+    .update({ nome: input.nome, telefone: input.telefone, cor_agenda: input.cor_agenda })
     .eq('id', id)
 
   if (error) {
-    if (error.code === '23514') {
-      return { ok: false, campo: 'role', mensagem: 'É preciso manter ao menos um gerente ativo.' }
-    }
     console.error('editar usuário', error)
     return { ok: false, mensagem: 'Não foi possível salvar o usuário.' }
+  }
+
+  if (input.role !== atual.role || input.ativo !== atual.ativo) {
+    const r = await definirVinculo(id, input.role, input.ativo)
+    if (!r.ok) return r
   }
 
   if (foto) {
@@ -232,23 +285,21 @@ export async function editarUsuario(
     await removerArquivo(atual.fotoUrl)
   }
 
-  if (input.ativo !== atual.ativo) {
-    const r = await definirAcesso(id, input.ativo)
-    if (!r.ok) return { ok: false, campo: 'ativo', mensagem: r.mensagem }
-  }
-
   return { ok: true, id }
 }
 
-/** Ativa/desativa: `profiles.ativo` + bloqueio do login no Auth (Edge Function). */
+/**
+ * Ativa/desativa o acesso do usuário NESTA empresa (vínculo). O login e as
+ * outras empresas dele não mudam — bloquear o login de vez é do Super Admin.
+ */
 export async function definirAcesso(id: string, ativo: boolean): Promise<ResultadoUsuario> {
   const eu = await exigirGerente()
   if (id === eu.id && !ativo) {
     return { ok: false, mensagem: 'Você não pode desativar o próprio usuário.' }
   }
-
-  const r = await chamarAdmin({ acao: 'definir_acesso', usuario_id: id, ativo })
-  return r.ok ? { ok: true, id } : { ok: false, mensagem: r.mensagem ?? 'Não foi possível alterar o acesso.' }
+  const atual = (await membrosDaEmpresa()).get(id)
+  if (!atual) return { ok: false, mensagem: 'Usuário não encontrado.' }
+  return definirVinculo(id, atual.role, ativo)
 }
 
 /**

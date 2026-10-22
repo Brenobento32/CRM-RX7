@@ -3,6 +3,7 @@ import 'server-only'
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual, type UserRole } from '@/lib/dal/auth'
+import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import { metaProporcionalPeriodo, type MetaPeriodo } from '@/lib/utils/financeiro-periodo'
@@ -322,17 +323,20 @@ export async function listarAlvosDeMeta(): Promise<OpcaoAlvo[]> {
   await exigirGerente()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, nome')
-    .eq('role', 'closer')
-    .eq('ativo', true)
-    .order('nome')
+  const [{ data, error }, membros] = await Promise.all([
+    supabase.from('profiles').select('id, nome').eq('ativo', true).order('nome'),
+    membrosDaEmpresa(),
+  ])
 
   if (error) throw new Error('Não foi possível carregar os closers.', { cause: error })
+  // Closer na empresa da requisição (o papel não é mais o global do perfil).
+  const closers = data.filter((p) => {
+    const membro = membros.get(p.id)
+    return membro?.ativo && membro.role === 'closer'
+  })
   return [
     { valor: ALVO_EMPRESA, rotulo: 'Empresa (meta geral)' },
-    ...data.map((p) => ({ valor: p.id, rotulo: p.nome })),
+    ...closers.map((p) => ({ valor: p.id, rotulo: p.nome })),
   ]
 }
 
@@ -340,9 +344,10 @@ export type ResultadoMeta = { ok: true } | { ok: false; mensagem: string; campo?
 
 export async function criarMeta(input: CriarMetaInput): Promise<ResultadoMeta> {
   await exigirGerente()
-  const supabase = await createClient()
+  const [supabase, empresa] = await Promise.all([createClient(), getEmpresaAtual()])
 
   const { error } = await supabase.from('metas').insert({
+    tenant_id: empresa.id,
     usuario_id: input.alvo === ALVO_EMPRESA ? null : input.alvo,
     tipo_meta: input.tipo_meta,
     periodo_mes: primeiroDiaDoMes(input.mes),

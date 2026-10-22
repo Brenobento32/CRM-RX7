@@ -23,6 +23,8 @@ const MOTIVOS: Record<string, string> = {
   escopo: 'A permissão de ver a agenda não foi concedida. Marque-a na tela do Google.',
   sem_refresh: 'O Google não enviou o acesso permanente. Remova o acesso do app na conta Google e conecte de novo.',
   google: 'O Google recusou a conexão. Tente de novo em instantes.',
+  conta: 'Esta conta Google não é permitida para esta empresa.',
+  plano: 'O plano da empresa não inclui a agenda Google ou atingiu o limite de integrações.',
 }
 
 /** Evento de dia inteiro chega só com a data (AAAA-MM-DD): não passa por fuso. */

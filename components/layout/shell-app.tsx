@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { useRotaInterna } from '@/lib/empresa/use-rota-interna'
 import { createContext, useContext, useState } from 'react'
 
 import { IconeExpandir, IconeRecolher } from './icones'
@@ -60,7 +60,7 @@ export function ShellApp({
 }) {
   const [recolhida, setRecolhida] = useState(recolhidaInicial)
   const [temaClaro, setTemaClaro] = useState(temaClaroInicial)
-  const premium = ROTAS_PREMIUM.has(usePathname())
+  const premium = ROTAS_PREMIUM.has(useRotaInterna())
 
   function alternar() {
     const nova = !recolhida

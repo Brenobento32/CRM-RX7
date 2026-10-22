@@ -4,6 +4,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { membrosDaEmpresa } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
@@ -298,16 +299,19 @@ export async function listarResponsaveis(): Promise<OpcaoResponsavel[]> {
   if (usuario.role !== 'gerente') return []
 
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, nome, role')
-    .eq('ativo', true)
-    .order('nome')
+  const [{ data, error }, membros] = await Promise.all([
+    supabase.from('profiles').select('id, nome').eq('ativo', true).order('nome'),
+    membrosDaEmpresa(),
+  ])
 
   if (error) {
     throw new Error('Não foi possível carregar os usuários.', { cause: error })
   }
-  return data
+  // Papel e vínculo na empresa da requisição (o perfil é global).
+  return data.flatMap((p) => {
+    const membro = membros.get(p.id)
+    return membro?.ativo ? [{ id: p.id, nome: p.nome, role: membro.role }] : []
+  })
 }
 
 export type ResultadoEscrita =

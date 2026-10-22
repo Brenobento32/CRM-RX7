@@ -20,6 +20,7 @@ import {
   type EstadoEnvioMensagem,
 } from '@/lib/actions/conversas'
 import type { MensagemConversa, MensagemEncaminhada, ReacaoMensagem } from '@/lib/dal/conversas'
+import { topicoConversa, useEmpresaAtual } from '@/components/layout/empresa-contexto'
 import { createClient } from '@/lib/supabase/client'
 import {
   diaEmSaoPaulo,
@@ -463,6 +464,7 @@ function construirItensHistorico(mensagens: MensagemConversa[]): ItemHistorico[]
  * — câmera ainda é só o botão/menu preparado.
  */
 export function PainelConversa({ card, onFechar }: Props) {
+  const empresa = useEmpresaAtual()
   const ref = useRef<HTMLDialogElement>(null)
   const listaRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -999,6 +1001,7 @@ export function PainelConversa({ card, onFechar }: Props) {
    */
   useEffect(() => {
     if (!conversaId) return
+    const topico = topicoConversa(empresa.id, conversaId)
 
     const supabase = createClient()
     let desmontado = false
@@ -1015,60 +1018,32 @@ export function PainelConversa({ card, onFechar }: Props) {
       canalAtual = null
       if (canalAnterior) void supabase.removeChannel(canalAnterior)
 
+      // Canal PRIVADO por empresa e conversa (`empresa:<tenant>:conversa:<id>`):
+      // o banco publica mensagens e reações (triggers com realtime.send) e só
+      // deixa entrar quem é da empresa e enxerga a conversa. postgres_changes
+      // não serve aqui: o Realtime não manda a empresa da aba ao banco.
       canalAtual = supabase
-        .channel(`mensagens-conversa-${conversaId}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
-          (payload) => {
-            const nova = paraMensagem(payload.new as LinhaMensagem)
-            setEstado((atual) => {
-              if (atual.status !== 'pronto') return atual
-              return { ...atual, mensagens: mesclarMensagem(atual.mensagens, nova, true) }
-            })
-          },
-        )
-        .on(
-          // O whatsapp-service faz pendente → enviando → enviado/falhou via UPDATE
-          // nesta mesma linha; é só isso que chega aqui (conteúdo não muda depois do INSERT).
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'mensagens', filter: `conversa_id=eq.${conversaId}` },
-          (payload) => {
-            const atualizada = paraMensagem(payload.new as LinhaMensagem)
-            setEstado((atual) => {
-              if (atual.status !== 'pronto') return atual
-              return { ...atual, mensagens: mesclarMensagem(atual.mensagens, atualizada, false) }
-            })
-          },
-        )
-        .on(
-          // `mensagem_reacoes` não tem `conversa_id` (schema mínimo de
-          // propósito — ver migration) — o Postgres Realtime só filtra por
-          // coluna da própria tabela, então esta assinatura recebe reações
-          // de QUALQUER conversa enquanto o painel estiver aberto; o que
-          // nunca pertence a uma mensagem desta conversa simplesmente nunca
-          // é procurado na hora de renderizar (`reacoesPorMensagem`,
-          // abaixo), então não vaza pra UI — só um pouco de tráfego
-          // redundante em troca de reagir sem precisar de outro canal.
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'mensagem_reacoes' },
-          (payload) => setReacoes((atual) => mesclarReacao(atual, payload.new as LinhaReacao)),
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'mensagem_reacoes' },
-          (payload) => setReacoes((atual) => mesclarReacao(atual, payload.new as LinhaReacao)),
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'mensagem_reacoes' },
-          (payload) => {
-            const linha = payload.old as { mensagem_id: string; usuario_id: string }
+        .channel(topico, { config: { private: true } })
+        .on('broadcast', { event: 'mensagem' }, ({ payload }) => {
+          const { op, registro } = payload as { op: string; registro: LinhaMensagem }
+          if (registro.conversa_id !== conversaId) return
+          const mensagem = paraMensagem(registro)
+          setEstado((atual) => {
+            if (atual.status !== 'pronto') return atual
+            // UPDATE: o whatsapp-service faz pendente → enviando → enviado/falhou nesta linha.
+            return { ...atual, mensagens: mesclarMensagem(atual.mensagens, mensagem, op === 'INSERT') }
+          })
+        })
+        .on('broadcast', { event: 'reacao' }, ({ payload }) => {
+          const { op, registro } = payload as { op: string; registro: LinhaReacao }
+          if (op === 'DELETE') {
             setReacoes((atual) =>
-              atual.filter((r) => !(r.mensagemId === linha.mensagem_id && r.usuarioId === linha.usuario_id)),
+              atual.filter((r) => !(r.mensagemId === registro.mensagem_id && r.usuarioId === registro.usuario_id)),
             )
-          },
-        )
+            return
+          }
+          setReacoes((atual) => mesclarReacao(atual, registro))
+        })
         .subscribe((status) => {
           if (minhaGeracao !== geracao) return // canal já substituído — eco do removeChannel acima
 
@@ -1100,7 +1075,7 @@ export function PainelConversa({ card, onFechar }: Props) {
       if (timeoutReconexao) clearTimeout(timeoutReconexao)
       if (canalAtual) void supabase.removeChannel(canalAtual)
     }
-  }, [conversaId])
+  }, [conversaId, empresa.id])
 
   /**
    * Busca a próxima página de mensagens mais antigas que a primeira

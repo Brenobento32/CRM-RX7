@@ -3,6 +3,7 @@ import 'server-only'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
 
+import { getEmpresaAtual, papelComercial } from '@/lib/dal/empresa'
 import { serverEnv } from '@/lib/env/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
@@ -40,17 +41,19 @@ export const verifySession = cache(async () => {
 })
 
 /**
- * Lê o perfil (papel gerente / closer) do banco.
+ * Lê o perfil do banco e o papel (gerente / sdr / closer) NA EMPRESA DA
+ * REQUISIÇÃO — o mesmo usuário pode ter papéis diferentes em cada empresa.
  *
  * O papel é sempre relido do Postgres, nunca tirado do JWT: se um gerente
  * rebaixar ou desativar alguém, a mudança vale no próximo request, e não só
  * quando o token expirar.
  *
- * Usuário sem profile ou desativado não entra na área interna.
+ * Usuário sem profile ou desativado não entra na área interna; sem vínculo
+ * na empresa da URL, vai para a escolha de empresa.
  */
 export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual> => {
   const { userId } = await verifySession()
-  const supabase = await createClient()
+  const [supabase, empresa] = await Promise.all([createClient(), getEmpresaAtual()])
 
   const { data: profile, error } = await supabase
     .from('profiles')
@@ -72,7 +75,7 @@ export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual> => {
     id: profile.id,
     nome: profile.nome,
     email: profile.email,
-    role: profile.role,
+    role: papelComercial(empresa.papel),
     fotoUrl: profile.foto_url,
   }
 })

@@ -5,6 +5,7 @@ import { subDays } from 'date-fns'
 import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { membrosDaEmpresa } from '@/lib/dal/empresa'
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
 import type { CorEtapa, EtapaVisual } from '@/lib/utils/etapas'
@@ -301,12 +302,16 @@ export async function listarResponsaveisAgenda(): Promise<ResponsavelAgenda[]> {
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
 
-  let query = supabase.from('profiles').select('id, nome, role, cor_agenda').eq('ativo', true).order('nome')
+  let query = supabase.from('profiles').select('id, nome, cor_agenda').eq('ativo', true).order('nome')
   if (usuario.role !== 'gerente') query = query.eq('id', usuario.id)
 
-  const { data, error } = await query
+  const [{ data, error }, membros] = await Promise.all([query, membrosDaEmpresa()])
   if (error) throw new Error('Não foi possível carregar os responsáveis.', { cause: error })
-  return data.map((p) => ({ id: p.id, nome: p.nome, role: p.role, cor: p.cor_agenda }))
+  // Papel e vínculo na empresa da requisição (o perfil é global).
+  return data.flatMap((p) => {
+    const membro = membros.get(p.id)
+    return membro?.ativo ? [{ id: p.id, nome: p.nome, role: membro.role, cor: p.cor_agenda }] : []
+  })
 }
 
 export type SerieDoEvento = RegraRecorrencia & {

@@ -424,3 +424,15 @@ verify_jwt = true
 # is_gerente() dentro da função, e o /callback exige um state de uso único.
 [functions.agenda-google]
 verify_jwt = false
+
+# Webhook de leads por empresa (SaaS). verify_jwt desligado: quem chama é o
+# servidor do cliente, sem JWT do CRM; a autenticação é a credencial da
+# empresa no header (validada no banco por ingerir_lead_por_credencial).
+[functions.ingestao-lead-empresa]
+verify_jwt = false
+
+# Lead Ads e WhatsApp Cloud API (Meta). verify_jwt desligado: a Meta não manda
+# JWT; os eventos exigem X-Hub-Signature-256 válido e /validar confere o JWT
+# do admin dentro da função.
+[functions.meta-webhooks]
+verify_jwt = false

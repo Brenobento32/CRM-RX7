@@ -5,6 +5,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { desconectarGoogle, iniciarConexaoGoogle } from '@/lib/dal/agenda-google'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
+import { caminhoDaEmpresa } from '@/lib/empresa/rota'
 
 const PAGINA = '/configuracoes/agenda'
 
@@ -20,9 +22,14 @@ function comErro(mensagem: string) {
   return `${PAGINA}?google=erro&mensagem=${encodeURIComponent(mensagem)}`
 }
 
-/** Leva o gerente ao consentimento do Google; o retorno cai nesta página. */
+/**
+ * Leva o gerente ao consentimento do Google; o retorno cai nesta página, já
+ * com a empresa na URL (`/e/<slug>/...`) — a volta do Google não tem a aba
+ * de origem para o proxy completar a empresa.
+ */
 export async function conectarGoogleAction(): Promise<void> {
-  const r = await iniciarConexaoGoogle(`${await origemAtual()}${PAGINA}`)
+  const empresa = await getEmpresaAtual()
+  const r = await iniciarConexaoGoogle(`${await origemAtual()}${caminhoDaEmpresa(empresa.slug, PAGINA)}`)
   if (!r.ok) redirect(comErro(r.mensagem))
   redirect(r.url)
 }
