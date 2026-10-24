@@ -40,6 +40,13 @@ export async function updateSession(request: NextRequest, cabecalhos: Headers = 
             request.cookies.set(name, value)
           }
 
+          // `cabecalhos` é uma cópia feita ANTES do refresh (no `proxy.ts`): sem
+          // isto as páginas recebiam o token vencido nesta mesma requisição e a
+          // primeira visita depois de inatividade quebrava (recarregar resolvia).
+          const cookieAtual = request.cookies.toString()
+          if (cookieAtual) cabecalhos.set('cookie', cookieAtual)
+          else cabecalhos.delete('cookie')
+
           response = NextResponse.next({
             request: { headers: cabecalhos },
           })
