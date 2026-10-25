@@ -1,41 +1,17 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
-import { desconectarGoogle, iniciarConexaoGoogle } from '@/lib/dal/agenda-google'
-import { getEmpresaAtual } from '@/lib/dal/empresa'
-import { caminhoDaEmpresa } from '@/lib/empresa/rota'
-
-const PAGINA = '/configuracoes/agenda'
-
-/** Origem do CRM a partir do request: funciona em localhost e em produção. */
-async function origemAtual() {
-  const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
-  const proto = h.get('x-forwarded-proto') ?? (host?.startsWith('localhost') ? 'http' : 'https')
-  return `${proto}://${host}`
-}
-
-function comErro(mensagem: string) {
-  return `${PAGINA}?google=erro&mensagem=${encodeURIComponent(mensagem)}`
-}
-
 /**
- * Leva o gerente ao consentimento do Google; o retorno cai nesta página, já
- * com a empresa na URL (`/e/<slug>/...`) — a volta do Google não tem a aba
- * de origem para o proxy completar a empresa.
+ * Integração com o Google Calendar desligada (agenda nativa). As actions
+ * continuam exportadas para que um formulário antigo aberto no navegador
+ * não quebre, mas recusam no servidor — nada é conectado nem desconectado.
+ * Conexão, tokens e histórico ficam intactos no banco.
  */
 export async function conectarGoogleAction(): Promise<void> {
-  const empresa = await getEmpresaAtual()
-  const r = await iniciarConexaoGoogle(`${await origemAtual()}${caminhoDaEmpresa(empresa.slug, PAGINA)}`)
-  if (!r.ok) redirect(comErro(r.mensagem))
-  redirect(r.url)
+  redirect('/agenda?erro=' + encodeURIComponent('A integração com o Google Calendar está desativada.'))
 }
 
 export async function desconectarGoogleAction(): Promise<void> {
-  const r = await desconectarGoogle()
-  revalidatePath(PAGINA)
-  redirect(r.ok ? `${PAGINA}?google=desconectado` : comErro(r.mensagem))
+  redirect('/agenda?erro=' + encodeURIComponent('A integração com o Google Calendar está desativada.'))
 }

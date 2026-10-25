@@ -3,7 +3,8 @@ import Image from 'next/image'
 const TAMANHOS = { sm: 32, md: 40, lg: 72 } as const
 
 function iniciais(nome: string): string {
-  const partes = nome.trim().split(/\s+/)
+  // Só palavras que começam com letra: "Ana Gerente (Alfa)" → "AG", não "A(".
+  const partes = nome.trim().split(/\s+/).filter((p) => /^\p{L}/u.test(p))
   const primeira = partes[0]?.[0] ?? ''
   const ultima = partes.length > 1 ? (partes.at(-1)?.[0] ?? '') : ''
   return (primeira + ultima).toUpperCase() || '?'

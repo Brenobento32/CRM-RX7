@@ -69,7 +69,7 @@ export function RedefinirSenhaForm() {
       <button
         type="submit"
         disabled={pendente}
-        className="w-full rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        className="w-full rounded-md bg-premium-acento px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-premium-acento disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
       >
         {pendente ? 'Salvando…' : 'Salvar nova senha'}
       </button>

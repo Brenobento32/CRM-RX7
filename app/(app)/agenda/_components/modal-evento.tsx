@@ -23,10 +23,13 @@ export function ModalEvento({
   aberto,
   evento,
   fecharHref,
+  editarHref,
 }: {
   aberto: boolean
   evento: Evento | null
   fecharHref: string
+  /** Abre o modal de edição da reunião (mesma página). */
+  editarHref?: string
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const router = useRouter()
@@ -58,7 +61,11 @@ export function ModalEvento({
       className="m-auto w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
     >
       <div className="max-h-[85vh] overflow-y-auto p-6">
-        {evento ? <ConteudoEvento evento={evento} fechar={fechar} /> : <NaoEncontrado fechar={fechar} />}
+        {evento ? (
+          <ConteudoEvento evento={evento} fechar={fechar} editarHref={editarHref ?? `/agenda?editar=${evento.id}`} />
+        ) : (
+          <NaoEncontrado fechar={fechar} />
+        )}
       </div>
     </dialog>
   )
@@ -84,7 +91,7 @@ function NaoEncontrado({ fechar }: { fechar: () => void }) {
   )
 }
 
-function ConteudoEvento({ evento, fechar }: { evento: Evento; fechar: () => void }) {
+function ConteudoEvento({ evento, fechar, editarHref }: { evento: Evento; fechar: () => void; editarHref: string }) {
   const dia = diaEmSaoPaulo(evento.inicio)
   const cancelado = evento.status === 'cancelado'
   const acao = (status: StatusEvento) => alterarStatusEventoAction.bind(null, evento.id, evento.clienteId, status)
@@ -123,6 +130,7 @@ function ConteudoEvento({ evento, fechar }: { evento: Evento; fechar: () => void
             </dd>
           </div>
         )}
+        {evento.clienteId && (
         <div className="flex gap-2">
           <dt className="w-24 shrink-0 text-zinc-500">Cliente</dt>
           <dd>
@@ -136,6 +144,7 @@ function ConteudoEvento({ evento, fechar }: { evento: Evento; fechar: () => void
             )}
           </dd>
         </div>
+        )}
         {evento.etapa && (
           <div className="flex gap-2">
             <dt className="w-24 shrink-0 text-zinc-500">Negociação</dt>
@@ -183,7 +192,7 @@ function ConteudoEvento({ evento, fechar }: { evento: Evento; fechar: () => void
             </button>
           </form>
         )}
-        <Link href={`/agenda/${evento.id}/editar`} className={botaoStatus}>
+        <Link href={editarHref} className={botaoStatus}>
           Editar
         </Link>
         <button

@@ -8,9 +8,11 @@ import { EmpresaAtualProvider } from '@/components/layout/empresa-contexto'
 import { COOKIE_TEMA, TEMA_CLARO } from '@/components/layout/preferencia-tema'
 import { ShellApp } from '@/components/layout/shell-app'
 import { Sidebar } from '@/components/layout/sidebar'
+import { Topbar } from '@/components/layout/topbar'
 import { SincronizaUrlEmpresa } from '@/components/layout/sincroniza-url-empresa'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { getEmpresaAtual } from '@/lib/dal/empresa'
+import { isSuperAdmin } from '@/lib/dal/super-admin'
 
 /**
  * Shell da área autenticada. `getUsuarioAtual` valida a sessão, a empresa da
@@ -25,7 +27,12 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [usuario, empresa, cookieStore] = await Promise.all([getUsuarioAtual(), getEmpresaAtual(), cookies()])
+  const [usuario, empresa, cookieStore, superAdmin] = await Promise.all([
+    getUsuarioAtual(),
+    getEmpresaAtual(),
+    cookies(),
+    isSuperAdmin(),
+  ])
   const recolhida = cookieStore.get(COOKIE_SIDEBAR)?.value === SIDEBAR_RECOLHIDA
   const temaClaro = cookieStore.get(COOKIE_TEMA)?.value === TEMA_CLARO
 
@@ -33,7 +40,8 @@ export default async function AppLayout({
     <ShellApp
       recolhidaInicial={recolhida}
       temaClaroInicial={temaClaro}
-      sidebar={<Sidebar usuario={usuario} empresa={empresa} />}
+      sidebar={<Sidebar usuario={usuario} empresa={empresa} superAdmin={superAdmin} />}
+      topo={<Topbar usuario={usuario} />}
     >
       <SincronizaUrlEmpresa slug={empresa.slug} />
       <EmpresaAtualProvider empresa={{ id: empresa.id, slug: empresa.slug }}>{children}</EmpresaAtualProvider>

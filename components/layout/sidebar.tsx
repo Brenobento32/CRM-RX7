@@ -14,7 +14,16 @@ import { SidebarNav } from './sidebar-nav'
  * pra não duplicar a mesma informação em dois lugares da tela. O rodapé
  * daqui guarda só a ação de recolher/expandir o menu.
  */
-export function Sidebar({ usuario, empresa }: { usuario: UsuarioAtual; empresa: EmpresaAtual }) {
+export function Sidebar({
+  usuario,
+  empresa,
+  superAdmin = false,
+}: {
+  usuario: UsuarioAtual
+  empresa: EmpresaAtual
+  /** Só o Super Admin da Rio X7 troca de empresa pelo menu; contratantes nem veem o link. */
+  superAdmin?: boolean
+}) {
   return (
     <>
       <div className="flex h-16 items-center gap-2.5 border-b border-premium-borda px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
@@ -32,10 +41,12 @@ export function Sidebar({ usuario, empresa }: { usuario: UsuarioAtual; empresa: 
         </p>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-premium-mudo">
           {empresa.somenteLeitura ? <span>Somente leitura</span> : null}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- troca de empresa recarrega tudo de propósito */}
-          <a href="/empresas" className="underline-offset-2 hover:underline">
-            Trocar empresa
-          </a>
+          {superAdmin && (
+            // eslint-disable-next-line @next/next/no-html-link-for-pages -- troca de empresa recarrega tudo de propósito
+            <a href="/empresas" className="underline-offset-2 hover:underline">
+              Trocar empresa
+            </a>
+          )}
         </div>
       </div>
 

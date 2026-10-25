@@ -88,6 +88,15 @@ export async function podeGerirFontes(): Promise<boolean> {
   return empresa.papel === 'admin_empresa' && !empresa.somenteLeitura
 }
 
+/**
+ * Trava no servidor antes do banco (que também recusa): só o administrador
+ * da empresa, fora do modo somente leitura, altera integrações e credenciais.
+ */
+async function recusaSemPermissao(): Promise<Resultado | null> {
+  if (await podeGerirFontes()) return null
+  return { ok: false, mensagem: 'Somente o administrador da empresa altera integrações e credenciais.' }
+}
+
 function falha(error: { code?: string; message?: string } | null, padrao: string): Resultado {
   switch (error?.code) {
     case '42501':
@@ -174,6 +183,8 @@ export type DadosFonte = {
 }
 
 export async function criarFonte(tipo: TipoFonte, dados: DadosFonte): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('criar_fonte_lead', {
     p_tipo: tipo,
@@ -188,6 +199,8 @@ export async function criarFonte(tipo: TipoFonte, dados: DadosFonte): Promise<Re
 }
 
 export async function atualizarFonte(id: string, dados: DadosFonte): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { error } = await supabase.rpc('atualizar_fonte_lead', {
     p_id: id,
@@ -201,24 +214,32 @@ export async function atualizarFonte(id: string, dados: DadosFonte): Promise<Res
 }
 
 export async function alterarStatusFonte(id: string, status: 'ativa' | 'pausada'): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { error } = await supabase.rpc('definir_status_fonte', { p_id: id, p_status: status })
   return error ? falha(error, 'Não foi possível alterar a fonte.') : { ok: true, id }
 }
 
 export async function revogarFonte(id: string): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { error } = await supabase.rpc('revogar_fonte_lead', { p_id: id })
   return error ? falha(error, 'Não foi possível revogar a fonte.') : { ok: true, id }
 }
 
 export async function girarToken(id: string): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('girar_token_fonte', { p_id: id })
   return error || !data ? falha(error, 'Não foi possível gerar um novo token.') : { ok: true, id, token: data }
 }
 
 export async function definirSegredoProvedor(id: string, segredo: string): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { error } = await supabase.rpc('definir_segredo_fonte', { p_id: id, p_segredo: segredo })
   return error ? falha(error, 'Não foi possível salvar o token do provedor.') : { ok: true, id }
@@ -226,6 +247,8 @@ export async function definirSegredoProvedor(id: string, segredo: string): Promi
 
 /** Validação real com a Meta (Edge Function `meta-webhooks/validar`). */
 export async function validarComProvedor(id: string): Promise<Resultado> {
+  const recusa = await recusaSemPermissao()
+  if (recusa) return recusa
   const supabase = await createClient()
   const { data, error } = await supabase.functions.invoke<{ ok: boolean; mensagem?: string }>('meta-webhooks/validar', {
     body: { fonte_id: id },

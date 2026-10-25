@@ -12,10 +12,13 @@ import {
   contarEventosPorDia,
   listarAguardandoStatus,
   listarEventosNoPeriodo,
+  listarOpcoesClientes,
   listarResponsaveisAgenda,
   obterEvento,
+  obterSerie,
   type Evento,
 } from '@/lib/dal/eventos'
+import { duracaoDoFormulario } from '@/lib/utils/agenda'
 import {
   VISAO_PADRAO,
   hrefAgenda,
@@ -26,12 +29,15 @@ import {
   visaoValida,
   type ParametrosAgenda,
 } from '@/lib/utils/calendario'
-import { diaEmSaoPaulo, diaValido, hojeSaoPaulo } from '@/lib/utils/formatacao'
+import { diaEmSaoPaulo, diaValido, formatarHora, hojeSaoPaulo } from '@/lib/utils/formatacao'
+import { descreverRecorrencia } from '@/lib/utils/recorrencia'
+import { statusEmAberto } from '@/lib/validations/evento'
 
 import { CalendarioToolbar, FiltroResponsavel } from './_components/calendario-toolbar'
 import { GradeHoras } from './_components/grade-horas'
 import { MiniCalendario } from './_components/mini-calendario'
 import { ModalEvento } from './_components/modal-evento'
+import { ModalReuniao, type DadosModalReuniao } from './_components/modal-reuniao'
 import { VisaoLista } from './_components/visao-lista'
 import { VisaoMes } from './_components/visao-mes'
 
@@ -40,6 +46,7 @@ export const metadata: Metadata = {
 }
 
 const uuid = z.uuid()
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>) {
   const usuario = await getUsuarioAtual()
@@ -55,6 +62,12 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
     gerente && typeof params.usuario === 'string' && params.usuario ? params.usuario : undefined
   const eventoIdParam = typeof params.evento === 'string' && params.evento ? params.evento : undefined
   const eventoId = eventoIdParam && uuid.safeParse(eventoIdParam).success ? eventoIdParam : undefined
+  // Modal de reunião: ?nova=1 (botão ou horário vazio) ou ?editar=<id>.
+  const nova = params.nova === '1'
+  const editarParam = typeof params.editar === 'string' ? params.editar : undefined
+  const editarId = editarParam && uuid.safeParse(editarParam).success ? editarParam : undefined
+  // Recusa de uma action (cancelar/excluir ou integração desligada): só texto, o React escapa.
+  const erroAcao = typeof params.erro === 'string' && params.erro ? params.erro.slice(0, 300) : undefined
 
   const janela = janelaDaVisao(visao, dia)
 
@@ -85,6 +98,62 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
   const padrao = { visao: VISAO_PADRAO, hoje }
   const link = (p: Partial<ParametrosAgenda>) => hrefAgenda({ ...base, ...p }, padrao)
 
+  const eu = responsaveis.find((r) => r.id === usuario.id) ?? { id: usuario.id, nome: usuario.nome, role: usuario.role, cor: null }
+  const modalReuniao = nova || editarId ? await dadosDoModal() : null
+
+  async function dadosDoModal(): Promise<DadosModalReuniao> {
+    if (editarId) {
+      const ev = eventos.find((e) => e.id === editarId) ?? (await obterEvento(editarId))
+      if (!ev) return { modo: 'nao-encontrada' }
+      const serie = ev.serieId ? await obterSerie(ev.serieId) : null
+      const diaEv = diaEmSaoPaulo(ev.inicio)
+      const minutos = Math.round((Date.parse(ev.fim) - Date.parse(ev.inicio)) / 60_000)
+      const duracao = duracaoDoFormulario(minutos)
+      return {
+        modo: 'editar',
+        eventoId: ev.id,
+        clienteId: ev.clienteId,
+        dia: diaEv,
+        emAberto: statusEmAberto(ev.status),
+        vinculo: ev.clienteId ? { clienteNome: ev.clienteNome ?? 'cliente', ownerId: undefined } : null,
+        serie: serie ? { descricao: descreverRecorrencia(serie), total: serie.total } : null,
+        valores: {
+          cliente_id: ev.clienteId ?? '',
+          negociacao_id: ev.negociacaoId ?? '',
+          usuario_id: ev.usuarioId,
+          tipo: ev.tipo,
+          tipo_original: ev.tipo,
+          titulo: ev.titulo,
+          descricao: ev.descricao ?? '',
+          data: diaEv,
+          hora_inicio: formatarHora(ev.inicio),
+          duracao,
+          hora_fim: duracao === 'personalizado' ? formatarHora(ev.fim) : '',
+          escopo: 'este',
+        },
+      }
+    }
+    // Nova reunião. ?cliente= (ficha do cliente) mantém o vínculo, sem campo.
+    const clienteParam = typeof params.cliente === 'string' && uuid.safeParse(params.cliente).success ? params.cliente : undefined
+    const cliente = clienteParam ? (await listarOpcoesClientes()).find((c) => c.id === clienteParam) : undefined
+    const hora = typeof params.hora === 'string' && HORA.test(params.hora) ? params.hora : '09:00'
+    const pedido = gerente ? usuarioId : undefined
+    return {
+      modo: 'criar',
+      vinculo: cliente ? { clienteNome: cliente.nome, ownerId: cliente.ownerId } : null,
+      valores: {
+        cliente_id: cliente?.id ?? '',
+        usuario_id: (pedido && responsaveis.some((r) => r.id === pedido) ? pedido : cliente && gerente ? cliente.ownerId : usuario.id) ?? usuario.id,
+        tipo: 'reuniao',
+        status: 'agendado',
+        data: dia,
+        hora_inicio: hora,
+        duracao: '60',
+        recorrencia: 'nenhuma',
+      },
+    }
+  }
+
   // Aguardando status do próprio período já aparece na visão principal.
   const aguardandoForaDaJanela = aguardando.filter((e) => !eventos.some((d) => d.id === e.id))
 
@@ -97,10 +166,19 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
             {gerente ? 'Compromissos da equipe.' : 'Seus compromissos.'}
           </p>
         </div>
-        <Link href={`/agenda/novo?dia=${dia}`} className={botaoPrimarioClass}>
-          Novo evento
+        <Link href={link({ nova: true })} className={botaoPrimarioClass}>
+          Nova reunião
         </Link>
       </div>
+
+      {erroAcao && !modalReuniao && (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        >
+          {erroAcao}
+        </div>
+      )}
 
       {aguardandoForaDaJanela.length > 0 && (
         <section className="space-y-3">
@@ -108,7 +186,7 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
             <h2 className="text-lg font-semibold">Aguardando status</h2>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               Já passaram e ainda estão como agendados (últimos {DIAS_AGUARDANDO_STATUS} dias). Marque se
-              aconteceram — o resultado vai para a timeline do cliente.
+              aconteceram. Quando há cliente, o resultado também vai para a timeline dele.
             </p>
           </div>
           <ListaEventos>
@@ -119,8 +197,9 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
         </section>
       )}
 
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <aside className="space-y-4 lg:w-64 lg:shrink-0">
+      {/* Abaixo de 1280px a grade fica com a largura toda; calendário e filtros vão para baixo. */}
+      <div className="flex flex-col gap-6 xl:flex-row">
+        <aside className="order-last grid content-start gap-4 sm:grid-cols-2 xl:order-first xl:block xl:w-64 xl:shrink-0 xl:space-y-4">
           <MiniCalendario dia={dia} hoje={hoje} diasComEvento={diasComEvento} link={link} />
 
           {gerente && (
@@ -128,11 +207,11 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
           )}
 
           {gerente && !usuarioId && responsaveis.length > 1 && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-3 text-xs dark:border-zinc-800 dark:bg-zinc-950">
-              <p className="mb-1.5 font-medium text-zinc-700 dark:text-zinc-300">Responsáveis</p>
+            <div className="rounded-lg border border-premium-borda bg-premium-card p-3 text-xs">
+              <p className="mb-1.5 font-medium text-premium-texto">Responsáveis</p>
               <ul className="space-y-1">
                 {responsaveis.map((r) => (
-                  <li key={r.id} className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+                  <li key={r.id} className="flex items-center gap-1.5 text-premium-mudo">
                     {r.cor && <PontoEtapa cor={r.cor} />}
                     {r.nome}
                   </li>
@@ -162,7 +241,30 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
         </div>
       </div>
 
-      <ModalEvento aberto={Boolean(eventoId)} evento={eventoSelecionado} fecharHref={link({ evento: undefined })} />
+      <ModalEvento
+        aberto={Boolean(eventoId) && !modalReuniao}
+        evento={eventoSelecionado}
+        fecharHref={link({ evento: undefined })}
+        editarHref={eventoId ? link({ evento: undefined, editar: eventoId }) : undefined}
+      />
+      {modalReuniao && (
+        <ModalReuniao
+          key={editarId ?? `nova-${dia}-${String(params.hora ?? '')}`}
+          dados={modalReuniao}
+          responsaveis={responsaveis}
+          eu={{ ...eu, gerente }}
+          erro={erroAcao}
+          ocupados={eventos.map((e) => ({
+            id: e.id,
+            usuarioId: e.usuarioId,
+            titulo: e.titulo,
+            inicio: e.inicio,
+            fim: e.fim,
+            status: e.status,
+          }))}
+          fecharHref={link({ evento: undefined, editar: undefined, nova: false })}
+        />
+      )}
     </div>
   )
 }

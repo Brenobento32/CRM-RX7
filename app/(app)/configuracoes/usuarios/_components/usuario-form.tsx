@@ -214,7 +214,7 @@ export function UsuarioForm({
         valorInicial={valores.cor_agenda ?? ''}
         permitirVazio
         emUso={coresEmUso}
-        ajuda="Os compromissos desta pessoa aparecem nesta cor na agenda (e no Google, quando a sincronização for ligada)."
+        ajuda="As reuniões desta pessoa aparecem nesta cor na agenda."
         erro={erro('cor_agenda')}
       />
 

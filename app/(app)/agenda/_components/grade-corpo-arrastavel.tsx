@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useId, useRef, useState, useTransition } from 'react'
 
 import { COR_STATUS } from '@/components/agenda/evento-item'
 import { reagendarEventoAction } from '@/lib/actions/eventos'
@@ -32,6 +32,10 @@ import { classeTextoSobreCor, corDoResponsavel, rotuloAcessivel, semCorDefinida 
 import { LinhaAgora } from './linha-agora'
 
 const ALTURA_MIN_PX = 18
+/** Granularidade do clique num horário vazio (minutos). */
+const PASSO_SLOT_MIN = 30
+/** Depois de soltar um arraste, o clique que o navegador dispara não abre nada. */
+const JANELA_POS_ARRASTE_MS = 300
 
 type Sobrescrita = { dia: string; minutoInicio: number }
 
@@ -65,11 +69,11 @@ function posicionar(eventos: Evento[], sobrescritas: Map<string, Sobrescrita>): 
  * cabeçalho e a coluna de horas continuam vindo do servidor (`GradeHoras`);
  * só quem precisa reagir a gesto de arraste é Client Component.
  *
- * Clique simples não abre nada (só foco), arrastar move o evento, e duplo
- * clique (ou Enter pelo teclado) abre os detalhes — três gestos distintos no
- * mesmo bloco, sem um interferir no outro. Pelo teclado, Espaço continua
- * sendo o atalho do dnd-kit pra pegar/soltar o evento (arrastar sem mouse);
- * só Enter foi liberado para abrir os detalhes, pra não disputar com ele.
+ * Clique (ou Enter pelo teclado) abre os detalhes da reunião, arrastar move
+ * — o dnd-kit só começa o arraste depois de 6 px, e o clique que vem logo
+ * após soltar é ignorado. Clique num horário VAZIO abre "Nova reunião" já
+ * com o dia e a hora (de 30 em 30 minutos). Pelo teclado, Espaço continua
+ * sendo o atalho do dnd-kit pra pegar/soltar o evento (arrastar sem mouse).
  */
 export function GradeCorpoArrastavel({
   dias,
@@ -90,6 +94,25 @@ export function GradeCorpoArrastavel({
 }) {
   const [sobrescritas, setSobrescritas] = useState<Map<string, Sobrescrita>>(new Map())
   const [, iniciarTransicao] = useTransition()
+  const router = useRouter()
+  // Durante o arraste e logo depois dele, o clique que o navegador dispara ao
+  // soltar não deve abrir reunião nem "nova reunião" no horário.
+  const arrastando = useRef(false)
+  // id estável: sem ele o dnd-kit gera ids de acessibilidade diferentes no servidor e no navegador.
+  const idDnd = useId()
+  const padraoLink = { visao: VISAO_PADRAO, hoje }
+
+  function novaNoHorario(dia: string, minuto: number) {
+    router.push(hrefAgenda({ ...base, dia, nova: true, hora: minutosParaHora(minuto) }, padraoLink))
+  }
+  function podeAbrir() {
+    return !arrastando.current
+  }
+  function marcarFimDoArraste() {
+    window.setTimeout(() => {
+      arrastando.current = false
+    }, JANELA_POS_ARRASTE_MS)
+  }
 
   const sensores = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -101,6 +124,7 @@ export function GradeCorpoArrastavel({
   const posicionados = posicionar(eventos, sobrescritas)
 
   function handleDragEnd({ active, delta, over }: DragEndEvent) {
+    marcarFimDoArraste()
     const posicao = posicionados.find((p) => p.evento.id === active.id)
     if (!posicao) return
 
@@ -128,7 +152,7 @@ export function GradeCorpoArrastavel({
   }
 
   return (
-    <DndContext sensors={sensores} onDragEnd={handleDragEnd}>
+    <DndContext id={idDnd} sensors={sensores} onDragStart={() => (arrastando.current = true)} onDragEnd={handleDragEnd} onDragCancel={marcarFimDoArraste}>
       {dias.map((dia) => {
         const doDia = posicionados.filter((p) => p.dia === dia).sort((a, b) => a.minutoInicio - b.minutoInicio)
         const leiautePorId = new Map(
@@ -142,7 +166,7 @@ export function GradeCorpoArrastavel({
         )
 
         return (
-          <ColunaDroppable key={dia} dia={dia} alturaHoraPx={alturaHoraPx}>
+          <ColunaDroppable key={dia} dia={dia} alturaHoraPx={alturaHoraPx} onSlot={(m) => podeAbrir() && novaNoHorario(dia, m)}>
             {dia === hoje && <LinhaAgora minutoInicial={minutoAgoraInicial} alturaHoraPx={alturaHoraPx} />}
 
             {doDia.map((p) => {
@@ -154,7 +178,8 @@ export function GradeCorpoArrastavel({
                   key={p.evento.id}
                   evento={p.evento}
                   mostrarResponsavel={gerente}
-                  href={hrefAgenda({ ...base, evento: p.evento.id }, { visao: VISAO_PADRAO, hoje })}
+                  href={hrefAgenda({ ...base, evento: p.evento.id }, padraoLink)}
+                  podeAbrir={podeAbrir}
                   estilo={{
                     top: (p.minutoInicio / 60) * alturaHoraPx,
                     height: alturaPx,
@@ -174,18 +199,29 @@ export function GradeCorpoArrastavel({
 function ColunaDroppable({
   dia,
   alturaHoraPx,
+  onSlot,
   children,
 }: {
   dia: string
   alturaHoraPx: number
+  /** Clique num horário vazio: minuto do dia, arredondado para baixo no passo. */
+  onSlot: (minuto: number) => void
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: dia })
 
+  function clique(e: React.MouseEvent<HTMLDivElement>) {
+    const y = e.clientY - e.currentTarget.getBoundingClientRect().top
+    const minuto = Math.floor(((y / alturaHoraPx) * 60) / PASSO_SLOT_MIN) * PASSO_SLOT_MIN
+    onSlot(Math.min(Math.max(minuto, 0), 24 * 60 - PASSO_SLOT_MIN))
+  }
+
   return (
     <div
       ref={setNodeRef}
-      className={`relative border-l border-zinc-100 dark:border-zinc-800 ${isOver ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''}`}
+      onClick={clique}
+      title="Clique num horário vazio para agendar"
+      className={`relative cursor-cell border-l border-zinc-100 hover:bg-zinc-50/60 dark:border-zinc-800 dark:hover:bg-zinc-800/30 ${isOver ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''}`}
       style={{ height: 24 * alturaHoraPx }}
     >
       {Array.from({ length: 24 }, (_, h) => (
@@ -206,11 +242,13 @@ function EventoArrastavel({
   mostrarResponsavel,
   href,
   estilo,
+  podeAbrir,
 }: {
   evento: Evento
   mostrarResponsavel: boolean
   href: string
   estilo: React.CSSProperties
+  podeAbrir: () => boolean
 }) {
   const router = useRouter()
   const arrastavel = statusEmAberto(evento.status)
@@ -233,7 +271,11 @@ function EventoArrastavel({
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       }}
       className={`absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight shadow-sm transition-shadow hover:z-10 hover:shadow-md ${classeTextoSobreCor(evento)} ${cancelado ? 'opacity-60' : ''} ${isDragging ? 'z-30 shadow-lg' : ''} ${arrastavel ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${semCorDefinida(evento) ? 'border border-dashed border-white/60' : ''}`}
-      onDoubleClick={abrirDetalhes}
+      onClick={(e) => {
+        // Não deixa o clique chegar à coluna (que abriria "Nova reunião").
+        e.stopPropagation()
+        if (podeAbrir()) abrirDetalhes()
+      }}
       {...attributes}
       {...listeners}
       onKeyDown={(e) => {
@@ -247,12 +289,13 @@ function EventoArrastavel({
         }
       }}
     >
-      <span className="sr-only">{rotuloAcessivel(evento, mostrarResponsavel)}. Duplo clique ou Enter para abrir os detalhes.</span>
+      <span className="sr-only">{rotuloAcessivel(evento, mostrarResponsavel)}. Clique ou Enter para abrir os detalhes.</span>
       <p aria-hidden className={`truncate font-medium ${cancelado ? 'line-through' : ''}`}>
         {evento.titulo}
       </p>
       <p aria-hidden className="truncate opacity-90">
         {formatarHora(evento.inicio)}
+        {evento.usuario ? ` · ${evento.usuario}` : ''}
       </p>
       <p aria-hidden className="truncate">
         {/* Mesma cor/estilo do badge de status do modal (COR_STATUS) — sem o

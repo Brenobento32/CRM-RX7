@@ -76,7 +76,8 @@ export function EventoItem({
         </div>
 
         <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-          {evento.clienteNome ? (
+          {/* Sem cliente (agenda nativa): só o responsável. Com cliente que a RLS não mostra: aviso. */}
+          {evento.clienteId === null ? null : evento.clienteNome ? (
             <Link href={`/clientes/${evento.clienteId}`} className="hover:underline">
               {evento.clienteNome}
               {evento.clienteEmpresa && ` · ${evento.clienteEmpresa}`}
@@ -85,7 +86,7 @@ export function EventoItem({
             'Cliente fora da sua carteira'
           )}
           {evento.etapa && ` · ${evento.etapa.nome}`}
-          {mostrarResponsavel && evento.usuario && ` · ${evento.usuario}`}
+          {mostrarResponsavel && evento.usuario && `${evento.clienteId === null ? '' : ' · '}${evento.usuario}`}
         </p>
 
         {evento.descricao && (
@@ -128,7 +129,7 @@ export function EventoItem({
             </button>
           </form>
         )}
-        <Link href={`/agenda/${evento.id}/editar`} className={botaoStatus}>
+        <Link href={`/agenda?editar=${evento.id}`} className={botaoStatus}>
           Editar
         </Link>
       </div>

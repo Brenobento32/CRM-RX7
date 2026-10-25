@@ -29,7 +29,8 @@ export type Evento = {
   status: StatusEvento
   inicio: string
   fim: string
-  clienteId: string
+  /** Nulo em reunião sem cliente (agenda nativa). */
+  clienteId: string | null
   clienteNome: string | null
   clienteEmpresa: string | null
   negociacaoId: string | null
@@ -82,7 +83,7 @@ type Linha = {
   status: StatusEvento
   inicio: string
   fim: string
-  cliente_id: string
+  cliente_id: string | null
   negociacao_id: string | null
   usuario_id: string
   serie_id: string | null

@@ -21,7 +21,8 @@ import {
 type Papel = Database['public']['Enums']['user_role']
 type Icone = (p: { className?: string }) => React.ReactNode
 
-type Subitem = { href: string; rotulo: string; somenteGerente?: boolean }
+/** `secao`: título pequeno mostrado ANTES deste subitem (ex.: "Configurações do funil"). */
+type Subitem = { href: string; rotulo: string; somenteGerente?: boolean; secao?: string }
 type ItemSimples = { href: string; rotulo: string; Icone: Icone }
 type Grupo = { base: string; rotulo: string; Icone: Icone; filhos: Subitem[] }
 
@@ -36,6 +37,9 @@ const MENU: (ItemSimples | Grupo)[] = [
       { href: '/funil', rotulo: 'Kanban' },
       { href: '/funil/metricas', rotulo: 'Métricas' },
       { href: '/funil/leads', rotulo: 'Leads' },
+      { href: '/configuracoes/etapas', rotulo: 'Etapas', somenteGerente: true, secao: 'Configurações do funil' },
+      { href: '/configuracoes/nichos', rotulo: 'Nichos', somenteGerente: true },
+      { href: '/configuracoes/servicos', rotulo: 'Serviços', somenteGerente: true },
     ],
   },
   { href: '/clientes', rotulo: 'Clientes', Icone: IconeClientes },
@@ -65,10 +69,6 @@ const MENU: (ItemSimples | Grupo)[] = [
     Icone: IconeConfiguracoes,
     filhos: [
       { href: '/configuracoes/usuarios', rotulo: 'Usuários', somenteGerente: true },
-      { href: '/configuracoes/etapas', rotulo: 'Etapas', somenteGerente: true },
-      { href: '/configuracoes/nichos', rotulo: 'Nichos' },
-      { href: '/configuracoes/servicos', rotulo: 'Serviços' },
-      { href: '/configuracoes/agenda', rotulo: 'Agenda Google', somenteGerente: true },
       { href: '/configuracoes/integracoes', rotulo: 'Integrações', somenteGerente: true },
       { href: '/configuracoes/assinatura', rotulo: 'Assinatura', somenteGerente: true },
     ],
@@ -133,7 +133,8 @@ export function SidebarNav({ papel }: { papel: Papel }) {
           const filhos = item.filhos.filter((f) => !f.somenteGerente || papel === 'gerente')
           if (filhos.length === 0) return null
 
-          const ativoGrupo = dentroDe(pathname, item.base)
+          // Ativo pelo subitem (Etapas fica sob Funil, apesar de /configuracoes/...).
+          const ativoGrupo = subitemAtivo(pathname, filhos) !== undefined || pathname === item.base
           const aberto = abertos[item.base] ?? ativoGrupo
           return (
             <GrupoMenu
@@ -190,6 +191,7 @@ function GrupoMenu({
         <ul id={idLista} className="mt-1 space-y-1 pl-8 group-data-[sidebar=recolhida]/shell:hidden">
           {filhos.map((f) => (
             <li key={f.href}>
+              {f.secao && <TituloSecao texto={f.secao} />}
               <LinkSubitem subitem={f} ativo={f.href === ativoHref} />
             </li>
           ))}
@@ -211,6 +213,7 @@ function GrupoMenu({
           <ul className="space-y-0.5">
             {filhos.map((f) => (
               <li key={f.href}>
+                {f.secao && <TituloSecao texto={f.secao} />}
                 <LinkSubitem subitem={f} ativo={f.href === ativoHref} />
               </li>
             ))}
@@ -219,6 +222,10 @@ function GrupoMenu({
       </div>
     </li>
   )
+}
+
+function TituloSecao({ texto }: { texto: string }) {
+  return <p className="mt-2 px-3 pb-1 text-[11px] font-semibold tracking-wide text-premium-mudo uppercase">{texto}</p>
 }
 
 function LinkSubitem({ subitem, ativo }: { subitem: Subitem; ativo: boolean }) {

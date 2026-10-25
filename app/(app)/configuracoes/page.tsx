@@ -31,11 +31,6 @@ const ITENS_GERENTE: Item[] = [
     descricao: 'Catálogo de serviços das negociações. Criar, categorizar e desativar.',
   },
   {
-    href: '/configuracoes/agenda',
-    titulo: 'Agenda Google',
-    descricao: 'Conectar o Google Calendar da empresa e diagnosticar as cores usadas.',
-  },
-  {
     href: '/configuracoes/whatsapp',
     titulo: 'WhatsApp',
     descricao: 'Funil e responsável padrão da conexão WhatsApp.',

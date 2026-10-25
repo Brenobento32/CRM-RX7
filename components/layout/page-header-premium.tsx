@@ -2,26 +2,23 @@ import Link from 'next/link'
 
 import type { UsuarioAtual } from '@/lib/dal/auth'
 
-import { Topbar } from './topbar'
-
 /**
- * Cabeçalho padrão das telas "premium" (fundo escuro) — título + subtítulo
- * à esquerda, `Topbar` (usuário) à direita, na mesma linha, como na
- * referência visual. `voltar`/`acoes` opcionais: nem toda tela tem um link
- * de volta ou um botão de ação ao lado do título.
+ * Cabeçalho de página — título + subtítulo à esquerda, ações à direita.
+ * O usuário/notificações/menu do perfil ficam no cabeçalho GLOBAL da casca
+ * (`ShellApp` + `Topbar`), igual em todas as páginas; aqui não se repetem.
  */
 export function PageHeaderPremium({
   titulo,
   subtitulo,
   voltar,
   acoes,
-  usuario,
 }: {
   titulo: string
   subtitulo?: string
   voltar?: { href: string; rotulo: string }
   acoes?: React.ReactNode
-  usuario: UsuarioAtual
+  /** Não é mais usado aqui (o usuário vive no cabeçalho global); mantido para compatibilidade. */
+  usuario?: UsuarioAtual
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -34,10 +31,7 @@ export function PageHeaderPremium({
         <h1 className={`text-[28px] font-semibold text-premium-texto ${voltar ? 'mt-1' : ''}`}>{titulo}</h1>
         {subtitulo && <p className="text-sm text-premium-secundario">{subtitulo}</p>}
       </div>
-      <div className="flex items-center gap-4">
-        {acoes}
-        <Topbar usuario={usuario} />
-      </div>
+      {acoes && <div className="flex items-center gap-4">{acoes}</div>}
     </div>
   )
 }

@@ -75,7 +75,7 @@ export async function criarEventoAction(
   const r = await criarEvento(parsed.data)
   if (!r.ok) return comoEstado(r, valores)
 
-  revalidar(parsed.data.evento.cliente_id)
+  revalidar(parsed.data.evento.cliente_id ?? undefined)
   redirect(agendaDoDia(parsed.data.evento.data))
 }
 
@@ -94,7 +94,7 @@ export async function atualizarEventoAction(
   const r = await alterarEventos(id, parsed.data)
   if (!r.ok) return comoEstado(r, valores)
 
-  revalidar(parsed.data.evento.cliente_id)
+  revalidar(parsed.data.evento.cliente_id ?? undefined)
   redirect(agendaDoDia(parsed.data.evento.data))
 }
 
@@ -103,12 +103,12 @@ export async function atualizarEventoAction(
  * falha volta para a edição com a mensagem na URL.
  */
 function voltarComErro(id: string, mensagem: string): never {
-  redirect(`/agenda/${id}/editar?erro=${encodeURIComponent(mensagem)}`)
+  redirect(`/agenda?editar=${id}&erro=${encodeURIComponent(mensagem)}`)
 }
 
 export async function cancelarEventoAction(
   id: string,
-  clienteId: string,
+  clienteId: string | null,
   dia: string,
   formData: FormData,
 ): Promise<void> {
@@ -117,16 +117,16 @@ export async function cancelarEventoAction(
   if (!escopo.success) voltarComErro(id, 'Escolha a quais eventos aplicar.')
 
   const r = await cancelarEventos(id, escopo.data)
-  revalidar(uuid.safeParse(clienteId).success ? clienteId : undefined)
+  revalidar(clienteId && uuid.safeParse(clienteId).success ? clienteId : undefined)
   if (!r.ok) voltarComErro(id, r.mensagem)
   redirect(diaValido(dia) ? agendaDoDia(dia) : '/agenda')
 }
 
-export async function excluirEventoAction(id: string, clienteId: string, dia: string): Promise<void> {
+export async function excluirEventoAction(id: string, clienteId: string | null, dia: string): Promise<void> {
   if (!uuid.safeParse(id).success) return
 
   const r = await excluirEvento(id)
-  revalidar(uuid.safeParse(clienteId).success ? clienteId : undefined)
+  revalidar(clienteId && uuid.safeParse(clienteId).success ? clienteId : undefined)
   if (!r.ok) voltarComErro(id, r.mensagem)
   redirect(diaValido(dia) ? agendaDoDia(dia) : '/agenda')
 }
@@ -134,7 +134,7 @@ export async function excluirEventoAction(id: string, clienteId: string, dia: st
 /** Usada por botões de formulário: id, cliente e status vêm amarrados. */
 export async function alterarStatusEventoAction(
   id: string,
-  clienteId: string,
+  clienteId: string | null,
   status: string,
 ): Promise<void> {
   const parsed = statusEventoSchema.safeParse(status)
@@ -144,7 +144,7 @@ export async function alterarStatusEventoAction(
   // Falha típica: o evento já mudou em outra aba. Recarregar mostra o atual.
   if (!resultado.ok) console.warn('Alterar status do evento:', resultado.mensagem)
 
-  revalidar(uuid.safeParse(clienteId).success ? clienteId : undefined)
+  revalidar(clienteId && uuid.safeParse(clienteId).success ? clienteId : undefined)
 }
 
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -179,7 +179,7 @@ export async function reagendarEventoAction(
   const [h, m] = novaHoraInicio.split(':').map(Number)
 
   const parsed = eventoFormSchema.safeParse({
-    cliente_id: evento.clienteId,
+    cliente_id: evento.clienteId ?? '',
     negociacao_id: evento.negociacaoId ?? '',
     usuario_id: evento.usuarioId,
     tipo: evento.tipo,
@@ -199,6 +199,6 @@ export async function reagendarEventoAction(
   const r = await alterarEventos(id, parsed.data)
   if (!r.ok) return { ok: false, mensagem: r.mensagem }
 
-  revalidar(evento.clienteId)
+  revalidar(evento.clienteId ?? undefined)
   return { ok: true }
 }

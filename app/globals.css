@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/*
+ * Tema ÚNICO do AVANTE: `dark:` segue o interruptor "Modo escuro" (atributo
+ * `data-tema` no <html>, gravado em cookie e aplicado por um script no <head>
+ * antes de pintar — ver `app/layout.tsx`), e não mais o tema do sistema
+ * operacional. Assim casca, páginas, modais e formulários mudam juntos.
+ */
+@custom-variant dark (&:where([data-tema='escuro'], [data-tema='escuro'] *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -24,39 +32,33 @@
    * `text-premium-texto`, `text-premium-secundario`, `text-premium-mudo`,
    * `bg-premium-acento`/`text-premium-acento`, `bg-premium-acento-suave`.
    */
-  --premium-bg: #0a0e16;
-  --premium-elevado: #0d1220;
-  --premium-card: #121829;
-  --premium-borda: #232a3a;
-  --premium-texto: #f1f4f8;
-  --premium-secundario: #aab2c0;
-  --premium-mudo: #70788c;
+  /* Escuro: grafite/preto suave, cartões cinza-escuro, texto claro. */
+  --premium-bg: #111315;
+  --premium-elevado: #16181b;
+  --premium-card: #1c1f23;
+  --premium-borda: #2c3036;
+  --premium-texto: #f1f3f5;
+  --premium-secundario: #b3b9c2;
+  --premium-mudo: #7d848f;
   --premium-acento: #2dd4a7;
   --premium-acento-suave: rgb(45 212 167 / 0.12);
 }
 
 /**
- * Modo claro do design system "premium" — mesmos papéis semânticos, valores
- * invertidos (fundo branco, bordas cinza médio/escuro, texto quase preto).
- * Alternado por `data-theme="light"` (ver `ContextoTema`/`ShellApp` em
- * `components/layout/shell-app.tsx`); sem o atributo, o escuro acima
- * continua sendo o padrão. `--premium-acento` fica um pouco mais escuro
- * aqui (`#0f9d75` em vez de `#2dd4a7`) só pra manter contraste de texto em
- * AA sobre fundo branco — a MESMA variável em ambos os modos é o que deixa
- * a cor de destaque pronta pra um dia virar configurável por RGB da
- * marca/logo (troca só o valor, nunca o nome usado nos componentes).
- *
- * Seletor de ATRIBUTO puro (`[data-theme=...]`), nunca `:root[data-theme=...]`:
- * `:root` SEMPRE se refere ao `<html>`, não ao elemento que de fato carrega o
- * atributo — que é a `div` da shell (`group/shell` em `shell-app.tsx`), não a
- * raiz do documento. `:root[data-theme='light']` nunca casaria nada aqui;
- * variáveis CSS cascateiam normalmente pros descendentes de qualquer jeito.
+ * Modo claro — mesmos papéis semânticos, valores invertidos. O atributo
+ * `data-tema` fica no <html> (ver `app/layout.tsx` e `ShellApp`); o escuro
+ * acima é o padrão. `--premium-acento` fica um pouco mais escuro aqui só para
+ * manter contraste AA sobre fundo claro — a MESMA variável nos dois modos é o
+ * que permite um dia tornar a cor de destaque configurável por empresa.
  */
-[data-theme='light'] {
-  --premium-bg: #ffffff;
-  --premium-elevado: #f6f7f9;
+[data-tema='claro'] {
+  /* Claro: fundo cinza muito claro, cartões brancos, texto escuro, bordas cinza médio. */
+  --background: #f5f6f8;
+  --foreground: #15181f;
+  --premium-bg: #f5f6f8;
+  --premium-elevado: #ffffff;
   --premium-card: #ffffff;
-  --premium-borda: #d3d8e0;
+  --premium-borda: #cfd5dd;
   --premium-texto: #15181f;
   --premium-secundario: #4b5563;
   --premium-mudo: #8b93a3;
@@ -84,17 +86,20 @@
   --color-premium-acento-suave: var(--premium-acento-suave);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+[data-tema='escuro'] {
+  --background: #111315;
+  --foreground: #f1f3f5;
 
-    --chart-serie: #3987e5;
-    --chart-trilha: #1c2a3d;
-    --chart-grade: #27272a;
-    --chart-texto: #a1a1aa;
-    --chart-cursor: rgb(255 255 255 / 0.05);
-  }
+  --chart-serie: #3987e5;
+  --chart-trilha: #1c2a3d;
+  --chart-grade: #2c3036;
+  --chart-texto: #b3b9c2;
+  --chart-cursor: rgb(255 255 255 / 0.05);
+  color-scheme: dark;
+}
+
+[data-tema='claro'] {
+  color-scheme: light;
 }
 
 body {

@@ -16,6 +16,16 @@ export const ROTULO_RECURSO: Record<Recurso, string> = {
   relatorios: 'Relatórios',
 }
 
+/**
+ * Recursos ainda válidos no banco, mas desligados no produto: não aparecem em
+ * nenhuma tela. A agenda agora é nativa (Google Calendar desativado). O valor
+ * continua aceito para não reprovar planos já salvos com ele.
+ */
+export const RECURSOS_OCULTOS: readonly Recurso[] = ['agenda_google']
+
+/** Recursos que as telas mostram (planos, assinatura). */
+export const RECURSOS_VISIVEIS = RECURSOS.filter((r) => !RECURSOS_OCULTOS.includes(r))
+
 export const STATUS_ASSINATURA = Constants.public.Enums.assinatura_status
 export const CICLOS = Constants.public.Enums.assinatura_ciclo
 export const STATUS_PLANO = Constants.public.Enums.plano_status

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
 import { salvarPlanoAction } from '@/lib/actions/super-admin'
 import { listarPlanos, type PlanoAdmin } from '@/lib/dal/super-admin'
-import { RECURSOS, ROTULO_RECURSO, STATUS_PLANO } from '@/lib/validations/super-admin'
+import { RECURSOS_OCULTOS, RECURSOS_VISIVEIS, ROTULO_RECURSO, STATUS_PLANO } from '@/lib/validations/super-admin'
 
 import { Aviso } from '../_components/aviso'
 
@@ -78,11 +78,15 @@ function FormPlano({ plano }: { plano: PlanoAdmin }) {
       </div>
       <fieldset className="space-y-1">
         <legend className="text-sm font-medium">Recursos</legend>
-        {RECURSOS.map((r) => (
+        {RECURSOS_VISIVEIS.map((r) => (
           <label key={r} className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="recursos" value={r} defaultChecked={plano.recursos.includes(r)} />
             {ROTULO_RECURSO[r]}
           </label>
+        ))}
+        {/* Recurso desligado no produto: some da tela, mas salvar o plano não o apaga do banco. */}
+        {RECURSOS_OCULTOS.filter((r) => plano.recursos.includes(r)).map((r) => (
+          <input key={r} type="hidden" name="recursos" value={r} />
         ))}
       </fieldset>
       <button type="submit" className={botaoPrimarioClass}>

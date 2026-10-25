@@ -127,6 +127,11 @@ export type ParametrosAgenda = {
   dia: string
   usuario?: string
   evento?: string
+  /** Abre o modal "Nova reunião" (com `hora` vinda do horário clicado). */
+  nova?: boolean
+  hora?: string
+  /** Abre o modal de edição da reunião. */
+  editar?: string
 }
 
 /** Assinatura do closure que as páginas passam para os componentes de calendário montarem links. */
@@ -143,6 +148,9 @@ export function hrefAgenda(params: ParametrosAgenda, padrao: { visao: Visao; hoj
   if (params.dia !== padrao.hoje) qs.set('dia', params.dia)
   if (params.usuario) qs.set('usuario', params.usuario)
   if (params.evento) qs.set('evento', params.evento)
+  if (params.nova) qs.set('nova', '1')
+  if (params.nova && params.hora) qs.set('hora', params.hora)
+  if (params.editar) qs.set('editar', params.editar)
   const s = qs.toString()
   return s ? `/agenda?${s}` : '/agenda'
 }

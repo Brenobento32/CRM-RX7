@@ -1,12 +1,16 @@
 'use client'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
+import { inputClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import type { ResponsavelAgenda } from '@/lib/dal/eventos'
 import { responsaveisElegiveis } from '@/lib/utils/agenda'
 
-const opcaoClass =
-  'flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:ring-zinc-100'
+const ROTULO_PAPEL: Record<ResponsavelAgenda['role'], string> = {
+  gerente: 'Gerente',
+  closer: 'Closer',
+  sdr: 'SDR',
+}
 
 function Ponto({ cor }: { cor: ResponsavelAgenda['cor'] }) {
   return cor ? (
@@ -17,9 +21,13 @@ function Ponto({ cor }: { cor: ResponsavelAgenda['cor'] }) {
 }
 
 /**
- * Gerente: radios com os responsáveis possíveis para o cliente escolhido.
- * Closer: sempre ele mesmo — o campo nem vai no formulário (o servidor usa
- * o usuário logado).
+ * Responsável pela reunião, entre os usuários ativos da própria empresa.
+ *
+ * - Gerente: escolhe qualquer pessoa da equipe. Se a reunião estiver ligada a
+ *   um cliente (aberta pela ficha do cliente), só quem enxerga esse cliente —
+ *   o dono da carteira ou um gerente — mesma regra do banco
+ *   (`agenda_valida_responsavel`).
+ * - Closer/SDR: sempre ele mesmo (a RLS não deixa agendar para outra pessoa).
  */
 export function CampoResponsavel({
   souGerente,
@@ -33,6 +41,7 @@ export function CampoResponsavel({
   souGerente: boolean
   eu: ResponsavelAgenda
   responsaveis: ResponsavelAgenda[]
+  /** Dono do cliente vinculado, quando houver. */
   ownerId: string | undefined
   valor: string
   onChange: (id: string) => void
@@ -46,42 +55,42 @@ export function CampoResponsavel({
           <Ponto cor={eu.cor} />
           Você ({eu.nome})
         </p>
+        <input type="hidden" name="usuario_id" value={eu.id} />
       </div>
     )
   }
 
-  const elegiveis = responsaveisElegiveis(responsaveis, ownerId)
+  const elegiveis = ownerId ? responsaveisElegiveis(responsaveis, ownerId) : responsaveis
+  const escolhido = elegiveis.find((r) => r.id === valor)
 
   return (
-    <fieldset>
-      <legend className="mb-1.5 text-sm font-medium">Responsável</legend>
-      {!ownerId ? (
-        <p className="text-sm text-zinc-500">Escolha o cliente para ver quem pode ser responsável.</p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
+    <div>
+      <label htmlFor="usuario_id" className="mb-1.5 block text-sm font-medium">
+        Responsável
+      </label>
+      <div className="flex items-center gap-2">
+        {escolhido && <Ponto cor={escolhido.cor} />}
+        <select
+          id="usuario_id"
+          name="usuario_id"
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          aria-invalid={erro ? true : undefined}
+          className={inputClass}
+        >
           {elegiveis.map((r) => (
-            <label key={r.id} className={opcaoClass}>
-              <input
-                type="radio"
-                name="usuario_id"
-                value={r.id}
-                checked={valor === r.id}
-                onChange={() => onChange(r.id)}
-                className="sr-only"
-              />
-              <Ponto cor={r.cor} />
-              {r.nome}
-              <span className="text-xs text-zinc-500">
-                {r.id === ownerId ? '(dono do cliente)' : '(gerente)'}
-              </span>
-            </label>
+            <option key={r.id} value={r.id}>
+              {r.id === eu.id ? `${r.nome} (você)` : r.nome} · {ROTULO_PAPEL[r.role]}
+            </option>
           ))}
-        </div>
-      )}
+        </select>
+      </div>
       <p className="mt-1.5 text-xs text-zinc-500">
-        Só quem tem acesso ao cliente: o dono da carteira ou um gerente. A cor do evento é a do responsável.
+        {ownerId
+          ? 'Reunião ligada a um cliente: só o dono da carteira ou um gerente.'
+          : 'Qualquer usuário ativo da sua empresa. A cor da reunião é a do responsável.'}
       </p>
       <ErroCampo mensagem={erro} />
-    </fieldset>
+    </div>
   )
 }

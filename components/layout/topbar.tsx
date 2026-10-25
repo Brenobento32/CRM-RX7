@@ -8,7 +8,7 @@ import { logout } from '@/lib/actions/auth'
 import type { UsuarioAtual } from '@/lib/dal/auth'
 import { ROTULO_PAPEL } from '@/lib/validations/usuario'
 
-import { IconeConfiguracoes, IconeEditar, IconeLua, IconeSair, IconeSetaBaixo, IconeSino, IconeSol } from './icones'
+import { IconeEditar, IconeLua, IconeSair, IconeSetaBaixo, IconeSino, IconeSol } from './icones'
 import { useTemaPremium } from './shell-app'
 
 const LARGURA_MENU = 208
@@ -21,29 +21,11 @@ function posicionarSobBotao(popover: HTMLElement, botao: HTMLElement) {
 }
 
 /**
- * Cluster do usuário logado — sino de notificação, avatar, nome e papel,
- * seta de menu. Mesmo componente em toda página que já tem `usuario`
- * (`getUsuarioAtual()`, que toda página autenticada já chama) — pensado
- * pra virar o cabeçalho padrão, junto de `PageHeaderPremium`.
- *
- * Sem campo de "empresa/unidade" em `UsuarioAtual` (CRM de uma agência só,
- * não multi-tenant): a segunda linha usa o papel (`ROTULO_PAPEL`), o dado
- * real mais próximo disso que já existe — nunca um texto inventado.
- *
- * "Sair" vivia num card no rodapé da sidebar; foi removido de lá (ver
- * `components/layout/sidebar.tsx`) pra não duplicar nome/avatar em dois
- * lugares — agora mora neste menu (Popover API nativa, mesmo padrão de
- * `SeletorPeriodoFunil`), junto de "Configurações", alternância de tema e,
- * só pra gerente, "Editar perfil". O sino é só visual (sem sistema de
- * notificações no CRM hoje) — tem `aria-label` e não finge nenhuma
- * contagem/alerta.
- *
- * "Editar perfil" só aparece pro papel `gerente`: é a única role com acesso
- * à tela de edição de usuário hoje (`/configuracoes/usuarios/[id]/editar`
- * barra `notFound()` pra quem não é gerente — ver o próprio arquivo). SDR e
- * CLOSER não têm autoedição no código atual ("fale com o gerente", já dito
- * em `/configuracoes`) — por isso o item some pra eles, em vez de apontar
- * pra uma rota que devolveria 404.
+ * Cabeçalho global do usuário logado (renderizado pela casca em TODA página
+ * autenticada): sino, avatar, nome e papel, e o menu do perfil com
+ * "Editar perfil" (`/perfil`, o próprio usuário), o interruptor "Modo
+ * escuro" e "Sair". O sino ainda é só visual (não há notificações no CRM) —
+ * tem `aria-label` e não finge contagem.
  */
 export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
   const id = useId()
@@ -112,39 +94,39 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
         className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-lg shadow-black/40"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
-        {usuario.role === 'gerente' && (
-          <Link
-            href={`/configuracoes/usuarios/${usuario.id}/editar`}
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 transition hover:bg-premium-borda"
-          >
-            <IconeEditar className="size-4 text-premium-mudo" />
-            Editar perfil
-          </Link>
-        )}
         <Link
-          href="/configuracoes"
+          href="/perfil"
           role="menuitem"
           className="flex w-full items-center gap-2 rounded-md px-3 py-2 transition hover:bg-premium-borda"
         >
-          <IconeConfiguracoes className="size-4 text-premium-mudo" />
-          Configurações
+          <IconeEditar className="size-4 text-premium-mudo" />
+          Editar perfil
         </Link>
 
         {tema && (
           <button
             type="button"
-            role="menuitem"
+            role="menuitemcheckbox"
+            aria-checked={!tema.claro}
             onClick={tema.alternar}
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition hover:bg-premium-borda"
           >
-            {/* Mostra o destino da troca (pra onde o clique leva), não o estado atual. */}
-            {tema.claro ? (
-              <IconeLua className="size-4 text-premium-mudo" />
-            ) : (
-              <IconeSol className="size-4 text-premium-mudo" />
-            )}
-            {tema.claro ? 'Modo escuro' : 'Modo claro'}
+            {tema.claro ? <IconeSol className="size-4 text-premium-mudo" /> : <IconeLua className="size-4 text-premium-mudo" />}
+            <span className="flex-1">Modo escuro</span>
+            {/* Interruptor: ligado = escuro. */}
+            <span
+              aria-hidden
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                tema.claro ? 'bg-premium-borda' : 'bg-premium-acento'
+              }`}
+            >
+              <span
+                className={`inline-block size-4 rounded-full bg-white shadow transition-transform ${
+                  tema.claro ? 'translate-x-0.5' : 'translate-x-[18px]'
+                }`}
+              />
+            </span>
+            <span className="sr-only">{tema.claro ? 'desligado' : 'ligado'}</span>
           </button>
         )}
 

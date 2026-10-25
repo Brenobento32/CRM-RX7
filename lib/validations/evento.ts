@@ -53,14 +53,17 @@ export const statusEventoSchema = z.enum(STATUS_EVENTO)
 // Formulário de evento (criar e editar).
 // ---------------------------------------------------------------------------
 
-export const DURACOES = ['15', '30', '60', 'personalizado'] as const
+export const DURACOES = ['15', '30', '45', '60', '90', '120', 'personalizado'] as const
 export type Duracao = (typeof DURACOES)[number]
 
 export const ROTULO_DURACAO: Record<Duracao, string> = {
   '15': '15 min',
   '30': '30 min',
-  '60': '1 hora',
-  personalizado: 'Personalizado',
+  '45': '45 min',
+  '60': '1h',
+  '90': '1h30',
+  '120': '2h',
+  personalizado: 'Personalizada',
 }
 
 export const RECORRENCIAS = ['nenhuma', 'diaria', 'semanal', 'mensal', 'personalizada'] as const
@@ -113,10 +116,11 @@ const inteiro = (v: string | undefined) => (v && /^\d+$/.test(v) ? Number(v) : N
  * edição de evento de série.
  */
 const entradaSchema = z.object({
-  cliente_id: z.uuid('Selecione o cliente.'),
+  /** Opcional: a reunião da agenda nativa não exige cliente (reuniões antigas mantêm o delas). */
+  cliente_id: uuidOpcional('Cliente inválido.').default(null),
   negociacao_id: uuidOpcional('Negociação inválida.'),
   usuario_id: uuidOpcional('Responsável inválido.'),
-  tipo: z.enum(TIPOS_EVENTO, 'Selecione o tipo.'),
+  tipo: z.enum(TIPOS_EVENTO, 'Selecione o tipo.').default('reuniao'),
   /** Tipo do evento antes da edição: libera `apresentacao` no histórico. */
   tipo_original: z.string().default(''),
   titulo: z.string().trim().min(1, 'Informe o título.').max(200, 'Máximo de 200 caracteres.'),

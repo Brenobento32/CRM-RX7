@@ -1,7 +1,7 @@
 'use client'
 
 import { useRotaInterna } from '@/lib/empresa/use-rota-interna'
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useSyncExternalStore } from 'react'
 
 import { IconeExpandir, IconeRecolher } from './icones'
 import {
@@ -9,17 +9,14 @@ import {
   COOKIE_SIDEBAR_MAX_AGE,
   SIDEBAR_RECOLHIDA,
 } from './preferencia-sidebar'
-import { COOKIE_TEMA, COOKIE_TEMA_MAX_AGE, TEMA_CLARO } from './preferencia-tema'
+import { aplicarTema } from './preferencia-tema'
 
 const ContextoSidebar = createContext<{ recolhida: boolean; alternar: () => void } | null>(null)
 
 /**
- * Tema claro/escuro do design system premium — mesma ideia do
- * `ContextoSidebar` (estado vive aqui, cookie grava a preferência pro
- * servidor já renderizar certo da próxima vez). Só afeta as rotas/casca que
- * já usam tokens `premium-*` (ver `ROTAS_PREMIUM` abaixo); as demais telas
- * continuam no esquema claro/escuro antigo (`prefers-color-scheme`),
- * intocado.
+ * Tema claro/escuro do AVANTE. O valor de verdade é o atributo `data-tema` do
+ * <html> (aplicado antes de pintar pelo script do `app/layout.tsx`); este
+ * contexto só espelha o estado para o interruptor e grava a escolha.
  */
 const ContextoTema = createContext<{ claro: boolean; alternar: () => void } | null>(null)
 
@@ -29,16 +26,35 @@ export function useTemaPremium() {
 }
 
 /**
- * Rotas que usam o novo visual "dashboard premium" (fundo escuro, largura
- * ampliada até 1600px) — `/funil/metricas`, `/metas` e `/funil` (Kanban)
- * nesta rodada. As demais continuam no visual padrão claro/`max-w-6xl` até
- * migrarem também; a sidebar e a topbar, por serem casca compartilhada, já
- * ficam escuras em toda rota — só o CONTEÚDO (`main`) varia por aqui.
+ * Rotas de painel largo (até 1600px): `/funil/metricas`, `/metas` e `/funil`
+ * (Kanban). As demais usam `max-w-6xl`. Cores e tema são os mesmos em todas.
  * Allowlist explícita por pathname exato (nunca `startsWith`/prefixo): uma
- * tela nova só entra se for adicionada aqui de propósito, nunca "por
- * engano" por estar debaixo da mesma rota.
+ * tela nova só entra se for adicionada aqui de propósito.
  */
 const ROTAS_PREMIUM = new Set(['/funil/metricas', '/metas', '/funil'])
+
+const CONSULTA_ESTREITA = '(max-width: 1023px)'
+
+function assinarTelaEstreita(avisar: () => void) {
+  const mq = window.matchMedia(CONSULTA_ESTREITA)
+  mq.addEventListener('change', avisar)
+  return () => mq.removeEventListener('change', avisar)
+}
+
+function telaEstreita() {
+  return window.matchMedia(CONSULTA_ESTREITA).matches
+}
+
+/** Avisa quando o atributo `data-tema` do <html> muda (pelo interruptor). */
+function assinarTema(avisar: () => void) {
+  const observador = new MutationObserver(avisar)
+  observador.observe(document.documentElement, { attributes: true, attributeFilter: ['data-tema'] })
+  return () => observador.disconnect()
+}
+
+function temaAtualClaro() {
+  return document.documentElement.getAttribute('data-tema') === 'claro'
+}
 
 /**
  * Casca da área autenticada: sidebar fixa + conteúdo.
@@ -51,27 +67,41 @@ export function ShellApp({
   recolhidaInicial,
   temaClaroInicial,
   sidebar,
+  topo,
   children,
 }: {
   recolhidaInicial: boolean
   temaClaroInicial: boolean
   sidebar: React.ReactNode
+  /** Cabeçalho global (usuário, notificações, menu do perfil) — igual em toda página. */
+  topo?: React.ReactNode
   children: React.ReactNode
 }) {
-  const [recolhida, setRecolhida] = useState(recolhidaInicial)
-  const [temaClaro, setTemaClaro] = useState(temaClaroInicial)
+  const [recolhidaDesktop, setRecolhidaDesktop] = useState(recolhidaInicial)
+  // Tela estreita (celular/tablet em pé): menu começa recolhido, só ícones, e
+  // abrir/fechar ali não grava cookie — a preferência do computador fica igual.
+  const [abertaNaTelaEstreita, setAbertaNaTelaEstreita] = useState(false)
+  const estreita = useSyncExternalStore(assinarTelaEstreita, telaEstreita, () => false)
+  const recolhida = estreita ? !abertaNaTelaEstreita : recolhidaDesktop
+  const sobreposto = estreita && abertaNaTelaEstreita
+
+  // O tema de verdade é o atributo do <html> (sem cookie, o script do <head>
+  // segue o sistema); aqui só se lê esse atributo, nunca uma cópia.
+  const temaClaro = useSyncExternalStore(assinarTema, temaAtualClaro, () => temaClaroInicial)
   const premium = ROTAS_PREMIUM.has(useRotaInterna())
 
   function alternar() {
-    const nova = !recolhida
-    setRecolhida(nova)
+    if (estreita) {
+      setAbertaNaTelaEstreita((v) => !v)
+      return
+    }
+    const nova = !recolhidaDesktop
+    setRecolhidaDesktop(nova)
     document.cookie = `${COOKIE_SIDEBAR}=${nova ? SIDEBAR_RECOLHIDA : 'expandida'}; path=/; max-age=${COOKIE_SIDEBAR_MAX_AGE}; samesite=lax`
   }
 
   function alternarTema() {
-    const novo = !temaClaro
-    setTemaClaro(novo)
-    document.cookie = `${COOKIE_TEMA}=${novo ? TEMA_CLARO : 'escuro'}; path=/; max-age=${COOKIE_TEMA_MAX_AGE}; samesite=lax`
+    aplicarTema(!temaClaro)
   }
 
   return (
@@ -79,18 +109,44 @@ export function ShellApp({
       <ContextoTema.Provider value={{ claro: temaClaro, alternar: alternarTema }}>
         <div
           data-sidebar={recolhida ? 'recolhida' : 'expandida'}
-          data-theme={temaClaro ? 'light' : undefined}
+          // Tela estreita com o menu aberto: ele fica POR CIMA do conteúdo (não o espreme).
+          data-sobreposto={sobreposto ? 'sim' : undefined}
           className="group/shell flex min-h-full flex-1"
         >
-          <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-premium-borda bg-premium-elevado transition-[width] duration-200 group-data-[sidebar=recolhida]/shell:w-[70px] motion-reduce:transition-none">
+          {sobreposto && (
+            <button
+              type="button"
+              aria-label="Fechar menu"
+              onClick={() => setAbertaNaTelaEstreita(false)}
+              className="fixed inset-0 z-20 bg-black/40"
+            />
+          )}
+          <aside
+            // No celular, escolher um item do menu já o fecha.
+            onClickCapture={(e) => {
+              if (sobreposto && (e.target as HTMLElement).closest('a[href]')) setAbertaNaTelaEstreita(false)
+            }}
+            className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-premium-borda bg-premium-elevado transition-[width] duration-200 group-data-[sidebar=recolhida]/shell:w-[70px] group-data-[sobreposto=sim]/shell:shadow-2xl motion-reduce:transition-none"
+          >
             {sidebar}
           </aside>
           <main
-            className={`flex-1 pl-[220px] transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] motion-reduce:transition-none ${
-              premium ? 'min-h-full bg-premium-bg' : ''
-            }`}
+            className="min-h-full min-w-0 flex-1 bg-premium-bg pl-[220px] text-premium-texto transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] group-data-[sobreposto=sim]/shell:pl-[70px] motion-reduce:transition-none"
           >
-            <div className={premium ? 'mx-auto max-w-[1600px] px-6 py-6' : 'mx-auto max-w-6xl px-8 py-8'}>{children}</div>
+            {topo && (
+              <header className="sticky top-0 z-20 flex h-14 items-center justify-end border-b border-premium-borda bg-premium-bg/90 px-3 backdrop-blur sm:px-6 lg:px-8">
+                {topo}
+              </header>
+            )}
+            <div
+              className={
+                premium
+                  ? 'mx-auto max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6'
+                  : 'mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8'
+              }
+            >
+              {children}
+            </div>
           </main>
         </div>
       </ContextoTema.Provider>

@@ -394,7 +394,7 @@ export type Database = {
       }
       eventos: {
         Row: {
-          cliente_id: string
+          cliente_id: string | null
           created_at: string
           criado_por: string | null
           descricao: string | null
@@ -415,7 +415,7 @@ export type Database = {
           usuario_id: string
         }
         Insert: {
-          cliente_id: string
+          cliente_id?: string | null
           created_at?: string
           criado_por?: string | null
           descricao?: string | null
@@ -436,7 +436,7 @@ export type Database = {
           usuario_id?: string
         }
         Update: {
-          cliente_id?: string
+          cliente_id?: string | null
           created_at?: string
           criado_por?: string | null
           descricao?: string | null
@@ -510,7 +510,7 @@ export type Database = {
       }
       eventos_series: {
         Row: {
-          cliente_id: string
+          cliente_id: string | null
           created_at: string
           criado_por: string | null
           data_inicio: string
@@ -532,7 +532,7 @@ export type Database = {
           usuario_id: string
         }
         Insert: {
-          cliente_id: string
+          cliente_id?: string | null
           created_at?: string
           criado_por?: string | null
           data_inicio: string
@@ -554,7 +554,7 @@ export type Database = {
           usuario_id: string
         }
         Update: {
-          cliente_id?: string
+          cliente_id?: string | null
           created_at?: string
           criado_por?: string | null
           data_inicio?: string
@@ -2154,7 +2154,7 @@ export type Database = {
       }
       alterar_eventos: {
         Args: {
-          p_cliente_id: string
+          p_cliente_id: string | null
           p_data: string
           p_descricao: string
           p_duracao_minutos: number
@@ -2305,7 +2305,7 @@ export type Database = {
       }
       criar_serie_eventos: {
         Args: {
-          p_cliente_id: string
+          p_cliente_id: string | null
           p_data_inicio: string
           p_descricao: string
           p_dia_mes: number

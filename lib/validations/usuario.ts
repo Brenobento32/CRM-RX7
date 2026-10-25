@@ -66,6 +66,15 @@ export const editarUsuarioSchema = z.object({
 
 export type EditarUsuarioInput = z.output<typeof editarUsuarioSchema>
 
+/** "Editar perfil" do próprio usuário: nunca papel, status nem e-mail. */
+export const meuPerfilSchema = z.object({
+  nome,
+  telefone,
+  cor_agenda: corAgenda,
+})
+
+export type MeuPerfilInput = z.output<typeof meuPerfilSchema>
+
 /** `null` = sem foto enviada; string = mensagem de erro. */
 export function validarFoto(arquivo: FormDataEntryValue | null): File | null | string {
   if (!(arquivo instanceof File) || arquivo.size === 0) return null

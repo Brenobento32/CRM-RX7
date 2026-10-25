@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMinhaAssinatura, podeVerAssinatura } from '@/lib/dal/assinatura'
 import { formatarData, formatarMoeda } from '@/lib/utils/formatacao'
-import { ROTULO_RECURSO, ROTULO_STATUS_ASSINATURA, type Recurso } from '@/lib/validations/super-admin'
+import { RECURSOS_OCULTOS, ROTULO_RECURSO, ROTULO_STATUS_ASSINATURA, type Recurso } from '@/lib/validations/super-admin'
 
 export const metadata: Metadata = {
   title: 'Minha assinatura',
@@ -63,7 +63,10 @@ export default async function MinhaAssinaturaPage() {
             <div>
               <p className="text-sm font-medium">Recursos do plano</p>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                {(assinatura.recursos ?? []).map((r) => ROTULO_RECURSO[r as Recurso] ?? r).join(', ') || '—'}
+                {(assinatura.recursos ?? [])
+                  .filter((r) => !RECURSOS_OCULTOS.includes(r as Recurso))
+                  .map((r) => ROTULO_RECURSO[r as Recurso] ?? r)
+                  .join(', ') || '—'}
               </p>
             </div>
           </section>
