@@ -1,9 +1,9 @@
 import 'server-only'
 
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
 
-import { getEmpresaAtual, papelComercial } from '@/lib/dal/empresa'
+import { getEmpresaAtual, papelComercial, type CargoApp } from '@/lib/dal/empresa'
 import { serverEnv } from '@/lib/env/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
@@ -15,7 +15,7 @@ export type UsuarioAtual = {
   id: string
   nome: string
   email: string
-  role: UserRole
+  role: CargoApp
   fotoUrl: string | null
 }
 
@@ -185,4 +185,14 @@ function mensagemDeErroDeLogin(code?: string, status?: number): string {
   }
 
   return 'Não foi possível entrar agora. Tente novamente em instantes.'
+}
+
+/**
+ * Guarda de página por área da matriz de cargos: quem não está na lista
+ * recebe 404 (nem descobre a tela). O banco nega os dados de qualquer forma.
+ */
+export async function exigirCargo(cargos: readonly CargoApp[]): Promise<UsuarioAtual> {
+  const usuario = await getUsuarioAtual()
+  if (!cargos.includes(usuario.role)) notFound()
+  return usuario
 }

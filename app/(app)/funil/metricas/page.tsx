@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { exigirCargo } from '@/lib/dal/auth'
+import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { obterProgressoMetas, obterProgressoMetasFunis } from '@/lib/dal/metas'
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 }
 
 export default async function MetricasFunilPage({ searchParams }: PageProps<'/funil/metricas'>) {
-  const [usuario, cookieStore] = await Promise.all([getUsuarioAtual(), cookies()])
+  const [usuario, cookieStore] = await Promise.all([exigirCargo(CARGOS_POR_AREA.relatorios), cookies()])
   const { periodo: param, inicio, fim, funil: funilParam, mesMeta } = await searchParams
   const hoje = hojeSaoPaulo()
   const periodo = resolverPeriodoFunil(chavePeriodoFunil(param), { inicio, fim }, hoje)

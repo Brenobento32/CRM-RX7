@@ -26,10 +26,16 @@ type CardProps = {
   semMeta: string
   /** Ações do gerente (definir, editar, remover). */
   acoes?: React.ReactNode
+  /** Metas financeiras em reais (padrão) ou contagem (reuniões). */
+  formato?: 'moeda' | 'quantidade'
+}
+
+function formatarValor(valor: number, formato: 'moeda' | 'quantidade') {
+  return formato === 'moeda' ? formatarMoeda(valor) : valor.toLocaleString('pt-BR')
 }
 
 /** Objetivo, realizado e percentual de uma meta, em destaque. */
-export function CardMeta({ titulo, valorMeta, realizado, percentual, semMeta, acoes }: CardProps) {
+export function CardMeta({ titulo, valorMeta, realizado, percentual, semMeta, acoes, formato = 'moeda' }: CardProps) {
   return (
     <PremiumPanel>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -41,12 +47,12 @@ export function CardMeta({ titulo, valorMeta, realizado, percentual, semMeta, ac
         <div>
           <dt className="text-sm text-premium-mudo">Objetivo</dt>
           <dd className="mt-1 text-2xl font-semibold text-premium-texto">
-            {valorMeta === null ? <span className="text-base font-normal text-premium-mudo">{semMeta}</span> : formatarMoeda(valorMeta)}
+            {valorMeta === null ? <span className="text-base font-normal text-premium-mudo">{semMeta}</span> : formatarValor(valorMeta, formato)}
           </dd>
         </div>
         <div>
           <dt className="text-sm text-premium-mudo">Realizado</dt>
-          <dd className="mt-1 text-2xl font-semibold text-premium-texto">{formatarMoeda(realizado)}</dd>
+          <dd className="mt-1 text-2xl font-semibold text-premium-texto">{formatarValor(realizado, formato)}</dd>
         </div>
         <div>
           <dt className="text-sm text-premium-mudo">Atingido</dt>

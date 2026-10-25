@@ -8,11 +8,38 @@ export type Papel = Database['public']['Enums']['user_role']
 
 export const PAPEIS = Constants.public.Enums.user_role
 
+/**
+ * Os cinco cargos operacionais, cada um com regras PRÓPRIAS (Vendedor não é
+ * Closer, Atendente não é SDR) — ver docs/MATRIZ-CARGOS.md. O banco decide;
+ * as telas só refletem. Super Admin não é cargo: é privilégio global da Rio X7.
+ */
 export const ROTULO_PAPEL: Record<Papel, string> = {
   gerente: 'Gerente',
-  closer: 'Closer',
+  vendedor: 'Vendedor',
+  atendente: 'Atendente',
   sdr: 'SDR',
+  closer: 'Closer',
 }
+
+/** Mesmo tipo de `Papel` (nome usado pelas telas). */
+export type Cargo = Papel
+export const ROTULO_CARGO = ROTULO_PAPEL
+
+/** Ordem de exibição no cadastro de usuários. */
+export const CARGOS_EM_ORDEM: readonly Papel[] = ['gerente', 'vendedor', 'atendente', 'sdr', 'closer']
+
+/** Quem agenda reuniões para um Closer da empresa (além do Gerente). */
+export const CARGOS_QUE_AGENDAM_PARA_CLOSER: readonly Papel[] = ['sdr', 'atendente']
+
+/**
+ * Áreas da matriz que nem todo cargo usa (menu e guarda de cada página). O
+ * banco nega o acesso aos dados de qualquer forma; aqui é a experiência.
+ */
+export const CARGOS_POR_AREA = {
+  propostas: ['gerente', 'vendedor', 'closer'],
+  metas: ['gerente', 'vendedor', 'sdr', 'closer'],
+  relatorios: ['gerente', 'vendedor', 'sdr', 'closer'],
+} as const satisfies Record<string, readonly Papel[]>
 
 /** Igual ao bucket `avatares` (migration de usuários). */
 export const FOTO_TIPOS = ['image/jpeg', 'image/png', 'image/webp'] as const

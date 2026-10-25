@@ -32,18 +32,19 @@ import {
   CHAVE_HANDOFF_SDR,
   podeMoverNegociacaoColaborador,
   sdrPodeMoverPara,
+  temTetoDeHandoff,
   tipoExigeModal,
   type EtapaKanban,
 } from '@/lib/utils/etapas'
 import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
-import type { Papel } from '@/lib/validations/usuario'
+import type { Cargo as Papel } from '@/lib/validations/usuario'
 
 /**
  * Mesmas mensagens do backend (`lib/dal/funil.ts`) — checagem aqui é só UX,
  * a trava real é no servidor (RPC `mover_negociacao` + RLS + trigger de
  * handoff).
  */
-const MSG_HANDOFF_SDR = 'SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
+const MSG_HANDOFF_SDR = 'SDR e Atendente não podem movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
 const MSG_SEM_PERMISSAO_MOVER = 'Você não tem permissão para mover esta negociação.'
 
 import { CardArrastavel, CardConteudo } from './card-negociacao'
@@ -148,7 +149,10 @@ export function Kanban({
   etapasMovimentaveis,
   servicos,
   whatsappHabilitado,
+  meuId,
 }: {
+  /** Usuário atual — a carteira do Atendente (UX; o banco confere). */
+  meuId: string
   cards: CardFunil[]
   etapas: EtapaKanban[]
   /** Dono da trava real é o servidor; aqui só decide o que esconder/desabilitar (item "Kanban"/UX). */
@@ -176,8 +180,10 @@ export function Kanban({
   const etapasMovimentaveisSet = etapasMovimentaveis === null ? null : new Set(etapasMovimentaveis)
   const podeMoverEtapa = (etapaId: string) => etapasMovimentaveisSet === null || etapasMovimentaveisSet.has(etapaId)
 
+  const etapaPorId = (etapaId: string) => etapas.find((e) => e.id === etapaId)
+
   /** Mesma decisão do RPC `mover_negociacao`/DAL — pura, testada (lib/utils/etapas.ts). */
-  function podeMover(etapaOrigemId: string, etapaDestinoId: string): boolean {
+  function podeMover(etapaOrigemId: string, etapaDestinoId: string, card?: CardFunil): boolean {
     return podeMoverNegociacaoColaborador({
       papel,
       podeMoverOrigem: podeMoverEtapa(etapaOrigemId),
@@ -185,13 +191,23 @@ export function Kanban({
       ordemOrigem: ordemDe(etapaOrigemId),
       ordemDestino: ordemDe(etapaDestinoId),
       ordemLimiteHandoffSdr: ordemLimiteSdr,
+      atendente:
+        papel === 'atendente'
+          ? {
+              origemLiberada: etapaPorId(etapaOrigemId)?.atendentePodeMover === true,
+              destinoLiberado: etapaPorId(etapaDestinoId)?.atendentePodeMover === true,
+              destinoAberto: etapaPorId(etapaDestinoId)?.tipo === 'aberta',
+              // Sem card (decisão da coluna inteira): a carteira é vista card a card.
+              daCarteira: card === undefined || card.ownerId === meuId,
+            }
+          : undefined,
     })
   }
 
   /** Etapas que podem ser destino a partir de `etapaOrigemId` no "Mover para"/drawer — as demais nem aparecem. */
-  function etapasPermitidas(etapaOrigemId: string): EtapaKanban[] {
+  function etapasPermitidas(etapaOrigemId: string, card?: CardFunil): EtapaKanban[] {
     if (papel === 'gerente') return etapas
-    return etapas.filter((e) => e.id === etapaOrigemId || podeMover(etapaOrigemId, e.id))
+    return etapas.filter((e) => e.id === etapaOrigemId || podeMover(etapaOrigemId, e.id, card))
   }
 
   // Quando o servidor manda dados novos (após uma action), o quadro é
@@ -325,10 +341,10 @@ export function Kanban({
     // UX: evita o round-trip quando o próprio frontend já sabe que o
     // servidor vai recusar (o servidor confere de novo, sempre — ver
     // moverNegociacao em lib/dal/funil.ts).
-    if (papel !== 'gerente' && etapaId !== origem && !podeMover(origem, etapaId)) {
+    if (papel !== 'gerente' && etapaId !== origem && !podeMover(origem, etapaId, card)) {
       setColunas(antes)
       const bloqueadoPeloHandoff =
-        papel === 'sdr' && !sdrPodeMoverPara(ordemDe(origem), ordemDe(etapaId), ordemLimiteSdr)
+        temTetoDeHandoff(papel) && !sdrPodeMoverPara(ordemDe(origem), ordemDe(etapaId), ordemLimiteSdr)
       setErro(bloqueadoPeloHandoff ? MSG_HANDOFF_SDR : MSG_SEM_PERMISSAO_MOVER)
       return
     }
@@ -419,8 +435,10 @@ export function Kanban({
       >
         <div ref={quadroRef} id={quadroId} className="flex gap-4 overflow-x-auto pb-4">
           {etapas.map((etapa) => {
-            const alemDoHandoffSdr = papel === 'sdr' && ordemLimiteSdr !== null && etapa.ordem > ordemLimiteSdr
-            const semPermissaoNestaEtapa = papel !== 'gerente' && !podeMoverEtapa(etapa.id)
+            const alemDoHandoffSdr = temTetoDeHandoff(papel) && ordemLimiteSdr !== null && etapa.ordem > ordemLimiteSdr
+            const semPermissaoNestaEtapa =
+              papel !== 'gerente' &&
+              (!podeMoverEtapa(etapa.id) || (papel === 'atendente' && etapa.atendentePodeMover !== true))
             return (
               <Coluna
                 key={etapa.id}
@@ -471,7 +489,7 @@ export function Kanban({
       {drawer && (
         <DrawerNegociacao
           card={drawer}
-          etapas={etapasPermitidas(drawer.etapaId)}
+          etapas={etapasPermitidas(drawer.etapaId, drawer)}
           whatsappHabilitado={whatsappHabilitado}
           onFechar={() => setDrawer(null)}
           onEditar={setEdicaoRapida}
@@ -534,8 +552,8 @@ function Coluna({
   onAbrirObservacoes,
 }: {
   etapa: EtapaKanban
-  /** Destinos válidos a partir desta coluna — ver `etapasPermitidas` em `Kanban`. Igual pra todo card dela (owner_id não entra mais na decisão). */
-  etapasPermitidas: (etapaOrigemId: string) => EtapaKanban[]
+  /** Destinos válidos a partir desta coluna — ver `etapasPermitidas` em `Kanban`. Com o card, considera também a carteira do Atendente. */
+  etapasPermitidas: (etapaOrigemId: string, card?: CardFunil) => EtapaKanban[]
   cards: CardFunil[]
   /** "Somente CLOSER" (além do handoff do SDR) ou "Sem permissão" (etapa fora do `pode_mover` configurado) — só informativo (UX), a trava real é no servidor. */
   aviso: string | null
@@ -551,7 +569,6 @@ function Coluna({
     (soma, c) => soma + ((etapa.tipo === 'ganha' ? c.valorVendido : c.valorEstimado) ?? 0),
     0,
   )
-  const destinos = etapasPermitidas(etapa.id)
 
   return (
     // A coluna inteira (cabeçalho incluso) é a área de soltura.
@@ -593,8 +610,8 @@ function Coluna({
             <CardArrastavel
               key={card.id}
               card={card}
-              etapas={destinos}
-              travado={travada}
+              etapas={etapasPermitidas(etapa.id, card)}
+              travado={travada || etapasPermitidas(etapa.id, card).length <= 1}
               onMover={onMover}
               onEditar={onEditar}
               onAbrirDrawer={onAbrirDrawer}

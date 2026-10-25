@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { botaoSecundarioClass } from '@/components/ui/estilos'
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { exigirCargo } from '@/lib/dal/auth'
+import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import { listarPropostasFechadas } from '@/lib/dal/propostas'
 import { formatarDia, formatarMoeda } from '@/lib/utils/formatacao'
 import { chavePeriodo, resolverPeriodo } from '@/lib/utils/periodo'
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 }
 
 export default async function PropostasFechadasPage({ searchParams }: PageProps<'/propostas/fechadas'>) {
-  const eu = await getUsuarioAtual()
+  const eu = await exigirCargo(CARGOS_POR_AREA.propostas)
   const { periodo: param } = await searchParams
   const periodo = resolverPeriodo(chavePeriodo(param))
   const fechadas = await listarPropostasFechadas(periodo)

@@ -20,7 +20,7 @@ import type { Database } from '@/lib/types/database'
  * garante que um closer só enxergue a própria carteira mesmo que alguma query
  * esqueça o filtro por `owner_id`.
  *
- * Empresa: o slug da URL (`/e/<slug>`, repassado pelo `proxy.ts`) vai em
+ * Empresa: o slug da URL (`/<slug>`, repassado pelo `proxy.ts`) vai em
  * `x-rx7-tenant` em toda chamada. O banco só aceita se o usuário tiver vínculo
  * ativo nela (`tenant_atual()`); sem empresa, nenhum dado comercial aparece.
  *

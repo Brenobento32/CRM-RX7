@@ -131,7 +131,8 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
             >
               Editar
             </Link>
-            <BotaoArquivarCliente action={arquivarClienteAction.bind(null, cliente.id)} />
+            {/* Atendente não arquiva clientes (o banco também recusa). */}
+            {usuario.role !== 'atendente' && <BotaoArquivarCliente action={arquivarClienteAction.bind(null, cliente.id)} />}
           </div>
         </div>
       </div>

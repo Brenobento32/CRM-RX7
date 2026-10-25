@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import {
   COOKIE_EMPRESA,
   HEADER_EMPRESA,
+  HEADER_ROTA,
   caminhoDaEmpresa,
   separarPrefixo,
   slugValido,
@@ -34,7 +35,8 @@ function corresponde(pathname: string, rotas: string[]) {
 
 /**
  * Renova a sessão, resolve a empresa da URL e faz o redirect otimista:
- * - `/e/<slug>/x` → reescreve para `/x` com o slug num header interno;
+ * - `/<slug>/x` → reescreve para `/x` com o slug num header interno
+ *   (`/e/<slug>/x`, o formato antigo, redireciona para `/<slug>/x`);
  * - área interna sem prefixo → completa com a empresa da aba de origem
  *   (Referer do mesmo site) ou, numa aba nova, com a última usada;
  * - sem sessão fora das rotas públicas → /login (guardando o destino em `next`)
@@ -47,10 +49,20 @@ export async function proxy(request: NextRequest) {
   // O header interno nunca pode vir do browser.
   const cabecalhos = new Headers(request.headers)
   cabecalhos.delete(HEADER_EMPRESA)
+  cabecalhos.delete(HEADER_ROTA)
 
   const { pathname, search } = request.nextUrl
   const prefixo = separarPrefixo(pathname)
-  if (prefixo) cabecalhos.set(HEADER_EMPRESA, prefixo.slug)
+
+  // Formato antigo `/e/<slug>/x` → `/<slug>/x` (308: mantém método e corpo).
+  // Nada é lido nem autorizado aqui; a próxima requisição segue o fluxo normal.
+  if (prefixo?.legado) {
+    return NextResponse.redirect(urlCom(request, caminhoDaEmpresa(prefixo.slug, prefixo.resto), search), 308)
+  }
+  if (prefixo) {
+    cabecalhos.set(HEADER_EMPRESA, prefixo.slug)
+    cabecalhos.set(HEADER_ROTA, `${prefixo.resto}${search}`)
+  }
 
   const { response, claims } = await updateSession(request, cabecalhos)
   const rota = prefixo ? prefixo.resto : pathname

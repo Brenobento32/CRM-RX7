@@ -11,9 +11,14 @@ type Item = { href: string; titulo: string; descricao: string }
 
 const ITENS_GERENTE: Item[] = [
   {
+    href: '/configuracoes/empresa',
+    titulo: 'Dados da empresa',
+    descricao: 'Logotipo, telefone, e-mail e responsável da empresa.',
+  },
+  {
     href: '/configuracoes/usuarios',
     titulo: 'Usuários',
-    descricao: 'Criar, editar e desativar gerentes e closers.',
+    descricao: 'Criar, editar e desativar a equipe: Gerente, Vendedor, Atendente, SDR e Closer.',
   },
   {
     href: '/configuracoes/funis',

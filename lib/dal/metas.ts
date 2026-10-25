@@ -318,7 +318,7 @@ export async function obterMeta(id: string): Promise<Meta | null> {
 
 export type OpcaoAlvo = { valor: string; rotulo: string }
 
-/** Empresa + closers ativos, para o formulário de nova meta. */
+/** Empresa + closers e vendedores ativos, para o formulário de nova meta. */
 export async function listarAlvosDeMeta(): Promise<OpcaoAlvo[]> {
   await exigirGerente()
   const supabase = await createClient()
@@ -332,7 +332,7 @@ export async function listarAlvosDeMeta(): Promise<OpcaoAlvo[]> {
   // Closer na empresa da requisição (o papel não é mais o global do perfil).
   const closers = data.filter((p) => {
     const membro = membros.get(p.id)
-    return membro?.ativo && membro.role === 'closer'
+    return membro?.ativo && (membro.role === 'closer' || membro.role === 'vendedor')
   })
   return [
     { valor: ALVO_EMPRESA, rotulo: 'Empresa (meta geral)' },

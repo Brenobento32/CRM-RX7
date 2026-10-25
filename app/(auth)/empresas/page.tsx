@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
-import { ROTULO_PAPEL } from '@/lib/validations/usuario'
+import { ROTULO_CARGO } from '@/lib/validations/usuario'
 import { logout } from '@/lib/actions/auth'
-import { listarMinhasEmpresas, papelComercial } from '@/lib/dal/empresa'
+import { listarMinhasEmpresas, papelComercial, resolverEnderecoAntigo } from '@/lib/dal/empresa'
 import { isSuperAdmin } from '@/lib/dal/super-admin'
 import { caminhoDaEmpresa, separarPrefixo } from '@/lib/empresa/rota'
 
@@ -21,17 +21,22 @@ function destinoSeguro(next: string | string[] | undefined): string {
 
 /**
  * Escolha da empresa ativa. Lista só as empresas em que o usuário tem vínculo
- * ativo (RLS). A escolha vira a URL `/e/<slug>/...` — cada aba fica na sua
+ * ativo (RLS). A escolha vira a URL `/<slug>/...` — cada aba fica na sua
  * empresa e o banco revalida o vínculo em toda consulta. Os links são <a>:
  * trocar de empresa recarrega a página inteira.
  */
 export default async function EmpresasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string | string[] }>
+  searchParams: Promise<{ next?: string | string[]; de?: string | string[] }>
 }) {
-  const [empresas, { next }, superAdmin] = await Promise.all([listarMinhasEmpresas(), searchParams, isSuperAdmin()])
+  const [empresas, { next, de }, superAdmin] = await Promise.all([listarMinhasEmpresas(), searchParams, isSuperAdmin()])
   const destino = destinoSeguro(next)
+
+  // Veio de um endereço antigo (a empresa trocou de slug): vai para o novo,
+  // na mesma tela. Quem não é membro não descobre nada e segue a escolha normal.
+  const novoEndereco = await resolverEnderecoAntigo(Array.isArray(de) ? de[0] : de)
+  if (novoEndereco) redirect(caminhoDaEmpresa(novoEndereco, destino))
 
   const ativas = empresas.filter((e) => !e.somenteLeitura)
   // Super Admin sempre vê a lista (e o link do painel), mesmo com uma empresa só.
@@ -58,7 +63,7 @@ export default async function EmpresasPage({
               >
                 <span className="block text-sm font-medium">{empresa.nome}</span>
                 <span className="block text-xs text-zinc-500">
-                  {ROTULO_PAPEL[papelComercial(empresa.papel)]}
+                  {ROTULO_CARGO[papelComercial(empresa.papel)]}
                   {empresa.somenteLeitura ? ' · somente leitura' : ''}
                 </span>
               </a>

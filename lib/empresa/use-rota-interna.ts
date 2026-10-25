@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 
 import { separarPrefixo } from '@/lib/empresa/rota'
 
-/** Caminho sem o prefixo `/e/<slug>` — para comparar com as rotas do menu. */
+/** Caminho sem o prefixo `/<slug>` — para comparar com as rotas do menu. */
 export function useRotaInterna(): string {
   const pathname = usePathname()
   return separarPrefixo(pathname)?.resto ?? pathname

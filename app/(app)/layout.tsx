@@ -16,7 +16,7 @@ import { isSuperAdmin } from '@/lib/dal/super-admin'
 
 /**
  * Shell da área autenticada. `getUsuarioAtual` valida a sessão, a empresa da
- * URL (`/e/<slug>`) e lê o perfil; sem sessão redireciona para /login, perfil
+ * URL (`/<slug>`) e lê o perfil; sem sessão redireciona para /login, perfil
  * inativo para /sem-acesso, empresa sem vínculo para /empresas.
  *
  * O layout não substitui a checagem nas páginas: layouts não re-renderizam em

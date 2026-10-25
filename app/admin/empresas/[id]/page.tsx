@@ -3,8 +3,21 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { botaoPrimarioClass, botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
-import { alterarSituacaoEmpresaAction, definirAssinaturaAction } from '@/lib/actions/super-admin'
-import { historicoAssinatura, listarAuditoria, listarPlanos, obterEmpresa } from '@/lib/dal/super-admin'
+import {
+  alterarSituacaoEmpresaAction,
+  alterarSlugEmpresaAction,
+  definirAssinaturaAction,
+  salvarCadastroEmpresaAction,
+} from '@/lib/actions/super-admin'
+import {
+  historicoAssinatura,
+  listarAuditoria,
+  listarPlanos,
+  obterCadastroEmpresa,
+  obterEmpresa,
+  type CadastroEmpresa,
+} from '@/lib/dal/super-admin'
+import { formatarTelefone } from '@/lib/utils/documentos'
 import { formatarData, formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 import { CICLOS, ROTULO_STATUS_ASSINATURA, STATUS_ASSINATURA } from '@/lib/validations/super-admin'
 
@@ -34,10 +47,11 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
   if (!empresa) notFound()
 
   const assinante = empresa.tipo === 'assinante'
-  const [planos, historico, auditoria] = await Promise.all([
+  const [planos, historico, auditoria, cadastro] = await Promise.all([
     listarPlanos(),
     assinante ? historicoAssinatura(id) : Promise.resolve([]),
     listarAuditoria(id, 50),
+    obterCadastroEmpresa(id),
   ])
   const suspensa = empresa.status === 'suspenso'
 
@@ -49,12 +63,41 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">{empresa.nome}</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          /e/{empresa.slug} · {ROTULO_TIPO_EMPRESA[empresa.tipo]} · {ROTULO_STATUS_EMPRESA[empresa.status]} · criada em{' '}
+          /{empresa.slug} · {ROTULO_TIPO_EMPRESA[empresa.tipo]} · {ROTULO_STATUS_EMPRESA[empresa.status]} · criada em{' '}
           {formatarData(empresa.criado_em)}
         </p>
       </div>
 
       <Aviso ok={busca.ok} erro={busca.erro} />
+
+      {cadastro && <FormCadastro cadastro={cadastro} />}
+
+      {empresa.tipo !== 'arquivo' && (
+        <form
+          action={alterarSlugEmpresaAction}
+          className="space-y-3 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <input type="hidden" name="tenant_id" value={empresa.id} />
+          <h2 className="font-semibold">Endereço da empresa</h2>
+          <p className="text-xs text-zinc-500">
+            Atual: /{empresa.slug}. O endereço antigo continua levando à empresa (só para quem é membro dela) e
+            nunca poderá ser usado por outra empresa. A troca fica registrada na auditoria.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Novo endereço</span>
+              <input name="slug" required maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" className={inputClass} />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Motivo</span>
+              <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
+            </label>
+          </div>
+          <button type="submit" className={botaoSecundarioClass}>
+            Trocar endereço
+          </button>
+        </form>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Dado rotulo="Usuários ativos" valor={String(empresa.usuarios_ativos)} />
@@ -213,5 +256,66 @@ function Lista({ itens, vazio }: { itens: { quando: string; texto: string }[]; v
         </li>
       ))}
     </ul>
+  )
+}
+
+/** Cadastro da empresa: nome comercial, contato, responsável e logotipo. */
+function FormCadastro({ cadastro }: { cadastro: CadastroEmpresa }) {
+  return (
+    <form
+      action={salvarCadastroEmpresaAction}
+      className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+    >
+      <input type="hidden" name="tenant_id" value={cadastro.id} />
+      <div className="flex items-center gap-4">
+        {cadastro.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- logo público do Storage, tamanho fixo
+          <img src={cadastro.logoUrl} alt={`Logotipo de ${cadastro.nome}`} className="size-14 rounded-lg border border-zinc-200 bg-white object-contain p-1 dark:border-zinc-700" />
+        ) : (
+          <span aria-hidden className="flex size-14 items-center justify-center rounded-lg bg-premium-acento text-xl font-semibold text-white dark:text-zinc-950">
+            {cadastro.nome.slice(0, 1).toUpperCase()}
+          </span>
+        )}
+        <div>
+          <h2 className="font-semibold">Cadastro da empresa</h2>
+          <p className="text-xs text-zinc-500">
+            {cadastro.telefone ? formatarTelefone(cadastro.telefone) : 'Sem telefone'} · {cadastro.email ?? 'sem e-mail'} ·{' '}
+            {cadastro.responsavelNome ?? 'sem responsável'}
+          </p>
+        </div>
+      </div>
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium">Nome comercial</span>
+        <input name="nome" required maxLength={120} defaultValue={cadastro.nome} className={inputClass} />
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">Telefone</span>
+          <input name="telefone" inputMode="tel" defaultValue={cadastro.telefone ? formatarTelefone(cadastro.telefone) : ''} className={inputClass} />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">E-mail da empresa</span>
+          <input name="email" type="email" defaultValue={cadastro.email ?? ''} className={inputClass} />
+        </label>
+      </div>
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium">Nome do responsável</span>
+        <input name="responsavel_nome" maxLength={120} defaultValue={cadastro.responsavelNome ?? ''} className={inputClass} />
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium">{cadastro.logoUrl ? 'Trocar logotipo' : 'Logotipo'}</span>
+        <input name="logo" type="file" accept="image/png,image/jpeg,image/webp" className="block w-full text-sm" />
+        <span className="mt-1 block text-xs text-zinc-500">PNG, JPG ou WebP, até 2 MB.</span>
+      </label>
+      {cadastro.logoUrl && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="remover_logo" value="1" />
+          Remover o logotipo atual
+        </label>
+      )}
+      <button type="submit" className={botaoPrimarioClass}>
+        Salvar cadastro
+      </button>
+    </form>
   )
 }

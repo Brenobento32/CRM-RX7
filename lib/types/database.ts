@@ -325,6 +325,7 @@ export type Database = {
       }
       etapas_funil: {
         Row: {
+          atendente_pode_mover: boolean
           ativo: boolean
           chave: string | null
           cor: Database["public"]["Enums"]["cor_etapa"]
@@ -357,6 +358,7 @@ export type Database = {
           sistema?: boolean
           tipo?: Database["public"]["Enums"]["tipo_etapa"]
           updated_at?: string
+          atendente_pode_mover?: boolean
         }
         Update: {
           ativo?: boolean
@@ -374,6 +376,7 @@ export type Database = {
           sistema?: boolean
           tipo?: Database["public"]["Enums"]["tipo_etapa"]
           updated_at?: string
+          atendente_pode_mover?: boolean
         }
         Relationships: [
           {
@@ -1085,6 +1088,35 @@ export type Database = {
           },
         ]
       }
+      metas_reunioes: {
+        Row: {
+          created_at: string
+          criado_por: string
+          id: string
+          meta_agendadas: number
+          meta_realizadas: number
+          periodo_mes: string
+          tenant_id: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string
+          id?: string
+          meta_agendadas?: number
+          meta_realizadas?: number
+          periodo_mes: string
+          tenant_id?: string
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          meta_agendadas?: number
+          meta_realizadas?: number
+        }
+        Relationships: []
+      }
       metas: {
         Row: {
           created_at: string
@@ -1777,10 +1809,14 @@ export type Database = {
         Row: {
           created_at: string
           criado_por: string | null
+          email: string | null
           id: string
+          logo_path: string | null
           nome: string
+          responsavel_nome: string | null
           slug: string
           somente_leitura: boolean
+          telefone: string | null
           status: Database["public"]["Enums"]["tenant_status"]
           tipo: Database["public"]["Enums"]["tenant_tipo"]
           updated_at: string
@@ -2479,6 +2515,26 @@ export type Database = {
           valor_meta_tcv: number
         }[]
       }
+      metas_reunioes_progresso: {
+        Args: { p_mes: string }
+        Returns: {
+          usuario_id: string
+          nome: string
+          ativo: boolean
+          meta_agendadas: number
+          meta_realizadas: number
+          agendadas: number
+          realizadas: number
+        }[]
+      }
+      agenda_ocupacao: {
+        Args: { p_inicio: string; p_fim: string }
+        Returns: { usuario_id: string; inicio: string; fim: string }[]
+      }
+      empresa_atualizar_contato: {
+        Args: { p_telefone: string | null; p_email: string | null; p_responsavel_nome: string | null; p_logo_path: string | null }
+        Returns: undefined
+      }
       metas_progresso: {
         Args: { p_mes: string }
         Returns: {
@@ -2621,6 +2677,20 @@ export type Database = {
         Returns: undefined
       }
       admin_suspender_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }
+      admin_atualizar_empresa: {
+        Args: {
+          p_tenant: string
+          p_nome: string
+          p_telefone: string | null
+          p_email: string | null
+          p_responsavel_nome: string | null
+          p_logo_path: string | null
+        }
+        Returns: undefined
+      }
+      admin_alterar_slug: { Args: { p_tenant: string; p_slug: string; p_motivo: string }; Returns: undefined }
+      resolver_slug_antigo: { Args: { p_slug: string }; Returns: string | null }
+      slug_reservado: { Args: { p_slug: string }; Returns: boolean }
       admin_reativar_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }
       admin_listar_auditoria: {
         Args: { p_tenant?: string; p_limite?: number }
@@ -2794,8 +2864,8 @@ export type Database = {
       tipo_mensagem: "texto" | "imagem" | "documento" | "audio" | "video"
       tipo_pergunta: "texto_livre" | "escolha_unica" | "escolha_multipla"
       tipo_venda: "tcv" | "mrr"
-      user_role: "gerente" | "closer" | "sdr"
-      tenant_papel: "admin_empresa" | "gerente" | "sdr" | "closer"
+      user_role: "gerente" | "closer" | "sdr" | "vendedor" | "atendente"
+      tenant_papel: "admin_empresa" | "gerente" | "sdr" | "closer" | "vendedor" | "atendente"
       tenant_status: "teste" | "ativo" | "suspenso" | "cancelado" | "arquivo"
       tenant_tipo: "assinante" | "interno" | "arquivo"
       plano_status: "rascunho" | "ativo" | "inativo"
@@ -2975,8 +3045,8 @@ export const Constants = {
       tipo_mensagem: ["texto", "imagem", "documento", "audio", "video"],
       tipo_pergunta: ["texto_livre", "escolha_unica", "escolha_multipla"],
       tipo_venda: ["tcv", "mrr"],
-      user_role: ["gerente", "closer", "sdr"],
-      tenant_papel: ["admin_empresa", "gerente", "sdr", "closer"],
+      user_role: ["gerente", "closer", "sdr", "vendedor", "atendente"],
+      tenant_papel: ["admin_empresa", "gerente", "sdr", "closer", "vendedor", "atendente"],
       tenant_status: ["teste", "ativo", "suspenso", "cancelado", "arquivo"],
       tenant_tipo: ["assinante", "interno", "arquivo"],
       plano_status: ["rascunho", "ativo", "inativo"],

@@ -27,7 +27,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 import { HEADER_TENANT, slugDaRequisicao } from '../_shared/requisicao.ts'
 
-type Papel = 'admin_empresa' | 'gerente' | 'sdr' | 'closer'
+type Papel = 'admin_empresa' | 'gerente' | 'vendedor' | 'atendente' | 'sdr' | 'closer'
 
 type Pedido =
   | { acao: 'convidar'; nome: string; email: string; senha: string | null; telefone: string | null; papel: Papel }
@@ -52,7 +52,7 @@ const erro = (status: number, codigo: string, mensagem: string) => resposta(stat
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PAPEIS: Papel[] = ['admin_empresa', 'gerente', 'sdr', 'closer']
+const PAPEIS: Papel[] = ['admin_empresa', 'gerente', 'vendedor', 'atendente', 'sdr', 'closer']
 
 function texto(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : null

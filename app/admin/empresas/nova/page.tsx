@@ -12,10 +12,14 @@ export const metadata: Metadata = {
 
 type Busca = Promise<Record<string, string | string[] | undefined>>
 
+const secaoClass = 'space-y-4 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900'
+const ajudaClass = 'mt-1 block text-xs text-zinc-500'
+
 /**
- * Onboarding: cria a empresa, vincula (ou convida) o administrador, monta o
- * funil principal com as etapas padrão e abre a assinatura de teste no
- * Starter. Repetir com o mesmo identificador não duplica nada.
+ * Onboarding (só Super Admin): cria a empresa, vincula (ou convida) o gerente
+ * inicial, monta o funil principal com as etapas padrão, abre a assinatura de
+ * teste no Starter e grava o cadastro (contato, responsável, logo). Repetir
+ * com o mesmo endereço não duplica nada.
  */
 export default async function NovaEmpresaPage({ searchParams }: { searchParams: Busca }) {
   const params = await searchParams
@@ -31,18 +35,59 @@ export default async function NovaEmpresaPage({ searchParams }: { searchParams: 
 
       <Aviso ok={params.ok} erro={params.erro} />
 
-      <form action={criarEmpresaAction} className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">Nome da empresa</span>
-          <input name="nome" required maxLength={120} className={inputClass} />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">Identificador na URL</span>
-          <input name="slug" required maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="minha-empresa" className={inputClass} />
-          <span className="mt-1 block text-xs text-zinc-500">Vira /e/minha-empresa. Não muda depois.</span>
-        </label>
-        <fieldset className="space-y-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <legend className="text-sm font-medium">Administrador da empresa</legend>
+      <form action={criarEmpresaAction} className="space-y-4">
+        <fieldset className={secaoClass}>
+          <legend className="sr-only">Empresa</legend>
+          <h2 className="font-semibold">Empresa</h2>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">Nome comercial</span>
+            <input name="nome" required maxLength={120} className={inputClass} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">Endereço da empresa</span>
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 text-sm text-zinc-500">avante.riox7comunicacao.com.br/</span>
+              <input
+                name="slug"
+                required
+                maxLength={63}
+                pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                placeholder="minha-empresa"
+                className={inputClass}
+              />
+            </div>
+            <span className={ajudaClass}>
+              Letras minúsculas, números e hífens. Nomes do sistema (agenda, login, admin…) não podem ser usados.
+              Trocar depois só pelo Super Admin, com registro.
+            </span>
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Telefone (opcional)</span>
+              <input name="telefone" inputMode="tel" placeholder="(11) 99999-9999" className={inputClass} />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">E-mail da empresa (opcional)</span>
+              <input name="email" type="email" className={inputClass} />
+            </label>
+          </div>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">Nome do responsável (opcional)</span>
+            <input name="responsavel_nome" maxLength={120} className={inputClass} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">Logotipo (opcional)</span>
+            <input name="logo" type="file" accept="image/png,image/jpeg,image/webp" className="block w-full text-sm" />
+            <span className={ajudaClass}>PNG, JPG ou WebP, até 2 MB. Aparece no menu da empresa.</span>
+          </label>
+        </fieldset>
+
+        <fieldset className={secaoClass}>
+          <legend className="sr-only">Gerente inicial</legend>
+          <h2 className="font-semibold">Gerente inicial</h2>
+          <p className="text-xs text-zinc-500">
+            Administra só esta empresa: cadastra os usuários dela e configura integrações. Nunca vê outras empresas.
+          </p>
           <label className="block text-sm">
             <span className="mb-1 block">Nome</span>
             <input name="admin_nome" required maxLength={120} className={inputClass} />
@@ -50,14 +95,15 @@ export default async function NovaEmpresaPage({ searchParams }: { searchParams: 
           <label className="block text-sm">
             <span className="mb-1 block">E-mail</span>
             <input name="admin_email" type="email" required className={inputClass} />
-            <span className="mt-1 block text-xs text-zinc-500">Se o e-mail já tiver conta, ela é reaproveitada.</span>
+            <span className={ajudaClass}>Se o e-mail já tiver conta, ela é reaproveitada (só ganha o vínculo).</span>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block">Senha inicial (opcional)</span>
             <input name="admin_senha" type="password" minLength={8} autoComplete="new-password" className={inputClass} />
-            <span className="mt-1 block text-xs text-zinc-500">Vazio: o administrador recebe convite por e-mail.</span>
+            <span className={ajudaClass}>Vazio: o gerente recebe convite por e-mail para criar a senha.</span>
           </label>
         </fieldset>
+
         <button type="submit" className={botaoPrimarioClass}>
           Criar empresa
         </button>

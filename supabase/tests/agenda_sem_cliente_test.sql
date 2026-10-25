@@ -47,7 +47,7 @@ $$;
 grant execute on function public._teste_como(uuid, text) to authenticated, service_role;
 
 create temp table _antes as
-select count(*) as n, md5(string_agg(to_jsonb(e)::text, '|' order by e.id)) as h from public.eventos e;
+select count(*) as n, md5(string_agg(to_jsonb(e)::text, '|' order by e.id)) as h from public.eventos e where e.escopo = 'legado';
 grant select on _antes to authenticated;
 
 do $$

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { exigirCargo } from '@/lib/dal/auth'
+import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 
 /**
  * Placeholder das seções do menu que ainda não foram implementadas.
@@ -19,7 +20,7 @@ const EM_BREVE: Record<string, string> = {
 export default async function EmBrevePage({
   params,
 }: PageProps<'/[...secao]'>) {
-  await getUsuarioAtual()
+  await exigirCargo(CARGOS_POR_AREA.relatorios)
 
   const { secao } = await params
   const titulo = EM_BREVE[secao.join('/')]

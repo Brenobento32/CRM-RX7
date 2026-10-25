@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import { caminhoDaEmpresa, separarPrefixo } from '@/lib/empresa/rota'
 
 /**
- * Mantém `/e/<slug>` na barra de endereço desta aba.
+ * Mantém `/<slug>` na barra de endereço desta aba.
  *
  * Links e `redirect()` do app usam caminhos sem prefixo (`/clientes`). O
  * `proxy.ts` resolve a empresa pela aba de origem, mas um redirect de Server

@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { CorEtapa, EtapaVisual } from '@/lib/utils/etapas'
 import { diaEmSaoPaulo, hojeSaoPaulo, instanteSaoPaulo, somarDias } from '@/lib/utils/formatacao'
 import type { Database } from '@/lib/types/database'
+import { CARGOS_QUE_AGENDAM_PARA_CLOSER, type Cargo } from '@/lib/validations/usuario'
 import type { RegraRecorrencia } from '@/lib/utils/recorrencia'
 import {
   STATUS_EM_ABERTO,
@@ -23,6 +24,9 @@ import {
 
 export type Evento = {
   id: string
+  /** Quem criou (pode ser o SDR/Atendente que agendou para o Closer). */
+  criadoPor: string | null
+  criadoPorNome: string | null
   titulo: string
   descricao: string | null
   tipo: TipoEvento
@@ -59,7 +63,7 @@ const LIMITE_LISTA = 50
 const LIMITE_PERIODO = 500
 
 const COLUNAS = `id, titulo, descricao, tipo, status, inicio, fim, cliente_id,
-  negociacao_id, usuario_id, serie_id,
+  negociacao_id, usuario_id, serie_id, criado_por,
   cliente:clientes!eventos_cliente_id_fkey(nome, empresa),
   negociacao:negociacoes!eventos_negociacao_id_fkey(etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor))`
 
@@ -87,6 +91,7 @@ type Linha = {
   negociacao_id: string | null
   usuario_id: string
   serie_id: string | null
+  criado_por: string | null
   cliente: { nome: string; empresa: string | null } | null
   negociacao: { etapa: EtapaVisual } | null
 }
@@ -106,7 +111,8 @@ async function coresDeUsuarios(ids: string[]): Promise<Map<string, CorEtapa | nu
 
 async function mapear(linhas: Linha[]): Promise<Evento[]> {
   const ids = linhas.map((l) => l.usuario_id)
-  const [nomes, cores] = await Promise.all([nomesDeUsuarios(ids), coresDeUsuarios(ids)])
+  const criadores = linhas.flatMap((l) => (l.criado_por && l.criado_por !== l.usuario_id ? [l.criado_por] : []))
+  const [nomes, cores] = await Promise.all([nomesDeUsuarios([...ids, ...criadores]), coresDeUsuarios(ids)])
 
   return linhas.map((l) => {
     // `nomes` vem de `nomes_de_usuarios`, SECURITY DEFINER — ignora a RLS de
@@ -123,6 +129,8 @@ async function mapear(linhas: Linha[]): Promise<Evento[]> {
 
     return {
       id: l.id,
+      criadoPor: l.criado_por,
+      criadoPorNome: l.criado_por ? (nomes.get(l.criado_por) ?? null) : null,
       titulo: l.titulo,
       descricao: l.descricao,
       tipo: l.tipo,
@@ -290,18 +298,42 @@ export type ResultadoEvento =
 export type ResponsavelAgenda = {
   id: string
   nome: string
-  role: 'gerente' | 'closer' | 'sdr'
+  role: Cargo
   cor: CorEtapa | null
 }
 
 /**
- * Quem pode ser responsável por um evento. Gerente: todos os usuários
- * ativos — o formulário filtra pelo cliente (dono da carteira + gerentes),
- * e o banco confere (`agenda_valida_responsavel`). Closer: só ele mesmo.
+ * Quem pode ser responsável por um evento (o banco confere de novo:
+ * `agenda_pode_definir_responsavel` + `agenda_valida_responsavel`):
+ * - Gerente: todos os usuários ativos da empresa (o formulário filtra pelo
+ *   cliente: dono da carteira + gerentes);
+ * - SDR e Atendente: ele mesmo e os Closers ATIVOS da mesma empresa;
+ * - demais cargos: só ele mesmo.
  */
 export async function listarResponsaveisAgenda(): Promise<ResponsavelAgenda[]> {
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
+
+  if (CARGOS_QUE_AGENDAM_PARA_CLOSER.includes(usuario.role)) {
+    // Perfil de outra pessoa não é legível para SDR/Atendente (RLS): os nomes
+    // vêm de `nomes_de_usuarios` e o vínculo de `membros_empresa_atual`.
+    const membros = await membrosDaEmpresa()
+    const ids = [...membros]
+      .filter(([id, m]) => m.ativo && (id === usuario.id || m.role === 'closer'))
+      .map(([id]) => id)
+    const [nomes, meu] = await Promise.all([
+      nomesDeUsuarios(ids),
+      supabase.from('profiles').select('cor_agenda').eq('id', usuario.id).maybeSingle(),
+    ])
+    return ids
+      .map((id) => ({
+        id,
+        nome: nomes.get(id) ?? 'Usuário',
+        role: membros.get(id)!.role,
+        cor: id === usuario.id ? (meu.data?.cor_agenda ?? null) : null,
+      }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }
 
   let query = supabase.from('profiles').select('id, nome, cor_agenda').eq('ativo', true).order('nome')
   if (usuario.role !== 'gerente') query = query.eq('id', usuario.id)
@@ -351,9 +383,31 @@ export async function obterSerie(serieId: string): Promise<SerieDoEvento | null>
   }
 }
 
-/** Closer é sempre o responsável; gerente escolhe (o banco valida o acesso). */
-function responsavel(usuario: { id: string; role: string }, pedido: string | null) {
-  return usuario.role === 'gerente' && pedido ? pedido : usuario.id
+/**
+ * Gerente escolhe qualquer pessoa; SDR/Atendente escolhem um Closer; os
+ * demais são sempre o responsável. O banco valida a escolha em todos os casos.
+ */
+function responsavel(usuario: { id: string; role: Cargo }, pedido: string | null) {
+  const escolhe = usuario.role === 'gerente' || CARGOS_QUE_AGENDAM_PARA_CLOSER.includes(usuario.role)
+  return escolhe && pedido ? pedido : usuario.id
+}
+
+export type Ocupacao = { usuarioId: string; inicio: string; fim: string }
+
+/**
+ * Horários ocupados dos Closers da empresa (só início e fim — sem título,
+ * cliente ou descrição), para o aviso de conflito de quem agenda para eles.
+ * O banco só responde a Gerente, SDR e Atendente, e só da empresa da aba.
+ */
+export async function listarOcupacao(inicioDia: string, fimDia: string): Promise<Ocupacao[]> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('agenda_ocupacao', {
+    p_inicio: instanteSaoPaulo(inicioDia).toISOString(),
+    p_fim: instanteSaoPaulo(somarDias(fimDia, 1)).toISOString(),
+  })
+  if (error) throw new Error('Não foi possível carregar a disponibilidade.', { cause: error })
+  return (data ?? []).map((o) => ({ usuarioId: o.usuario_id, inicio: o.inicio, fim: o.fim }))
 }
 
 type ArgsSerie = Database['public']['Functions']['criar_serie_eventos']['Args']

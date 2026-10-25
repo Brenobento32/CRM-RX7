@@ -11,6 +11,8 @@ import {
   DIAS_PARADO,
   podeMoverNegociacaoColaborador,
   sdrPodeMoverPara,
+  temTetoDeHandoff,
+  type RegraAtendente,
   tipoExigeModal,
 } from '@/lib/utils/etapas'
 import type { AtualizarFechamentoInput, FechamentoInput, PerdaInput } from '@/lib/validations/funil'
@@ -69,6 +71,8 @@ export type CardFunil = {
   /** Serviços já vinculados (`negociacao_servicos`) — nunca `null`, `[]` quando não há nenhum. */
   servicoIds: string[]
   temperatura: Enums['temperatura_negociacao'] | null
+  /** Responsável (`negociacoes.owner_id`). Só decide a carteira do Atendente (UX); a trava é no banco. */
+  ownerId: string | null
   /** Nome do responsável (`negociacoes.owner_id` → `profiles.nome`) — só atribuição/exibição. Nunca usado para decidir visualização/movimentação de SDR/CLOSER (isso é só `permissoes_colaborador`). */
   responsavel: string | null
   clienteTelefone: string | null
@@ -134,6 +138,7 @@ function paraCardFunil(r: LinhaFunilCards, agora: number, criadoEm: Map<string, 
       // gerador de tipos marca toda coluna de view como anulável.
       servicoIds: r.servico_ids ?? [],
       temperatura: r.temperatura,
+      ownerId: r.owner_id,
       responsavel: r.responsavel_nome,
       clienteTelefone: r.cliente_telefone,
       nichoId: r.nicho_id,
@@ -255,7 +260,13 @@ const NAO_ENCONTRADA: ResultadoFunil = {
  * na API do Supabase, fora da Server Action); esta checagem só evita a
  * viagem ao banco e devolve a MESMA mensagem de forma amigável.
  */
-const MSG_HANDOFF_SDR = 'SDR não pode movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
+const MSG_HANDOFF_SDR = 'SDR e Atendente não podem movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
+
+const MSG_ATENDENTE_ETAPA =
+  'Etapa não liberada para Atendentes. Peça ao gerente para liberar em Configurações do funil → Etapas.'
+const MSG_ATENDENTE_FECHAR = 'Atendente não fecha negociações (Ganha/Perdida é com o Closer, Vendedor ou Gerente).'
+
+const MSG_ATENDENTE_CARTEIRA = 'Atendente só movimenta negociações atribuídas a ele ou da sua carteira.'
 
 const MSG_SEM_PERMISSAO_MOVER = 'Você não tem permissão para mover esta negociação.'
 
@@ -284,7 +295,7 @@ export async function verificarPermissaoMovimento(
   // negociação é tratada como inexistente. owner_id não entra mais aqui.
   const { data: negociacao, error: erroNegociacao } = await supabase
     .from('negociacoes')
-    .select('etapa:etapas_funil!negociacoes_etapa_id_fkey(id, ordem)')
+    .select('owner_id, cliente:clientes!negociacoes_cliente_id_fkey(owner_id), etapa:etapas_funil!negociacoes_etapa_id_fkey(id, ordem)')
     .eq('id', negociacaoId)
     .maybeSingle()
   if (erroNegociacao) return traduzirErro(erroNegociacao)
@@ -294,7 +305,7 @@ export async function verificarPermissaoMovimento(
   const ordemOrigem = Number(negociacao.etapa.ordem)
 
   let ordemLimiteHandoffSdr: number | null = null
-  if (usuario.role === 'sdr') {
+  if (temTetoDeHandoff(usuario.role)) {
     const { data: limite, error: erroLimite } = await supabase
       .from('etapas_funil')
       .select('ordem')
@@ -319,6 +330,24 @@ export async function verificarPermissaoMovimento(
     podeMoverDestino = permissoes.some((p) => p.etapa_id === etapaDestinoId && p.pode_mover === true)
   }
 
+  // Atendente: etapas liberadas pelo Gerente (origem e destino) e destino aberto.
+  let regraAtendente: RegraAtendente | undefined
+  if (usuario.role === 'atendente') {
+    const { data: etapas, error: erroEtapas } = await supabase
+      .from('etapas_funil')
+      .select('id, tipo, atendente_pode_mover')
+      .in('id', [etapaOrigemId, etapaDestinoId])
+    if (erroEtapas) return traduzirErro(erroEtapas)
+    const origem = etapas.find((e) => e.id === etapaOrigemId)
+    const destino = etapas.find((e) => e.id === etapaDestinoId)
+    regraAtendente = {
+      origemLiberada: origem?.atendente_pode_mover === true,
+      destinoLiberado: destino?.atendente_pode_mover === true,
+      destinoAberto: destino?.tipo === 'aberta',
+      daCarteira: negociacao.owner_id === usuario.id || negociacao.cliente?.owner_id === usuario.id,
+    }
+  }
+
   const autorizado = podeMoverNegociacaoColaborador({
     papel: usuario.role,
     podeMoverOrigem,
@@ -326,12 +355,19 @@ export async function verificarPermissaoMovimento(
     ordemOrigem,
     ordemDestino,
     ordemLimiteHandoffSdr,
+    atendente: regraAtendente,
   })
   if (autorizado) return { ok: true }
 
   const bloqueadoPeloHandoff =
-    usuario.role === 'sdr' && !sdrPodeMoverPara(ordemOrigem, ordemDestino, ordemLimiteHandoffSdr)
-  return { ok: false, mensagem: bloqueadoPeloHandoff ? MSG_HANDOFF_SDR : MSG_SEM_PERMISSAO_MOVER }
+    temTetoDeHandoff(usuario.role) && !sdrPodeMoverPara(ordemOrigem, ordemDestino, ordemLimiteHandoffSdr)
+  if (bloqueadoPeloHandoff) return { ok: false, mensagem: MSG_HANDOFF_SDR }
+  if (regraAtendente && !regraAtendente.daCarteira) return { ok: false, mensagem: MSG_ATENDENTE_CARTEIRA }
+  if (regraAtendente && !regraAtendente.destinoAberto) return { ok: false, mensagem: MSG_ATENDENTE_FECHAR }
+  if (regraAtendente && (!regraAtendente.origemLiberada || !regraAtendente.destinoLiberado)) {
+    return { ok: false, mensagem: MSG_ATENDENTE_ETAPA }
+  }
+  return { ok: false, mensagem: MSG_SEM_PERMISSAO_MOVER }
 }
 
 /**

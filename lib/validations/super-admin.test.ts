@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { assinaturaSchema, novaEmpresaSchema, planoSchema } from './super-admin'
+import { assinaturaSchema, novaEmpresaSchema, planoSchema, validarLogo } from './super-admin'
 
 describe('novaEmpresaSchema', () => {
   it('normaliza e aceita convite sem senha', () => {
@@ -53,5 +53,33 @@ describe('assinaturaSchema', () => {
     expect(r.provedor).toBeNull()
     expect(assinaturaSchema.safeParse({ ...base, motivo: '' }).success).toBe(false)
     expect(assinaturaSchema.safeParse({ ...base, status: 'paga' }).success).toBe(false)
+  })
+})
+
+describe('cadastro completo da empresa', () => {
+  const base = { nome: 'Empresa A', slug: 'empresa-a', admin_nome: 'Ana', admin_email: 'a@b.com', admin_senha: '' }
+
+  it('aceita os campos opcionais vazios (viram null) e normaliza telefone/e-mail', () => {
+    const vazio = novaEmpresaSchema.parse({ ...base, telefone: '', email: '', responsavel_nome: '' })
+    expect([vazio.telefone, vazio.email, vazio.responsavel_nome]).toEqual([null, null, null])
+    const cheio = novaEmpresaSchema.parse({ ...base, telefone: '(11) 98888-7777', email: ' Contato@A.com ', responsavel_nome: ' Fulana ' })
+    expect([cheio.telefone, cheio.email, cheio.responsavel_nome]).toEqual(['11988887777', 'contato@a.com', 'Fulana'])
+  })
+
+  it('recusa endereço reservado pelo sistema, telefone curto e e-mail inválido', () => {
+    const campos = { telefone: '', email: '', responsavel_nome: '' }
+    for (const slug of ['agenda', 'login', 'admin', 'e', 'configuracoes']) {
+      expect(novaEmpresaSchema.safeParse({ ...base, ...campos, slug }).success).toBe(false)
+    }
+    expect(novaEmpresaSchema.safeParse({ ...base, ...campos, telefone: '1234' }).success).toBe(false)
+    expect(novaEmpresaSchema.safeParse({ ...base, ...campos, email: 'sem-arroba' }).success).toBe(false)
+  })
+
+  it('logo: só PNG/JPG/WebP até 2 MB; vazio = sem logo', () => {
+    expect(validarLogo(null)).toBeNull()
+    expect(validarLogo(new File([], 'vazio.png', { type: 'image/png' }))).toBeNull()
+    expect(typeof validarLogo(new File(['<svg/>'], 'a.svg', { type: 'image/svg+xml' }))).toBe('string')
+    expect(typeof validarLogo(new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'g.png', { type: 'image/png' }))).toBe('string')
+    expect(validarLogo(new File(['x'], 'ok.webp', { type: 'image/webp' }))).toBeInstanceOf(File)
   })
 })

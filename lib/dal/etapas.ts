@@ -28,7 +28,7 @@ export type EtapaComUso = Etapa & { negociacoesAtuais: number; jaUsada: boolean 
 const PASSO = 1000
 
 const COLUNAS =
-  'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento, etapa_inicial, participa_conversao'
+  'id, funil_id, nome, cor, tipo, ordem, sistema, chave, ativo, pos_fechamento, etapa_inicial, participa_conversao, atendente_pode_mover'
 
 function paraEtapa(e: {
   id: string
@@ -43,6 +43,7 @@ function paraEtapa(e: {
   pos_fechamento: boolean
   etapa_inicial: boolean
   participa_conversao: boolean
+  atendente_pode_mover: boolean
 }): Etapa {
   return {
     id: e.id,
@@ -57,6 +58,7 @@ function paraEtapa(e: {
     posFechamento: e.pos_fechamento,
     etapaInicial: e.etapa_inicial,
     participaConversao: e.participa_conversao,
+    atendentePodeMover: e.atendente_pode_mover,
   }
 }
 
@@ -312,6 +314,25 @@ export async function definirAtivoEtapa(id: string, ativo: boolean): Promise<Res
     .maybeSingle()
   if (error) return traduzirErro(error)
   return data ? { ok: true } : { ok: false, mensagem: 'Etapa não encontrada.' }
+}
+
+/**
+ * Libera (ou bloqueia) a etapa para Atendentes movimentarem. Só Gerente (RLS
+ * `etapas_funil_update`) e só etapa aberta (constraint no banco): Fechada/Ganha
+ * e Perdida ficam protegidas mesmo numa chamada direta à API.
+ */
+export async function definirAtendentePodeMover(id: string, valor: boolean): Promise<ResultadoEtapa> {
+  await exigirGerente()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('etapas_funil')
+    .update({ atendente_pode_mover: valor })
+    .eq('id', id)
+    .eq('tipo', 'aberta')
+    .select('id')
+    .maybeSingle()
+  if (error) return traduzirErro(error)
+  return data ? { ok: true } : { ok: false, mensagem: 'Só etapas abertas podem ser liberadas para Atendentes.' }
 }
 
 /**

@@ -6,7 +6,8 @@ import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { CardsMetaFunil } from '@/components/metas/cards-meta-funil'
 import { PremiumPanel } from '@/components/ui/premium'
 import { removerMetaAction } from '@/lib/actions/metas'
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { exigirCargo } from '@/lib/dal/auth'
+import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import {
   obterProgressoMetas,
   obterProgressoMetasFunis,
@@ -19,7 +20,10 @@ import { formatarData, formatarMoeda } from '@/lib/utils/formatacao'
 import { lerMes, primeiroDiaDoMes, rotuloMes, ultimoDiaDoMes } from '@/lib/utils/periodo'
 import { ALVO_EMPRESA, ROTULO_TIPO_META, TIPOS_META } from '@/lib/validations/meta'
 
+import { obterProgressoReunioes } from '@/lib/dal/metas-reunioes'
+
 import { FormMetasFunis } from './_components/form-metas-funis'
+import { CARGOS_COM_METAS_DE_REUNIOES, SecaoMetasReunioes } from './_components/metas-reunioes'
 import { BarraProgresso, CardMeta, TextoPercentual } from './_components/progresso'
 import { SeletorMes } from './_components/seletor-mes'
 
@@ -31,14 +35,17 @@ export const metadata: Metadata = {
 const botaoPremiumClass = 'rounded-md border border-premium-borda px-3 py-1.5 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto'
 
 export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
-  const eu = await getUsuarioAtual()
+  const eu = await exigirCargo(CARGOS_POR_AREA.metas)
   const { mes: param, erro } = await searchParams
   const mes = lerMes(param)
-  const [{ empresa, pessoas }, progressoFunis] = await Promise.all([
+  const veReunioes = (CARGOS_COM_METAS_DE_REUNIOES as readonly string[]).includes(eu.role)
+  const [{ empresa, pessoas }, progressoFunis, reunioes] = await Promise.all([
     obterProgressoMetas(mes),
     obterProgressoMetasFunis(mes),
+    veReunioes ? obterProgressoReunioes(mes) : Promise.resolve([]),
   ])
   const gerente = eu.role === 'gerente'
+  const temMetaIndividual = eu.role === 'closer' || eu.role === 'vendedor'
 
   return (
     <div className="@container w-full space-y-6 text-premium-texto">
@@ -62,9 +69,9 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
         Visibilidade por papel (regra desta rodada — nunca por CSS, os dados
         já vêm restringidos do servidor, ver metas_progresso):
           GERENTE: Meta da empresa + Desempenho da equipe (todo mundo).
-          CLOSER:  Meta da empresa + Minha meta (só a própria linha —
+          CLOSER/VENDEDOR: Meta da empresa + Minha meta (só a própria linha —
                    `pessoas` já chega do servidor sem a de nenhum colega).
-          SDR:     Só Meta da empresa — `pessoas` já chega vazio pro SDR
+          SDR:     Meta da empresa + Minhas metas de reuniões — `pessoas` chega vazio pro SDR
                    (a RPC nunca devolve nenhuma linha individual pra ele),
                    então nem "Minha meta" nem a tabela fariam sentido aqui.
       */}
@@ -72,9 +79,11 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
 
       <SecaoMetasFunis mes={mes} progresso={progressoFunis} gerente={gerente} />
 
-      {eu.role === 'closer' && <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} />}
+      {temMetaIndividual && <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} />}
 
       {gerente && <TabelaPessoas pessoas={pessoas} mes={mes} />}
+
+      {veReunioes && <SecaoMetasReunioes mes={mes} sdrs={reunioes} gerente={gerente} euId={eu.id} />}
     </div>
   )
 }
@@ -173,7 +182,7 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
   if (pessoas.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
-        Nenhum closer ativo.
+        Nenhum closer ou vendedor ativo.
       </p>
     )
   }
@@ -186,7 +195,7 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
           <thead className="border-b border-premium-borda bg-premium-bg/40 text-xs uppercase tracking-wide text-premium-mudo">
             <tr>
               <th className="px-4 py-3 font-medium" rowSpan={2}>
-                Closer
+                Pessoa
               </th>
               {TIPOS_META.map((tipo) => (
                 <th key={tipo} className="px-4 py-2 text-center font-medium" colSpan={3}>
@@ -210,15 +219,16 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
               <tr key={p.usuarioId}>
                 <td className="px-4 py-3">
                   <span className="font-medium text-premium-texto">{p.nome}</span>
-                  {p.role !== 'closer' && <Etiqueta>gerente</Etiqueta>}
+                  {p.role === 'vendedor' && <Etiqueta>vendedor</Etiqueta>}
+                  {p.role === 'gerente' && <Etiqueta>gerente</Etiqueta>}
                   {!p.ativo && <Etiqueta>desativado</Etiqueta>}
                 </td>
                 {TIPOS_META.map((tipo) => (
                   <LinhaTipo key={tipo} dados={p[tipo]} nome={p.nome} />
                 ))}
                 <td className="px-4 py-3">
-                  {/* Meta individual só para closer ativo; as demais linhas só mostram o vendido. */}
-                  {p.role === 'closer' && (p.ativo || p.tcv.metaId || p.mrr.metaId) && (
+                  {/* Meta individual só para closer/vendedor ativo; as demais linhas só mostram o vendido. */}
+                  {(p.role === 'closer' || p.role === 'vendedor') && (p.ativo || p.tcv.metaId || p.mrr.metaId) && (
                     <div className="flex flex-col items-end gap-1">
                       {TIPOS_META.map((tipo) => (
                         <AcoesMeta

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { botaoSecundarioClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import {
+  definirAtendentePodeMoverAction,
   definirAtivoEtapaAction,
   definirEtapaInicialAction,
   excluirEtapaAction,
@@ -40,6 +41,9 @@ export function TabelaEtapas({
             <th className="px-4 py-3 font-medium">Tipo</th>
             <th className="px-4 py-3 text-right font-medium">Negociações</th>
             <th className="px-4 py-3 font-medium">Posição</th>
+            <th className="px-4 py-3 font-medium" title="Etapas que Atendentes podem movimentar (origem e destino)">
+              Atendentes
+            </th>
             <th className="px-4 py-3" />
           </tr>
         </thead>
@@ -108,6 +112,28 @@ export function TabelaEtapas({
                     </span>
                   ) : (
                     <span className="text-xs text-zinc-500">{e.sistema ? 'Fixa' : '—'}</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {e.tipo !== 'aberta' ? (
+                    <span className="text-xs text-zinc-500" title="Fechamento e perda nunca são liberados para Atendentes">
+                      Protegida
+                    </span>
+                  ) : (
+                    <form action={definirAtendentePodeMoverAction.bind(null, funilId, e.id, !e.atendentePodeMover)}>
+                      <button
+                        type="submit"
+                        aria-pressed={e.atendentePodeMover}
+                        aria-label={`${e.atendentePodeMover ? 'Bloquear' : 'Liberar'} a etapa ${e.nome} para Atendentes`}
+                        className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+                          e.atendentePodeMover
+                            ? 'border-premium-acento bg-premium-acento-suave text-premium-acento'
+                            : 'border-zinc-300 text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        {e.atendentePodeMover ? 'Liberada' : 'Bloqueada'}
+                      </button>
+                    </form>
                   )}
                 </td>
                 <td className="px-4 py-3">

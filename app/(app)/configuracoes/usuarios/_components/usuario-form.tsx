@@ -11,7 +11,7 @@ import type { EstadoFormUsuario } from '@/lib/actions/usuarios'
 import type { CorEtapa } from '@/lib/utils/etapas'
 import {
   FOTO_TIPOS,
-  PAPEIS,
+  CARGOS_EM_ORDEM,
   ROTULO_PAPEL,
   type CampoUsuario,
 } from '@/lib/validations/usuario'
@@ -176,7 +176,7 @@ export function UsuarioForm({
             aria-invalid={invalido('role')}
             className={inputClass}
           >
-            {PAPEIS.map((p) => (
+            {CARGOS_EM_ORDEM.map((p) => (
               <option key={p} value={p}>
                 {ROTULO_PAPEL[p]}
               </option>

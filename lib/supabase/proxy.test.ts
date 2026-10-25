@@ -69,8 +69,8 @@ describe('proxy: sessão renovada chega às páginas na mesma requisição', () 
     expect(cookieRepassado(resposta)).toContain('rx7_empresa=teste-avante-b')
   })
 
-  it('rota de empresa (/e/<slug>/...) reescrita repassa o token NOVO e o slug da URL', async () => {
-    const resposta = await proxy(pedido('/e/teste-avante-b/clientes'))
+  it('rota de empresa (/<slug>/...) reescrita repassa o token NOVO e o slug da URL', async () => {
+    const resposta = await proxy(pedido('/teste-avante-b/clientes'))
     expect(resposta.headers.get('x-middleware-rewrite')).toContain('/clientes')
     expect(cookieRepassado(resposta)).toContain(`${COOKIE_SESSAO}=TOKEN-NOVO`)
     expect(cookieRepassado(resposta)).not.toContain('TOKEN-VELHO')
@@ -78,7 +78,7 @@ describe('proxy: sessão renovada chega às páginas na mesma requisição', () 
   })
 
   it('o navegador recebe o cookie renovado e a resposta não pode ir para cache compartilhado', async () => {
-    for (const caminho of ['/empresas', '/e/teste-avante-b/clientes']) {
+    for (const caminho of ['/empresas', '/teste-avante-b/clientes']) {
       const resposta = await proxy(pedido(caminho))
       expect(resposta.headers.get('set-cookie') ?? '').toContain(`${COOKIE_SESSAO}=TOKEN-NOVO`)
       expect(resposta.headers.get('cache-control')).toBe(ANTI_CACHE['cache-control'])
@@ -97,5 +97,44 @@ describe('proxy: sessão renovada chega às páginas na mesma requisição', () 
     // Sem refresh o Next pode nem reescrever o cookie; se reescrever, é o mesmo.
     if (repassado) expect(repassado).toContain(`${COOKIE_SESSAO}=TOKEN-VELHO`)
     expect(resposta.headers.get('set-cookie')).toBeNull()
+  })
+})
+
+describe('proxy: URL /<slug>/ e links antigos /e/<slug>/', () => {
+  beforeEach(() => {
+    renovar = false
+  })
+
+  it('link antigo /e/<slug>/x vai para /<slug>/x com a mesma busca (308)', async () => {
+    const resposta = await proxy(pedido('/e/teste-avante-b/agenda?dia=2026-10-27&nova=1'))
+    expect(resposta.status).toBe(308)
+    expect(new URL(resposta.headers.get('location')!).pathname + new URL(resposta.headers.get('location')!).search).toBe(
+      '/teste-avante-b/agenda?dia=2026-10-27&nova=1',
+    )
+    const raiz = await proxy(pedido('/e/teste-avante-b'))
+    expect(new URL(raiz.headers.get('location')!).pathname).toBe('/teste-avante-b')
+  })
+
+  it('header de empresa forjado nunca vence o slug da URL', async () => {
+    const resposta = await proxy(pedido('/teste-avante-b/clientes', { 'x-rx7-empresa': 'teste-avante-a' }))
+    expect(resposta.headers.get('x-middleware-request-x-rx7-empresa')).toBe('teste-avante-b')
+  })
+
+  it('rota interna reservada (/agenda) não vira empresa: completa com a empresa da aba', async () => {
+    const resposta = await proxy(pedido('/agenda'))
+    expect(resposta.status).toBe(307)
+    expect(new URL(resposta.headers.get('location')!).pathname).toBe('/teste-avante-b/agenda')
+  })
+
+  it('empresa na URL + rota pública: vai para a rota pública, sem empresa', async () => {
+    const resposta = await proxy(pedido('/teste-avante-b/login'))
+    expect(new URL(resposta.headers.get('location')!).pathname).toBe('/login')
+  })
+
+  it('sem sessão: /<slug>/x pede login guardando o destino (sem laço)', async () => {
+    const resposta = await proxy(new NextRequest('https://avante.exemplo.test/teste-avante-a/agenda'))
+    const destino = new URL(resposta.headers.get('location')!)
+    expect(destino.pathname).toBe('/login')
+    expect(destino.searchParams.get('next')).toBe('/teste-avante-a/agenda')
   })
 })

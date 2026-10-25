@@ -5,12 +5,9 @@ import { inputClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import type { ResponsavelAgenda } from '@/lib/dal/eventos'
 import { responsaveisElegiveis } from '@/lib/utils/agenda'
+import { CARGOS_QUE_AGENDAM_PARA_CLOSER, ROTULO_CARGO } from '@/lib/validations/usuario'
 
-const ROTULO_PAPEL: Record<ResponsavelAgenda['role'], string> = {
-  gerente: 'Gerente',
-  closer: 'Closer',
-  sdr: 'SDR',
-}
+const ROTULO_PAPEL: Record<ResponsavelAgenda['role'], string> = ROTULO_CARGO
 
 function Ponto({ cor }: { cor: ResponsavelAgenda['cor'] }) {
   return cor ? (
@@ -27,7 +24,9 @@ function Ponto({ cor }: { cor: ResponsavelAgenda['cor'] }) {
  *   um cliente (aberta pela ficha do cliente), só quem enxerga esse cliente —
  *   o dono da carteira ou um gerente — mesma regra do banco
  *   (`agenda_valida_responsavel`).
- * - Closer/SDR: sempre ele mesmo (a RLS não deixa agendar para outra pessoa).
+ * - SDR/Atendente: ele mesmo ou um Closer ativo da empresa (o banco recusa
+ *   qualquer outro cargo ou empresa).
+ * - Vendedor/Closer: sempre ele mesmo.
  */
 export function CampoResponsavel({
   souGerente,
@@ -47,7 +46,8 @@ export function CampoResponsavel({
   onChange: (id: string) => void
   erro?: string
 }) {
-  if (!souGerente) {
+  const agendaParaCloser = !souGerente && CARGOS_QUE_AGENDAM_PARA_CLOSER.includes(eu.role) && responsaveis.length > 1
+  if (!souGerente && !agendaParaCloser) {
     return (
       <div>
         <p className="mb-1.5 text-sm font-medium">Responsável</p>
@@ -60,7 +60,7 @@ export function CampoResponsavel({
     )
   }
 
-  const elegiveis = ownerId ? responsaveisElegiveis(responsaveis, ownerId) : responsaveis
+  const elegiveis = souGerente && ownerId ? responsaveisElegiveis(responsaveis, ownerId) : responsaveis
   const escolhido = elegiveis.find((r) => r.id === valor)
 
   return (
@@ -86,9 +86,11 @@ export function CampoResponsavel({
         </select>
       </div>
       <p className="mt-1.5 text-xs text-zinc-500">
-        {ownerId
-          ? 'Reunião ligada a um cliente: só o dono da carteira ou um gerente.'
-          : 'Qualquer usuário ativo da sua empresa. A cor da reunião é a do responsável.'}
+        {agendaParaCloser
+          ? 'Você ou um Closer ativo da sua empresa. O aviso de conflito usa a agenda dele (só horários).'
+          : ownerId
+            ? 'Reunião ligada a um cliente: só o dono da carteira ou um gerente.'
+            : 'Qualquer usuário ativo da sua empresa. A cor da reunião é a do responsável.'}
       </p>
       <ErroCampo mensagem={erro} />
     </div>

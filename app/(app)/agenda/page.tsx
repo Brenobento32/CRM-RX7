@@ -13,12 +13,13 @@ import {
   listarAguardandoStatus,
   listarEventosNoPeriodo,
   listarOpcoesClientes,
+  listarOcupacao,
   listarResponsaveisAgenda,
   obterEvento,
   obterSerie,
   type Evento,
 } from '@/lib/dal/eventos'
-import { duracaoDoFormulario } from '@/lib/utils/agenda'
+import { duracaoDoFormulario, type Ocupado } from '@/lib/utils/agenda'
 import {
   VISAO_PADRAO,
   hrefAgenda,
@@ -32,6 +33,7 @@ import {
 import { diaEmSaoPaulo, diaValido, formatarHora, hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { descreverRecorrencia } from '@/lib/utils/recorrencia'
 import { statusEmAberto } from '@/lib/validations/evento'
+import { CARGOS_QUE_AGENDAM_PARA_CLOSER } from '@/lib/validations/usuario'
 
 import { CalendarioToolbar, FiltroResponsavel } from './_components/calendario-toolbar'
 import { GradeHoras } from './_components/grade-horas'
@@ -100,6 +102,26 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
 
   const eu = responsaveis.find((r) => r.id === usuario.id) ?? { id: usuario.id, nome: usuario.nome, role: usuario.role, cor: null }
   const modalReuniao = nova || editarId ? await dadosDoModal() : null
+
+  // Aviso de conflito: as reuniões que eu vejo + (SDR/Atendente) a ocupação
+  // dos Closers no período, só horários — sem título nem cliente de ninguém.
+  const ocupados: Ocupado[] = eventos.map((e) => ({
+    id: e.id,
+    usuarioId: e.usuarioId,
+    titulo: e.titulo,
+    inicio: e.inicio,
+    fim: e.fim,
+    status: e.status,
+  }))
+  if (modalReuniao && CARGOS_QUE_AGENDAM_PARA_CLOSER.includes(usuario.role)) {
+    const vistos = new Set(ocupados.map((o) => `${o.usuarioId}|${o.inicio}|${o.fim}`))
+    for (const [i, o] of (await listarOcupacao(janela.inicio, janela.fim)).entries()) {
+      const chave = `${o.usuarioId}|${o.inicio}|${o.fim}`
+      if (vistos.has(chave)) continue
+      vistos.add(chave)
+      ocupados.push({ id: `ocupado-${i}`, usuarioId: o.usuarioId, titulo: 'Horário ocupado', inicio: o.inicio, fim: o.fim, status: 'agendado' })
+    }
+  }
 
   async function dadosDoModal(): Promise<DadosModalReuniao> {
     if (editarId) {
@@ -254,14 +276,7 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
           responsaveis={responsaveis}
           eu={{ ...eu, gerente }}
           erro={erroAcao}
-          ocupados={eventos.map((e) => ({
-            id: e.id,
-            usuarioId: e.usuarioId,
-            titulo: e.titulo,
-            inicio: e.inicio,
-            fim: e.fim,
-            status: e.status,
-          }))}
+          ocupados={ocupados}
           fecharHref={link({ evento: undefined, editar: undefined, nova: false })}
         />
       )}

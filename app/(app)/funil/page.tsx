@@ -10,6 +10,7 @@ import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { obterPermissoesFunil } from '@/lib/dal/permissoes'
 import { listarServicosAtivos } from '@/lib/dal/servicos'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
+import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 
 import { BarraFunil } from './_components/barra-funil'
 import { Kanban } from './_components/kanban'
@@ -72,12 +73,14 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
           usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Negociações das etapas liberadas pelo gerente.'
         } Fechadas e perdidas aparecem por ${DIAS_VISIVEIS_ENCERRADOS} dias.`}
         acoes={
-          <Link
-            href={`/funil/metricas?funil=${funilSelecionado.id}`}
-            className="rounded-lg border border-premium-borda px-3 py-2 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto"
-          >
-            Ver métricas
-          </Link>
+          (CARGOS_POR_AREA.relatorios as readonly string[]).includes(usuario.role) ? (
+            <Link
+              href={`/funil/metricas?funil=${funilSelecionado.id}`}
+              className="rounded-lg border border-premium-borda px-3 py-2 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto"
+            >
+              Ver métricas
+            </Link>
+          ) : undefined
         }
         usuario={usuario}
       />
@@ -91,7 +94,7 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
 
       <Kanban
         cards={cardsFiltrados}
-        etapas={etapasExibidas.map(({ id, nome, cor, tipo, etapaInicial, ordem, chave }) => ({
+        etapas={etapasExibidas.map(({ id, nome, cor, tipo, etapaInicial, ordem, chave, atendentePodeMover }) => ({
           id,
           nome,
           cor,
@@ -99,11 +102,13 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
           etapaInicial,
           ordem,
           chave,
+          atendentePodeMover,
         }))}
         papel={usuario.role}
         etapasMovimentaveis={usuario.role === 'gerente' ? null : [...permissoes.etapasMovimentaveis]}
         servicos={servicos}
         whatsappHabilitado={funilSelecionado.whatsappHabilitado}
+        meuId={usuario.id}
       />
     </div>
   )

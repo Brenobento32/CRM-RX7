@@ -5,13 +5,23 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import {
+  alterarSlugEmpresa,
   criarEmpresa,
+  salvarCadastroEmpresa,
+  slugEmUso,
   definirAssinatura,
   reativarEmpresa,
   salvarPlano,
   suspenderEmpresa,
 } from '@/lib/dal/super-admin'
-import { assinaturaSchema, motivoSchema, novaEmpresaSchema, planoSchema } from '@/lib/validations/super-admin'
+import {
+  assinaturaSchema,
+  dadosEmpresaSchema,
+  motivoSchema,
+  novaEmpresaSchema,
+  planoSchema,
+  validarLogo,
+} from '@/lib/validations/super-admin'
 
 /**
  * Ações do Super Admin. Cada DAL confere o Super Admin, e cada RPC confere
@@ -30,21 +40,65 @@ function comMensagem(destino: string, chave: 'erro' | 'ok', mensagem: string) {
   return `${destino}${destino.includes('?') ? '&' : '?'}${chave}=${encodeURIComponent(mensagem)}`
 }
 
+/**
+ * Onboarding completo: a empresa e o gerente inicial pela Edge Function (como
+ * sempre) e, logo em seguida, o cadastro (contato, responsável, logo). Se só
+ * o cadastro falhar, a empresa já existe: a tela dela abre com o aviso.
+ */
 export async function criarEmpresaAction(formData: FormData): Promise<void> {
   const destino = '/admin/empresas/nova'
   const parsed = novaEmpresaSchema.safeParse({
     nome: texto(formData, 'nome'),
     slug: texto(formData, 'slug'),
+    telefone: texto(formData, 'telefone'),
+    email: texto(formData, 'email'),
+    responsavel_nome: texto(formData, 'responsavel_nome'),
     admin_nome: texto(formData, 'admin_nome'),
     admin_email: texto(formData, 'admin_email'),
     admin_senha: texto(formData, 'admin_senha'),
   })
   if (!parsed.success) redirect(comMensagem(destino, 'erro', parsed.error.issues[0]?.message ?? 'Dados inválidos.'))
+  const logo = validarLogo(formData.get('logo'))
+  if (typeof logo === 'string') redirect(comMensagem(destino, 'erro', logo))
 
-  const r = await criarEmpresa(parsed.data)
-  if (!r.ok) redirect(comMensagem(destino, 'erro', r.mensagem))
+  // provisionar_empresa REAPROVEITA uma empresa existente com o mesmo endereço
+  // (dando o vínculo de administrador ao e-mail informado). No cadastro de
+  // empresa nova isso nunca é o que se quer: endereço em uso é recusado aqui.
+  if (await slugEmUso(parsed.data.slug)) {
+    redirect(comMensagem(destino, 'erro', 'Já existe uma empresa com esse endereço. Escolha outro.'))
+  }
+
+  const { telefone, email, responsavel_nome, ...onboarding } = parsed.data
+  const r = await criarEmpresa(onboarding)
+  if (!r.ok || !r.id) redirect(comMensagem(destino, 'erro', r.ok ? 'Não foi possível criar a empresa.' : r.mensagem))
   revalidatePath('/admin')
-  redirect(comMensagem(`/admin/empresas/${r.id}`, 'ok', 'Empresa criada com funil inicial e assinatura de teste.'))
+
+  const paginaEmpresa = `/admin/empresas/${r.id}`
+  if (telefone || email || responsavel_nome || logo) {
+    const c = await salvarCadastroEmpresa(r.id, { nome: onboarding.nome, telefone, email, responsavel_nome }, logo, false)
+    if (!c.ok) redirect(comMensagem(paginaEmpresa, 'erro', `Empresa criada, mas o cadastro não foi salvo: ${c.mensagem}`))
+  }
+  redirect(comMensagem(paginaEmpresa, 'ok', 'Empresa criada com gerente inicial, funil e assinatura de teste.'))
+}
+
+export async function salvarCadastroEmpresaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+
+  const parsed = dadosEmpresaSchema.safeParse({
+    nome: texto(formData, 'nome'),
+    telefone: texto(formData, 'telefone'),
+    email: texto(formData, 'email'),
+    responsavel_nome: texto(formData, 'responsavel_nome'),
+  })
+  if (!parsed.success) redirect(comMensagem(destino, 'erro', parsed.error.issues[0]?.message ?? 'Dados inválidos.'))
+  const logo = validarLogo(formData.get('logo'))
+  if (typeof logo === 'string') redirect(comMensagem(destino, 'erro', logo))
+
+  const r = await salvarCadastroEmpresa(id.data, parsed.data, logo, formData.get('remover_logo') === '1')
+  revalidatePath('/', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Cadastro da empresa salvo.' : r.mensagem))
 }
 
 export async function salvarPlanoAction(formData: FormData): Promise<void> {
@@ -109,4 +163,19 @@ export async function alterarSituacaoEmpresaAction(formData: FormData): Promise<
   redirect(
     comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? (acao === 'suspender' ? 'Empresa suspensa.' : 'Empresa reativada.') : r.mensagem),
   )
+}
+
+export async function alterarSlugEmpresaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+
+  const slug = novaEmpresaSchema.shape.slug.safeParse(texto(formData, 'slug'))
+  if (!slug.success) redirect(comMensagem(destino, 'erro', slug.error.issues[0]?.message ?? 'Endereço inválido.'))
+  const motivo = motivoSchema.safeParse(texto(formData, 'motivo'))
+  if (!motivo.success) redirect(comMensagem(destino, 'erro', motivo.error.issues[0]?.message ?? 'Informe o motivo.'))
+
+  const r = await alterarSlugEmpresa(id.data, slug.data, motivo.data)
+  revalidatePath('/admin', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? `Endereço alterado para /${slug.data}. O antigo redireciona para o novo.` : r.mensagem))
 }

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
+import { slugDeEmpresa } from '@/lib/empresa/rota'
 import { Constants } from '@/lib/types/database'
+import { somenteDigitos } from '@/lib/utils/documentos'
 
 /** Validação dos formulários do Super Admin. O banco revalida tudo (permissão, arquivo, limites). */
 
@@ -58,9 +60,56 @@ const diaOpcional = z
   .refine((v) => v === '' || DIA.test(v), 'Data inválida.')
   .transform((v) => (v === '' ? null : `${v}T12:00:00-03:00`))
 
+/** Dados de cadastro da empresa (todos opcionais, exceto o nome). */
+/** Campo opcional: ausente ou vazio é a mesma coisa. */
+const opcional = z
+  .string()
+  .optional()
+  .transform((v) => (v ?? '').trim())
+
+const telefoneEmpresa = opcional
+  .transform(somenteDigitos)
+  .refine((v) => v === '' || (v.length >= 10 && v.length <= 13), 'Informe o telefone com DDD.')
+  .transform((v) => (v === '' ? null : v))
+const emailEmpresa = opcional
+  .transform((v) => v.toLowerCase())
+  .refine((v) => v === '' || z.email().safeParse(v).success, 'E-mail da empresa inválido.')
+  .transform((v) => (v === '' ? null : v))
+const responsavelEmpresa = opcional
+  .refine((v) => v.length <= 120, 'Nome do responsável: no máximo 120 caracteres.')
+  .transform((v) => (v === '' ? null : v))
+
+const camposCadastroEmpresa = {
+  nome: z.string().trim().min(2, 'Informe o nome comercial da empresa.').max(120),
+  telefone: telefoneEmpresa,
+  email: emailEmpresa,
+  responsavel_nome: responsavelEmpresa,
+}
+
+/** Edição dos dados de cadastro (Super Admin, ou admin da própria empresa no banco). */
+export const dadosEmpresaSchema = z.object(camposCadastroEmpresa)
+export type DadosEmpresaInput = z.infer<typeof dadosEmpresaSchema>
+
+/** Logo: mesmas regras do bucket `empresa-logos` (sem SVG, que pode carregar script). */
+export const LOGO_TIPOS = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' } as const
+export const LOGO_TAMANHO_MAXIMO = 2 * 1024 * 1024
+
+export function validarLogo(arquivo: FormDataEntryValue | null): File | null | string {
+  if (!(arquivo instanceof File) || arquivo.size === 0) return null
+  if (!(arquivo.type in LOGO_TIPOS)) return 'Use uma imagem PNG, JPG ou WebP para o logotipo.'
+  if (arquivo.size > LOGO_TAMANHO_MAXIMO) return 'O logotipo pode ter no máximo 2 MB.'
+  return arquivo
+}
+
 export const novaEmpresaSchema = z.object({
-  nome: z.string().trim().min(2, 'Informe o nome da empresa.').max(120),
-  slug: z.string().trim().toLowerCase().max(63).regex(SLUG, 'Use letras minúsculas, números e hífens (ex.: minha-empresa).'),
+  ...camposCadastroEmpresa,
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(63)
+    .regex(SLUG, 'Use letras minúsculas, números e hífens (ex.: minha-empresa).')
+    .refine((v) => slugDeEmpresa(v), 'Esse endereço é reservado pelo sistema. Escolha outro.'),
   admin_nome: z.string().trim().min(2, 'Informe o nome do administrador.').max(120),
   admin_email: z.email('E-mail inválido.').trim().toLowerCase(),
   admin_senha: z
@@ -101,3 +150,11 @@ export const assinaturaSchema = z.object({
 export type AssinaturaInput = z.infer<typeof assinaturaSchema>
 
 export const motivoSchema = z.string().trim().min(3, 'Informe o motivo.').max(500)
+
+/** O que o Gerente pode mudar nos dados da própria empresa (nunca nome, endereço, plano). */
+export const contatoEmpresaSchema = z.object({
+  telefone: telefoneEmpresa,
+  email: emailEmpresa,
+  responsavel_nome: responsavelEmpresa,
+})
+export type ContatoEmpresaInput = z.infer<typeof contatoEmpresaSchema>

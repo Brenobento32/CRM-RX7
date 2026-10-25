@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
-import { ROTULO_PAPEL } from '@/lib/validations/usuario'
+import { ROTULO_CARGO } from '@/lib/validations/usuario'
 
 import { PerfilForm } from './_components/perfil-form'
 
@@ -21,7 +21,7 @@ export default async function PerfilPage() {
       <div>
         <h1 className="text-2xl font-semibold">Meu perfil</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {data?.email ?? ''} · {ROTULO_PAPEL[usuario.role]}. E-mail e perfil de acesso são alterados pelo gerente.
+          {data?.email ?? ''} · {ROTULO_CARGO[usuario.role]}. E-mail e perfil de acesso são alterados pelo gerente.
         </p>
       </div>
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">

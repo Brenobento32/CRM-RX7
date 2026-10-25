@@ -307,3 +307,39 @@ describe('podeMoverNegociacaoColaborador', () => {
     expect(resultado).toBe(false)
   })
 })
+
+describe('podeMoverNegociacaoColaborador — Atendente e Vendedor', () => {
+  const base = {
+    podeMoverOrigem: true,
+    podeMoverDestino: true,
+    ordemOrigem: 500,
+    ordemDestino: 1000,
+    ordemLimiteHandoffSdr: 2000,
+  }
+  const liberada = { origemLiberada: true, destinoLiberado: true, destinoAberto: true, daCarteira: true }
+
+  it('Atendente move entre etapas liberadas, na própria carteira', () => {
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', atendente: liberada })).toBe(true)
+  })
+
+  it('Atendente sem a regra da empresa: negado por padrão', () => {
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente' })).toBe(false)
+  })
+
+  it('Atendente não move negociação fora da carteira, nem etapa não liberada, nem para fechamento', () => {
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', atendente: { ...liberada, daCarteira: false } })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', atendente: { ...liberada, origemLiberada: false } })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', atendente: { ...liberada, destinoLiberado: false } })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', atendente: { ...liberada, destinoAberto: false } })).toBe(false)
+  })
+
+  it('Atendente: liberação da empresa não dispensa a permissão individual nem o teto do handoff', () => {
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', podeMoverDestino: false, atendente: liberada })).toBe(false)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'atendente', ordemDestino: 3000, atendente: liberada })).toBe(false)
+  })
+
+  it('Vendedor: sem teto de handoff, mas só com permissão configurada', () => {
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'vendedor', ordemDestino: 100000 })).toBe(true)
+    expect(podeMoverNegociacaoColaborador({ ...base, papel: 'vendedor', podeMoverDestino: false })).toBe(false)
+  })
+})

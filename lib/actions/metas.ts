@@ -5,8 +5,10 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { criarMeta, editarMeta, removerMeta, salvarMetasFunis, type ItemMetaFunil, type ResultadoMeta } from '@/lib/dal/metas'
+import { obterProgressoReunioes, salvarMetasReunioes, type ItemMetaReunioes } from '@/lib/dal/metas-reunioes'
 import { mesValido } from '@/lib/utils/periodo'
 import { criarMetaSchema, editarMetaSchema, TIPOS_META, valorMetaFunil, type CampoMeta } from '@/lib/validations/meta'
+import { quantidadeMetaReunioes } from '@/lib/validations/meta-reunioes'
 
 export type EstadoFormMeta = {
   erro?: string
@@ -133,5 +135,43 @@ export async function salvarMetasFunisAction(
   if (!r.ok) {
     redirect(`${destino}&erro=${encodeURIComponent(r.mensagem)}`)
   }
+  redirect(destino)
+}
+
+/**
+ * Metas de reuniões dos SDRs no mês (só Gerente). A lista de SDRs e os
+ * valores atuais vêm do servidor (`obterProgressoReunioes`), nunca do
+ * formulário. Campo vazio = mantém o valor atual; tudo é gravado num único
+ * upsert (tudo ou nada).
+ */
+export async function salvarMetasReunioesAction(mes: string, formData: FormData): Promise<void> {
+  if (!mesValido(mes)) redirect('/metas')
+  const destino = `/metas?mes=${mes}`
+
+  const sdrs = await obterProgressoReunioes(mes)
+  const itens: ItemMetaReunioes[] = []
+  const mensagens: string[] = []
+
+  for (const sdr of sdrs) {
+    const ag = quantidadeMetaReunioes.safeParse(String(formData.get(`agendadas_${sdr.usuarioId}`) ?? ''))
+    const re = quantidadeMetaReunioes.safeParse(String(formData.get(`realizadas_${sdr.usuarioId}`) ?? ''))
+    if (!ag.success) mensagens.push(`${sdr.nome} (agendadas): ${ag.error.issues[0]?.message ?? 'valor inválido.'}`)
+    if (!re.success) mensagens.push(`${sdr.nome} (realizadas): ${re.error.issues[0]?.message ?? 'valor inválido.'}`)
+    if (!ag.success || !re.success) continue
+    if (ag.data === null && re.data === null) continue // nada preenchido para este SDR
+
+    itens.push({
+      usuarioId: sdr.usuarioId,
+      metaAgendadas: ag.data ?? sdr.agendadas.meta,
+      metaRealizadas: re.data ?? sdr.realizadas.meta,
+    })
+  }
+
+  if (mensagens.length > 0) redirect(`${destino}&erro=${encodeURIComponent(mensagens.join(' '))}`)
+  if (itens.length === 0) redirect(destino)
+
+  const r = await salvarMetasReunioes(mes, itens)
+  revalidatePath('/metas')
+  if (!r.ok) redirect(`${destino}&erro=${encodeURIComponent(r.mensagem)}`)
   redirect(destino)
 }

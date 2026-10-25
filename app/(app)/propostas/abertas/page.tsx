@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { botaoSecundarioClass } from '@/components/ui/estilos'
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { exigirCargo } from '@/lib/dal/auth'
+import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import { listarPropostasAbertas } from '@/lib/dal/propostas'
 import { formatarDia, formatarMoeda } from '@/lib/utils/formatacao'
 import { ROTULO_FORMA_PAGAMENTO } from '@/lib/validations/negociacao'
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 }
 
 export default async function PropostasAbertasPage() {
-  const eu = await getUsuarioAtual()
+  const eu = await exigirCargo(CARGOS_POR_AREA.propostas)
   const propostas = await listarPropostasAbertas()
   const total = propostas.reduce((t, p) => t + p.valorProposta, 0)
 

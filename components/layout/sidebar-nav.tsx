@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRotaInterna } from '@/lib/empresa/use-rota-interna'
 import { useState } from 'react'
 
-import type { Database } from '@/lib/types/database'
+import { CARGOS_POR_AREA, type Cargo } from '@/lib/validations/usuario'
 
 import {
   IconeAgenda,
@@ -18,13 +18,14 @@ import {
   IconeSeta,
 } from './icones'
 
-type Papel = Database['public']['Enums']['user_role']
+type Papel = Cargo
 type Icone = (p: { className?: string }) => React.ReactNode
 
 /** `secao`: título pequeno mostrado ANTES deste subitem (ex.: "Configurações do funil"). */
-type Subitem = { href: string; rotulo: string; somenteGerente?: boolean; secao?: string }
-type ItemSimples = { href: string; rotulo: string; Icone: Icone }
-type Grupo = { base: string; rotulo: string; Icone: Icone; filhos: Subitem[] }
+/** `cargos`: quem vê o item (matriz de cargos); sem a lista, todos os cargos. */
+type Subitem = { href: string; rotulo: string; somenteGerente?: boolean; secao?: string; cargos?: readonly Cargo[] }
+type ItemSimples = { href: string; rotulo: string; Icone: Icone; cargos?: readonly Cargo[] }
+type Grupo = { base: string; rotulo: string; Icone: Icone; filhos: Subitem[]; cargos?: readonly Cargo[] }
 
 const MENU: (ItemSimples | Grupo)[] = [
   { href: '/', rotulo: 'Início', Icone: IconeInicio },
@@ -35,7 +36,7 @@ const MENU: (ItemSimples | Grupo)[] = [
     Icone: IconeFunil,
     filhos: [
       { href: '/funil', rotulo: 'Kanban' },
-      { href: '/funil/metricas', rotulo: 'Métricas' },
+      { href: '/funil/metricas', rotulo: 'Métricas', cargos: CARGOS_POR_AREA.relatorios },
       { href: '/funil/leads', rotulo: 'Leads' },
       { href: '/configuracoes/etapas', rotulo: 'Etapas', somenteGerente: true, secao: 'Configurações do funil' },
       { href: '/configuracoes/nichos', rotulo: 'Nichos', somenteGerente: true },
@@ -43,11 +44,12 @@ const MENU: (ItemSimples | Grupo)[] = [
     ],
   },
   { href: '/clientes', rotulo: 'Clientes', Icone: IconeClientes },
-  { href: '/metas', rotulo: 'Metas', Icone: IconeMetas },
+  { href: '/metas', rotulo: 'Metas', Icone: IconeMetas, cargos: CARGOS_POR_AREA.metas },
   {
     base: '/propostas',
     rotulo: 'Propostas',
     Icone: IconePropostas,
+    cargos: CARGOS_POR_AREA.propostas,
     filhos: [
       { href: '/propostas/abertas', rotulo: 'Abertas' },
       { href: '/propostas/fechadas', rotulo: 'Fechadas' },
@@ -57,6 +59,7 @@ const MENU: (ItemSimples | Grupo)[] = [
     base: '/relatorios',
     rotulo: 'Relatórios',
     Icone: IconeRelatorios,
+    cargos: CARGOS_POR_AREA.relatorios,
     filhos: [
       { href: '/relatorios/vendas', rotulo: 'Vendas' },
       { href: '/relatorios/conversao', rotulo: 'Conversão' },
@@ -68,6 +71,7 @@ const MENU: (ItemSimples | Grupo)[] = [
     rotulo: 'Configurações',
     Icone: IconeConfiguracoes,
     filhos: [
+      { href: '/configuracoes/empresa', rotulo: 'Dados da empresa', somenteGerente: true },
       { href: '/configuracoes/usuarios', rotulo: 'Usuários', somenteGerente: true },
       { href: '/configuracoes/integracoes', rotulo: 'Integrações', somenteGerente: true },
       { href: '/configuracoes/assinatura', rotulo: 'Assinatura', somenteGerente: true },
@@ -105,6 +109,8 @@ const linhaInativa = 'text-premium-secundario hover:bg-premium-card hover:text-p
 export function SidebarNav({ papel }: { papel: Papel }) {
   const pathname = useRotaInterna()
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
+  // Só o que o cargo pode usar (o banco e cada página conferem de novo).
+  const itens = MENU.filter((i) => !i.cargos || i.cargos.includes(papel))
 
   return (
     <nav
@@ -112,7 +118,7 @@ export function SidebarNav({ papel }: { papel: Papel }) {
       className="flex-1 overflow-y-auto p-3 group-data-[sidebar=recolhida]/shell:overflow-visible group-data-[sidebar=recolhida]/shell:px-2"
     >
       <ul className="space-y-1">
-        {MENU.map((item) => {
+        {itens.map((item) => {
           if (!('filhos' in item)) {
             const ativo = dentroDe(pathname, item.href)
             return (
@@ -130,7 +136,9 @@ export function SidebarNav({ papel }: { papel: Papel }) {
             )
           }
 
-          const filhos = item.filhos.filter((f) => !f.somenteGerente || papel === 'gerente')
+          const filhos = item.filhos.filter(
+            (f) => (!f.somenteGerente || papel === 'gerente') && (!f.cargos || f.cargos.includes(papel)),
+          )
           if (filhos.length === 0) return null
 
           // Ativo pelo subitem (Etapas fica sob Funil, apesar de /configuracoes/...).

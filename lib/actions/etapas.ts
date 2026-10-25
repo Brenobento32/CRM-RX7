@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import {
   criarEtapa,
+  definirAtendentePodeMover,
   definirAtivoEtapa,
   definirEtapaInicial,
   editarEtapa,
@@ -97,6 +98,11 @@ export async function moverEtapaAction(funilId: string, id: string, direcao: str
 export async function definirAtivoEtapaAction(funilId: string, id: string, ativo: boolean): Promise<void> {
   if (!uuid.safeParse(id).success) return
   await concluir(funilId, await definirAtivoEtapa(id, ativo))
+}
+
+export async function definirAtendentePodeMoverAction(funilId: string, id: string, valor: boolean): Promise<void> {
+  if (!uuid.safeParse(id).success) return
+  await concluir(funilId, await definirAtendentePodeMover(id, valor))
 }
 
 export async function excluirEtapaAction(funilId: string, id: string): Promise<void> {

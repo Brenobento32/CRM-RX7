@@ -130,6 +130,12 @@ function ConteudoEvento({ evento, fechar, editarHref }: { evento: Evento; fechar
             </dd>
           </div>
         )}
+        {evento.criadoPor && evento.criadoPor !== evento.usuarioId && evento.criadoPorNome && (
+          <div className="flex gap-2">
+            <dt className="w-24 shrink-0 text-zinc-500">Agendada por</dt>
+            <dd>{evento.criadoPorNome}</dd>
+          </div>
+        )}
         {evento.clienteId && (
         <div className="flex gap-2">
           <dt className="w-24 shrink-0 text-zinc-500">Cliente</dt>

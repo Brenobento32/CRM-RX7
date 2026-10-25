@@ -24,6 +24,8 @@ export type EtapaKanban = EtapaVisual & {
   etapaInicial: boolean
   ordem: number
   chave: string | null
+  /** Gerente liberou a etapa para Atendentes movimentarem (só etapa aberta). */
+  atendentePodeMover?: boolean
 }
 
 export const CORES_ETAPA = Constants.public.Enums.cor_etapa
@@ -194,7 +196,24 @@ export function sdrPodeMoverPara(
  * Tipo solto (não importado de `lib/validations/usuario.ts`) pra não criar
  * import circular — `usuario.ts` já importa `CORES_ETAPA` deste arquivo.
  */
-type PapelColaborador = 'gerente' | 'closer' | 'sdr'
+type PapelColaborador = 'gerente' | 'closer' | 'sdr' | 'vendedor' | 'atendente'
+
+/** SDR e Atendente param na etapa de handoff (Reunião realizada) — mesmo teto do banco. */
+export function temTetoDeHandoff(papel: PapelColaborador): boolean {
+  return papel === 'sdr' || papel === 'atendente'
+}
+
+/**
+ * Etapas que o Gerente liberou para Atendentes (`etapas_funil.atendente_pode_mover`)
+ * — origem e destino — e destino sempre aberto: o Atendente nunca fecha nem perde.
+ */
+export type RegraAtendente = {
+  origemLiberada: boolean
+  destinoLiberado: boolean
+  destinoAberto: boolean
+  /** Negociação atribuída ao Atendente ou da carteira dele (dono da negociação ou do cliente). */
+  daCarteira: boolean
+}
 
 /**
  * Decide se o usuário atual pode VER uma etapa — espelha exatamente a
@@ -240,14 +259,21 @@ export function podeMoverNegociacaoColaborador(input: {
   ordemOrigem: number
   ordemDestino: number
   ordemLimiteHandoffSdr: number | null
+  /** Obrigatório para o Atendente; sem ele, negado (por padrão). */
+  atendente?: RegraAtendente
 }): boolean {
   if (input.papel === 'gerente') return true
 
   if (
-    input.papel === 'sdr' &&
+    temTetoDeHandoff(input.papel) &&
     !sdrPodeMoverPara(input.ordemOrigem, input.ordemDestino, input.ordemLimiteHandoffSdr)
   ) {
     return false
+  }
+
+  if (input.papel === 'atendente') {
+    const r = input.atendente
+    if (!r || !r.daCarteira || !r.origemLiberada || !r.destinoLiberado || !r.destinoAberto) return false
   }
 
   return input.podeMoverOrigem && input.podeMoverDestino

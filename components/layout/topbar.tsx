@@ -6,7 +6,7 @@ import { useEffect, useId, useRef } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { logout } from '@/lib/actions/auth'
 import type { UsuarioAtual } from '@/lib/dal/auth'
-import { ROTULO_PAPEL } from '@/lib/validations/usuario'
+import { ROTULO_CARGO } from '@/lib/validations/usuario'
 
 import { IconeEditar, IconeLua, IconeSair, IconeSetaBaixo, IconeSino, IconeSol } from './icones'
 import { useTemaPremium } from './shell-app'
@@ -80,7 +80,7 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
         <Avatar nome={usuario.nome} fotoUrl={usuario.fotoUrl} tamanho="sm" variant="premium" />
         <span className="min-w-0 text-left leading-tight">
           <span className="block truncate text-sm font-medium text-premium-texto">{usuario.nome}</span>
-          <span className="block truncate text-xs text-premium-mudo">{ROTULO_PAPEL[usuario.role]}</span>
+          <span className="block truncate text-xs text-premium-mudo">{ROTULO_CARGO[usuario.role]}</span>
         </span>
         <IconeSetaBaixo className="size-4 shrink-0 text-premium-mudo" />
       </button>

@@ -4,7 +4,7 @@
 
 import { DURACOES, type Duracao } from '@/lib/validations/evento'
 
-type Pessoa = { id: string; role: 'gerente' | 'closer' | 'sdr' }
+type Pessoa = { id: string; role: string }
 
 /**
  * Quem pode ser responsável por um evento do cliente: o dono da carteira e

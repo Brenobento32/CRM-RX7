@@ -35,7 +35,16 @@ export function Sidebar({
 
       {/* Empresa ativa desta aba. Trocar é navegação completa (outra empresa,
           outra árvore de dados), por isso <a> e não <Link>. */}
-      <div className="border-b border-premium-borda px-4 py-2.5 group-data-[sidebar=recolhida]/shell:hidden">
+      <div className="flex items-center gap-2.5 border-b border-premium-borda px-4 py-2.5 group-data-[sidebar=recolhida]/shell:hidden">
+        {empresa.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- logo público do Storage, tamanho fixo
+          <img
+            src={empresa.logoUrl}
+            alt=""
+            className="size-8 shrink-0 rounded-md border border-premium-borda bg-white object-contain p-0.5"
+          />
+        )}
+        <div className="min-w-0">
         <p className="truncate text-xs font-medium text-premium-texto" title={empresa.nome}>
           {empresa.nome}
         </p>
@@ -47,6 +56,7 @@ export function Sidebar({
               Trocar empresa
             </a>
           )}
+        </div>
         </div>
       </div>
 

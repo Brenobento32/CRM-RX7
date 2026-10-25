@@ -7,7 +7,7 @@ import { cache } from 'react'
 import { verifySession } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import type { AssinaturaInput, NovaEmpresaInput, PlanoInput } from '@/lib/validations/super-admin'
+import { LOGO_TIPOS, type AssinaturaInput, type DadosEmpresaInput, type NovaEmpresaInput, type PlanoInput } from '@/lib/validations/super-admin'
 
 /**
  * Painel do Super Admin (dono da plataforma).
@@ -144,7 +144,10 @@ export async function reativarEmpresa(tenantId: string, motivo: string): Promise
  * reaproveita a identidade do administrador e chama `provisionar_empresa`
  * com o JWT do Super Admin (o banco confere de novo).
  */
-export async function criarEmpresa(input: NovaEmpresaInput): Promise<Resultado> {
+/** Só os campos que a Edge Function conhece; o cadastro completo vai depois, por `salvarCadastroEmpresa`. */
+export type OnboardingEmpresa = Omit<NovaEmpresaInput, 'telefone' | 'email' | 'responsavel_nome'>
+
+export async function criarEmpresa(input: OnboardingEmpresa): Promise<Resultado> {
   await exigirSuperAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase.functions.invoke<{ ok: boolean; tenant_id?: string; mensagem?: string }>(
@@ -161,4 +164,113 @@ export async function criarEmpresa(input: NovaEmpresaInput): Promise<Resultado> 
     }
   }
   return { ok: false, mensagem: data?.mensagem ?? 'Não foi possível falar com o serviço de usuários.' }
+}
+
+// ---------------------------------------------------------------------------
+// Cadastro completo da empresa (nome comercial, contato, responsável, logo)
+// ---------------------------------------------------------------------------
+
+export const BUCKET_LOGOS = 'empresa-logos'
+
+export type CadastroEmpresa = {
+  id: string
+  nome: string
+  slug: string
+  telefone: string | null
+  email: string | null
+  responsavelNome: string | null
+  logoPath: string | null
+  logoUrl: string | null
+}
+
+/** URL pública do logo; `versao` evita o navegador mostrar o logo antigo depois de trocar. */
+export async function urlDoLogo(logoPath: string | null, versao: string): Promise<string | null> {
+  if (!logoPath) return null
+  const supabase = await createClient()
+  const { data } = supabase.storage.from(BUCKET_LOGOS).getPublicUrl(logoPath)
+  return `${data.publicUrl}?v=${encodeURIComponent(versao)}`
+}
+
+export async function obterCadastroEmpresa(tenantId: string): Promise<CadastroEmpresa | null> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id, nome, slug, telefone, email, responsavel_nome, logo_path, updated_at')
+    .eq('id', tenantId)
+    .maybeSingle()
+  if (error) throw new Error('Não foi possível carregar o cadastro da empresa.', { cause: error })
+  if (!data) return null
+  return {
+    id: data.id,
+    nome: data.nome,
+    slug: data.slug,
+    telefone: data.telefone,
+    email: data.email,
+    responsavelNome: data.responsavel_nome,
+    logoPath: data.logo_path,
+    logoUrl: await urlDoLogo(data.logo_path, data.updated_at),
+  }
+}
+
+/**
+ * Salva o cadastro. Com logo novo: sobe primeiro (`<tenant>/logo.<ext>`), grava
+ * o caminho e só então apaga o de outra extensão — o cadastro nunca aponta
+ * para um arquivo que não existe. O banco confere a permissão (Super Admin ou
+ * admin da própria empresa) e que o logo está na pasta da empresa.
+ */
+export async function salvarCadastroEmpresa(
+  tenantId: string,
+  dados: DadosEmpresaInput,
+  logo: File | null,
+  removerLogo: boolean,
+): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const atual = await obterCadastroEmpresa(tenantId)
+  if (!atual) return { ok: false, mensagem: 'Empresa não encontrada.' }
+
+  let logoPath = removerLogo ? null : atual.logoPath
+  if (logo) {
+    const extensao = LOGO_TIPOS[logo.type as keyof typeof LOGO_TIPOS]
+    logoPath = `${tenantId}/logo.${extensao}`
+    const { error } = await supabase.storage.from(BUCKET_LOGOS).upload(logoPath, logo, { contentType: logo.type, upsert: true })
+    if (error) {
+      console.error('upload logo', error)
+      return { ok: false, mensagem: 'Não foi possível enviar o logotipo.' }
+    }
+  }
+
+  const { error } = await supabase.rpc('admin_atualizar_empresa', {
+    p_tenant: tenantId,
+    p_nome: dados.nome,
+    p_telefone: dados.telefone,
+    p_email: dados.email,
+    p_responsavel_nome: dados.responsavel_nome,
+    p_logo_path: logoPath,
+  })
+  if (error) return falha(error, 'Não foi possível salvar os dados da empresa.')
+
+  if (atual.logoPath && atual.logoPath !== logoPath) {
+    await supabase.storage.from(BUCKET_LOGOS).remove([atual.logoPath])
+  }
+  return { ok: true, id: tenantId }
+}
+
+/** Endereço já usado por alguma empresa (atual ou antigo)? O Super Admin enxerga todas. */
+export async function slugEmUso(slug: string): Promise<boolean> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('tenants').select('id').eq('slug', slug).maybeSingle()
+  if (error) throw new Error('Não foi possível conferir o endereço.', { cause: error })
+  return data !== null
+}
+
+/** Troca o endereço (slug): só Super Admin, com motivo, auditada; o antigo passa a redirecionar. */
+export async function alterarSlugEmpresa(tenantId: string, slug: string, motivo: string): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_alterar_slug', { p_tenant: tenantId, p_slug: slug, p_motivo: motivo })
+  if (error?.code === '23505') return { ok: false, mensagem: 'Esse endereço já pertence (ou pertenceu) a outra empresa.' }
+  return error ? falha(error, 'Não foi possível trocar o endereço.') : { ok: true, id: tenantId }
 }

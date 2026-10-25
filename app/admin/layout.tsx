@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 /**
- * Painel da plataforma (Rio X7). Fora de qualquer empresa: sem `/e/<slug>`,
+ * Painel da plataforma (Rio X7). Fora de qualquer empresa: sem `/<slug>`,
  * sem dados comerciais. Quem não é Super Admin recebe 404 aqui e em cada
  * página; o banco confere de novo em cada RPC.
  */
