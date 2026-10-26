@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatarTempoParado } from '@/lib/utils/formatacao'
+import { formatarMoedaCompacta, formatarTempoParado } from '@/lib/utils/formatacao'
 
 describe('formatarTempoParado', () => {
   it('0 segundos → "Parado há 1 min" (mínimo exibido)', () => {
@@ -53,5 +53,65 @@ describe('formatarTempoParado', () => {
 
   it('nunca fica negativo (relógio ligeiramente adiantado no servidor)', () => {
     expect(formatarTempoParado(-5000)).toBe('Parado há 1 min')
+  })
+})
+
+describe('formatarMoedaCompacta', () => {
+  // Espaço inseparável entre "R$" e o número e antes do sufixo, como no pt-BR.
+  const r = (t: string) => t.replace(/ /g, ' ')
+
+  it.each([
+    [0, 'R$ 0'],
+    [0.004, 'R$ 0'],
+    [0.05, 'R$ 0,1'],
+    [0.4, 'R$ 0,4'],
+    [1, 'R$ 1'],
+    [9.99, 'R$ 10'],
+    [12.34, 'R$ 12,3'],
+    [950.5, 'R$ 950,5'],
+    [999.4, 'R$ 999,4'],
+  ])('valores pequenos e decimais: %s → %s', (valor, esperado) => {
+    expect(formatarMoedaCompacta(valor)).toBe(r(esperado))
+  })
+
+  it.each([
+    [999.96, 'R$ 1 mil'],
+    [1000, 'R$ 1 mil'],
+    [1049, 'R$ 1 mil'],
+    [1050, 'R$ 1,1 mil'],
+    [1234, 'R$ 1,2 mil'],
+    [9999, 'R$ 10 mil'],
+    [99949, 'R$ 99,9 mil'],
+    [99950, 'R$ 100 mil'],
+    [123456, 'R$ 123,5 mil'],
+  ])('milhares: %s → %s', (valor, esperado) => {
+    expect(formatarMoedaCompacta(valor)).toBe(r(esperado))
+  })
+
+  it.each([
+    [999950, 'R$ 1 mi'],
+    [1234567, 'R$ 1,2 mi'],
+    [15500000, 'R$ 15,5 mi'],
+    [999999999, 'R$ 1 bi'],
+    [1234567890, 'R$ 1,2 bi'],
+    [1.5e12, 'R$ 1,5 tri'],
+    [1.5e15, 'R$ 1.500 tri'],
+  ])('milhões e acima: %s → %s', (valor, esperado) => {
+    expect(formatarMoedaCompacta(valor)).toBe(r(esperado))
+  })
+
+  it.each([
+    [-1, '-R$ 1'],
+    [-950.5, '-R$ 950,5'],
+    [-1234, '-R$ 1,2 mil'],
+    [-1234567, '-R$ 1,2 mi'],
+    [-0.004, 'R$ 0'],
+    [-0, 'R$ 0'],
+  ])('negativos: %s → %s (sem "-R$ 0")', (valor, esperado) => {
+    expect(formatarMoedaCompacta(valor)).toBe(r(esperado))
+  })
+
+  it('não depende do Intl compacto: o texto nunca leva zero decimal à direita', () => {
+    for (const v of [0, 10, 1000, 2e6, 3e9]) expect(formatarMoedaCompacta(v)).not.toMatch(/,0(D|$)/)
   })
 })

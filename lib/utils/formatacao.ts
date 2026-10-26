@@ -5,20 +5,59 @@ import { ptBR } from 'date-fns/locale'
 export const FUSO_HORARIO = 'America/Sao_Paulo'
 
 const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const moedaCompacta = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
 
 export function formatarMoeda(valor: number): string {
   return moeda.format(valor)
 }
 
-/** "R$ 1,2 mi" — para totais de coluna, onde o espaço é curto. */
+const NBSP = ' '
+/** Da menor para a maior; abaixo de mil não há sufixo. */
+const ESCALAS_COMPACTAS = [
+  { base: 1e3, sufixo: 'mil' },
+  { base: 1e6, sufixo: 'mi' },
+  { base: 1e9, sufixo: 'bi' },
+  { base: 1e12, sufixo: 'tri' },
+] as const
+
+/** Uma casa decimal, arredondando para cima no meio (1,05 → 1,1), sem ruído de ponto flutuante. */
+function arredondarUmaCasa(n: number): number {
+  return Math.round(Number((n * 10).toPrecision(12))) / 10
+}
+
+/** 1234.5 → "1.234,5"; 12 → "12" (sem zero à direita). */
+function numeroPtBr(n: number): string {
+  const [inteiro, decimal] = n.toFixed(1).split('.')
+  const agrupado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return decimal === '0' ? agrupado : `${agrupado},${decimal}`
+}
+
+/**
+ * "R$ 1,2 mi" — para totais e indicadores, onde o espaço é curto.
+ *
+ * Montado à mão, sem `Intl` com `notation: 'compact'`: esse formato vem dos
+ * dados de ICU/CLDR de cada ambiente, e o Node do servidor e o navegador
+ * divergiam ("R$ 0,0" × "R$ 0"), quebrando a hidratação de componentes de
+ * cliente. Aqui o texto é idêntico no SSR e no browser. Regras (as do pt-BR):
+ * até uma casa decimal sem zero à direita, sufixos mil/mi/bi/tri, espaço
+ * inseparável, sinal antes do "R$" e promoção de escala quando o
+ * arredondamento chega a mil (999.950 → "R$ 1 mi").
+ */
 export function formatarMoedaCompacta(valor: number): string {
-  return moedaCompacta.format(valor)
+  if (!Number.isFinite(valor)) return formatarMoeda(valor)
+  const abs = Math.abs(valor)
+
+  // Sobe de escala enquanto o valor arredondado chegar a mil (na maior, "tri", fica).
+  let n = arredondarUmaCasa(abs)
+  let sufixo = ''
+  for (const escala of ESCALAS_COMPACTAS) {
+    if (n < 1000) break
+    n = arredondarUmaCasa(abs / escala.base)
+    sufixo = escala.sufixo
+  }
+
+  // "-R$ 0" não faz sentido: só mostra o sinal se sobrar algo depois de arredondar.
+  const sinal = valor < 0 && n !== 0 ? '-' : ''
+  return `${sinal}R$${NBSP}${numeroPtBr(n)}${sufixo ? `${NBSP}${sufixo}` : ''}`
 }
 
 /**
