@@ -126,15 +126,15 @@ export function ShellApp({
             onClickCapture={(e) => {
               if (sobreposto && (e.target as HTMLElement).closest('a[href]')) setAbertaNaTelaEstreita(false)
             }}
-            className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-premium-borda bg-premium-elevado transition-[width] duration-200 group-data-[sidebar=recolhida]/shell:w-[70px] group-data-[sobreposto=sim]/shell:shadow-2xl motion-reduce:transition-none"
+            className="fixed inset-y-0 left-0 z-30 flex w-[232px] flex-col border-r border-premium-borda bg-premium-lateral transition-[width] duration-200 group-data-[sidebar=recolhida]/shell:w-[70px] group-data-[sobreposto=sim]/shell:shadow-2xl motion-reduce:transition-none"
           >
             {sidebar}
           </aside>
           <main
-            className="min-h-full min-w-0 flex-1 bg-premium-bg pl-[220px] text-premium-texto transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] group-data-[sobreposto=sim]/shell:pl-[70px] motion-reduce:transition-none"
+            className="min-h-full min-w-0 flex-1 bg-premium-bg pl-[232px] text-premium-texto transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] group-data-[sobreposto=sim]/shell:pl-[70px] motion-reduce:transition-none"
           >
             {topo && (
-              <header className="sticky top-0 z-20 flex h-14 items-center justify-end border-b border-premium-borda bg-premium-bg/90 px-3 backdrop-blur sm:px-6 lg:px-8">
+              <header className="sticky top-0 z-20 flex h-14 items-center justify-end border-b border-premium-borda bg-premium-topo/95 px-3 shadow-[0_1px_2px_rgb(0_0_0/0.04)] backdrop-blur sm:px-6 lg:px-8">
                 {topo}
               </header>
             )}

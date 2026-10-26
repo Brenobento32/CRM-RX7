@@ -17,12 +17,14 @@ import { COR_STATUS } from '@/components/agenda/evento-item'
 import { reagendarEventoAction } from '@/lib/actions/eventos'
 import type { Evento } from '@/lib/dal/eventos'
 import {
+  geometriaEvento,
   hrefAgenda,
   minutosNoDia,
   minutosParaHora,
   novoInicioAoArrastar,
   organizarSobrepostos,
   VISAO_PADRAO,
+  type DensidadeEvento,
   type ParametrosAgenda,
 } from '@/lib/utils/calendario'
 import { diaEmSaoPaulo, formatarHora, instanteSaoPaulo } from '@/lib/utils/formatacao'
@@ -31,7 +33,6 @@ import { ROTULO_STATUS_EVENTO, statusEmAberto } from '@/lib/validations/evento'
 import { classeTextoSobreCor, corDoResponsavel, rotuloAcessivel, semCorDefinida } from './evento-bloco'
 import { LinhaAgora } from './linha-agora'
 
-const ALTURA_MIN_PX = 18
 /** Granularidade do clique num horário vazio (minutos). */
 const PASSO_SLOT_MIN = 30
 /** Depois de soltar um arraste, o clique que o navegador dispara não abre nada. */
@@ -153,7 +154,7 @@ export function GradeCorpoArrastavel({
 
   return (
     <DndContext id={idDnd} sensors={sensores} onDragStart={() => (arrastando.current = true)} onDragEnd={handleDragEnd} onDragCancel={marcarFimDoArraste}>
-      {dias.map((dia) => {
+      {dias.map((dia, indiceDia) => {
         const doDia = posicionados.filter((p) => p.dia === dia).sort((a, b) => a.minutoInicio - b.minutoInicio)
         const leiautePorId = new Map(
           organizarSobrepostos(
@@ -166,12 +167,20 @@ export function GradeCorpoArrastavel({
         )
 
         return (
-          <ColunaDroppable key={dia} dia={dia} alturaHoraPx={alturaHoraPx} onSlot={(m) => podeAbrir() && novaNoHorario(dia, m)}>
+          <ColunaDroppable
+            key={dia}
+            dia={dia}
+            primeira={indiceDia === 0}
+            hoje={dia === hoje}
+            alturaHoraPx={alturaHoraPx}
+            onSlot={(m) => podeAbrir() && novaNoHorario(dia, m)}
+          >
             {dia === hoje && <LinhaAgora minutoInicial={minutoAgoraInicial} alturaHoraPx={alturaHoraPx} />}
 
             {doDia.map((p) => {
               const l = leiautePorId.get(p.evento.id)!
-              const alturaPx = Math.max((p.duracaoMinutos / 60) * alturaHoraPx, ALTURA_MIN_PX)
+              // Geometria exata (15 min = 25% da hora); o texto se adapta ao espaço.
+              const g = geometriaEvento(p.minutoInicio, p.duracaoMinutos, alturaHoraPx)
 
               return (
                 <EventoArrastavel
@@ -180,11 +189,12 @@ export function GradeCorpoArrastavel({
                   mostrarResponsavel={gerente}
                   href={hrefAgenda({ ...base, evento: p.evento.id }, padraoLink)}
                   podeAbrir={podeAbrir}
+                  densidade={g.densidade}
                   estilo={{
-                    top: (p.minutoInicio / 60) * alturaHoraPx,
-                    height: alturaPx,
-                    left: `calc(${(l.coluna / l.colunas) * 100}% + 2px)`,
-                    width: `calc(${100 / l.colunas}% - 4px)`,
+                    top: g.topoPx,
+                    height: Math.max(g.alturaPx, 8),
+                    left: `calc(${(l.coluna / l.colunas) * 100}% + 1px)`,
+                    width: `calc(${100 / l.colunas}% - 3px)`,
                   }}
                 />
               )
@@ -198,11 +208,16 @@ export function GradeCorpoArrastavel({
 
 function ColunaDroppable({
   dia,
+  primeira,
+  hoje,
   alturaHoraPx,
   onSlot,
   children,
 }: {
   dia: string
+  /** Primeira coluna: a linha à esquerda já é a borda da coluna de horas. */
+  primeira: boolean
+  hoje: boolean
   alturaHoraPx: number
   /** Clique num horário vazio: minuto do dia, arredondado para baixo no passo. */
   onSlot: (minuto: number) => void
@@ -221,16 +236,15 @@ function ColunaDroppable({
       ref={setNodeRef}
       onClick={clique}
       title="Clique num horário vazio para agendar"
-      className={`relative cursor-cell border-l border-zinc-100 hover:bg-zinc-50/60 dark:border-zinc-800 dark:hover:bg-zinc-800/30 ${isOver ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''}`}
+      className={`relative cursor-cell ${primeira ? '' : 'border-l border-premium-borda'} ${hoje ? 'bg-premium-acento-suave/40' : ''} hover:bg-premium-bg/60 ${isOver ? 'bg-premium-acento-suave' : ''}`}
       style={{ height: 24 * alturaHoraPx }}
     >
       {Array.from({ length: 24 }, (_, h) => (
-        <div
-          key={h}
-          aria-hidden
-          className="absolute inset-x-0 border-t border-zinc-100 dark:border-zinc-800"
-          style={{ top: h * alturaHoraPx }}
-        />
+        <div key={h} aria-hidden className="pointer-events-none absolute inset-x-0" style={{ top: h * alturaHoraPx, height: alturaHoraPx }}>
+          {/* Linha cheia em cada hora; tracejada e mais leve na meia hora. */}
+          {h > 0 && <div className="absolute inset-x-0 top-0 border-t border-premium-borda" />}
+          <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-premium-borda/45" />
+        </div>
       ))}
       {children}
     </div>
@@ -243,12 +257,15 @@ function EventoArrastavel({
   href,
   estilo,
   podeAbrir,
+  densidade,
 }: {
   evento: Evento
   mostrarResponsavel: boolean
   href: string
   estilo: React.CSSProperties
   podeAbrir: () => boolean
+  /** Quanto texto cabe: `linha` (até 20 min), `compacto` (até 50), `completo`. */
+  densidade: DensidadeEvento
 }) {
   const router = useRouter()
   const arrastavel = statusEmAberto(evento.status)
@@ -270,7 +287,7 @@ function EventoArrastavel({
         backgroundColor: corDoResponsavel(evento),
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       }}
-      className={`absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight shadow-sm transition-shadow hover:z-10 hover:shadow-md ${classeTextoSobreCor(evento)} ${cancelado ? 'opacity-60' : ''} ${isDragging ? 'z-30 shadow-lg' : ''} ${arrastavel ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${semCorDefinida(evento) ? 'border border-dashed border-white/60' : ''}`}
+      className={`absolute overflow-hidden rounded-[5px] px-1.5 text-left text-xs leading-tight shadow-sm ring-1 ring-premium-card transition-shadow hover:z-10 hover:shadow-md ${densidade === 'linha' ? 'flex items-center py-0' : 'py-0.5'} ${classeTextoSobreCor(evento)} ${cancelado ? 'opacity-60' : ''} ${isDragging ? 'z-30 shadow-lg' : ''} ${arrastavel ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${semCorDefinida(evento) ? 'border border-dashed border-white/60' : ''}`}
       onClick={(e) => {
         // Não deixa o clique chegar à coluna (que abriria "Nova reunião").
         e.stopPropagation()
@@ -290,20 +307,32 @@ function EventoArrastavel({
       }}
     >
       <span className="sr-only">{rotuloAcessivel(evento, mostrarResponsavel)}. Clique ou Enter para abrir os detalhes.</span>
-      <p aria-hidden className={`truncate font-medium ${cancelado ? 'line-through' : ''}`}>
-        {evento.titulo}
-      </p>
-      <p aria-hidden className="truncate opacity-90">
-        {formatarHora(evento.inicio)}
-        {evento.usuario ? ` · ${evento.usuario}` : ''}
-      </p>
-      <p aria-hidden className="truncate">
-        {/* Mesma cor/estilo do badge de status do modal (COR_STATUS) — sem o
-            responsável aqui: ele já é a cor de fundo do bloco inteiro. */}
-        <span className={`rounded px-1 py-0.5 text-[10px] font-medium uppercase ${COR_STATUS[evento.status]}`}>
-          {ROTULO_STATUS_EVENTO[evento.status]}
-        </span>
-      </p>
+      {densidade === 'linha' ? (
+        // 15 min: uma linha só (título e hora), sem crescer o bloco.
+        <p aria-hidden className={`truncate text-[11px] leading-[13px] ${cancelado ? 'line-through' : ''}`}>
+          <span className="font-medium">{evento.titulo}</span>
+          <span className="opacity-85"> · {formatarHora(evento.inicio)}</span>
+        </p>
+      ) : (
+        <>
+          <p aria-hidden className={`truncate font-medium ${cancelado ? 'line-through' : ''}`}>
+            {evento.titulo}
+          </p>
+          <p aria-hidden className="truncate text-[11px] opacity-90">
+            {formatarHora(evento.inicio)}–{formatarHora(evento.fim)}
+            {evento.usuario ? ` · ${evento.usuario}` : ''}
+          </p>
+          {densidade === 'completo' && (
+            <p aria-hidden className="mt-0.5 truncate">
+              {/* Mesma cor/estilo do badge de status do modal (COR_STATUS) — sem o
+                  responsável aqui: ele já é a cor de fundo do bloco inteiro. */}
+              <span className={`rounded px-1 py-0.5 text-[10px] font-medium uppercase ${COR_STATUS[evento.status]}`}>
+                {ROTULO_STATUS_EVENTO[evento.status]}
+              </span>
+            </p>
+          )}
+        </>
+      )}
     </div>
   )
 }

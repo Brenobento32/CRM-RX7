@@ -26,7 +26,8 @@ export function Sidebar({
 }) {
   return (
     <>
-      <div className="flex h-16 items-center gap-2.5 border-b border-premium-borda px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
+      {/* Mesma altura do cabeçalho (h-14): as duas bordas inferiores formam uma linha só. */}
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-premium-borda bg-premium-topo px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
         <LogoMarca />
         <span className="truncate text-base font-semibold tracking-tight text-premium-texto group-data-[sidebar=recolhida]/shell:hidden">
           AVANTE

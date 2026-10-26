@@ -35,6 +35,9 @@
   /* Escuro: grafite/preto suave, cartões cinza-escuro, texto claro. */
   --premium-bg: #111315;
   --premium-elevado: #16181b;
+  /* Casca: menu lateral e cabeçalho com tons próprios, distintos do conteúdo. */
+  --premium-lateral: #15171a;
+  --premium-topo: #1a1d21;
   --premium-card: #1c1f23;
   --premium-borda: #2c3036;
   --premium-texto: #f1f3f5;
@@ -57,6 +60,8 @@
   --foreground: #15181f;
   --premium-bg: #f5f6f8;
   --premium-elevado: #ffffff;
+  --premium-lateral: #fbfbfc;
+  --premium-topo: #ffffff;
   --premium-card: #ffffff;
   --premium-borda: #cfd5dd;
   --premium-texto: #15181f;
@@ -77,6 +82,8 @@
 
   --color-premium-bg: var(--premium-bg);
   --color-premium-elevado: var(--premium-elevado);
+  --color-premium-lateral: var(--premium-lateral);
+  --color-premium-topo: var(--premium-topo);
   --color-premium-card: var(--premium-card);
   --color-premium-borda: var(--premium-borda);
   --color-premium-texto: var(--premium-texto);

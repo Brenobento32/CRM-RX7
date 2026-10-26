@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { CampoLogotipo } from '@/components/empresa/campo-logotipo'
 import { botaoPrimarioClass, botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
 import {
   alterarSituacaoEmpresaAction,
@@ -267,15 +268,7 @@ function FormCadastro({ cadastro }: { cadastro: CadastroEmpresa }) {
       className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
     >
       <input type="hidden" name="tenant_id" value={cadastro.id} />
-      <div className="flex items-center gap-4">
-        {cadastro.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- logo público do Storage, tamanho fixo
-          <img src={cadastro.logoUrl} alt={`Logotipo de ${cadastro.nome}`} className="size-14 rounded-lg border border-zinc-200 bg-white object-contain p-1 dark:border-zinc-700" />
-        ) : (
-          <span aria-hidden className="flex size-14 items-center justify-center rounded-lg bg-premium-acento text-xl font-semibold text-white dark:text-zinc-950">
-            {cadastro.nome.slice(0, 1).toUpperCase()}
-          </span>
-        )}
+      <div>
         <div>
           <h2 className="font-semibold">Cadastro da empresa</h2>
           <p className="text-xs text-zinc-500">
@@ -302,17 +295,7 @@ function FormCadastro({ cadastro }: { cadastro: CadastroEmpresa }) {
         <span className="mb-1 block font-medium">Nome do responsável</span>
         <input name="responsavel_nome" maxLength={120} defaultValue={cadastro.responsavelNome ?? ''} className={inputClass} />
       </label>
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">{cadastro.logoUrl ? 'Trocar logotipo' : 'Logotipo'}</span>
-        <input name="logo" type="file" accept="image/png,image/jpeg,image/webp" className="block w-full text-sm" />
-        <span className="mt-1 block text-xs text-zinc-500">PNG, JPG ou WebP, até 2 MB.</span>
-      </label>
-      {cadastro.logoUrl && (
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="remover_logo" value="1" />
-          Remover o logotipo atual
-        </label>
-      )}
+      <CampoLogotipo logoUrl={cadastro.logoUrl} nome={cadastro.nome} />
       <button type="submit" className={botaoPrimarioClass}>
         Salvar cadastro
       </button>

@@ -148,3 +148,123 @@ export const IconeEditar = (p: Props) => (
     <path d="M16.862 4.487a1.875 1.875 0 1 1 2.652 2.652L7.5 19.153l-4.243 1.06 1.06-4.242 12.545-12.484Z" />
   </svg>
 )
+
+/** CRM — agrupa funil, métricas, leads e as configurações do funil. */
+export const IconeCrm = (p: Props) => (
+  <Svg {...p}>
+    <path d="M3 5h18l-7 8v5l-4 2v-7z" />
+  </Svg>
+)
+
+/** Kanban — colunas do funil. */
+export const IconeKanban = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16M15 4v16" />
+  </Svg>
+)
+
+/** Métricas — tendência. */
+export const IconeMetricas = (p: Props) => (
+  <Svg {...p}>
+    <path d="M3 17l6-6 4 4 8-8" />
+    <path d="M15 7h6v6" />
+  </Svg>
+)
+
+/** Leads — caixa de entrada. */
+export const IconeLeads = (p: Props) => (
+  <Svg {...p}>
+    <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+    <path d="M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z" />
+  </Svg>
+)
+
+/** Etapas — lista ordenada. */
+export const IconeEtapas = (p: Props) => (
+  <Svg {...p}>
+    <path d="M10 6h11M10 12h11M10 18h11" />
+    <path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+  </Svg>
+)
+
+/** Nichos — etiqueta. */
+export const IconeNichos = (p: Props) => (
+  <Svg {...p}>
+    <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" />
+    <circle cx="7.5" cy="7.5" r="1.5" />
+  </Svg>
+)
+
+/** Serviços — maleta. */
+export const IconeServicos = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18" />
+  </Svg>
+)
+
+/** Propostas abertas — documento com relógio. */
+export const IconeAbertas = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Svg>
+)
+
+/** Propostas fechadas — confirmação. */
+export const IconeFechadas = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m8 12 3 3 5-6" />
+  </Svg>
+)
+
+/** Vendas — cifrão. */
+export const IconeVendas = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 2v20" />
+    <path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  </Svg>
+)
+
+/** Conversão — percentual. */
+export const IconeConversao = (p: Props) => (
+  <Svg {...p}>
+    <path d="M19 5 5 19" />
+    <circle cx="6.5" cy="6.5" r="2.5" />
+    <circle cx="17.5" cy="17.5" r="2.5" />
+  </Svg>
+)
+
+/** Exportação — download. */
+export const IconeExportacao = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 3v12M7 10l5 5 5-5" />
+    <path d="M5 21h14" />
+  </Svg>
+)
+
+/** Dados da empresa — prédio. */
+export const IconeEmpresa = (p: Props) => (
+  <Svg {...p}>
+    <path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M2 21h20" />
+    <path d="M8 7h4M8 11h4M8 15h4" />
+  </Svg>
+)
+
+/** Integrações — conector. */
+export const IconeIntegracoes = (p: Props) => (
+  <Svg {...p}>
+    <path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0z" />
+    <path d="M12 18v4" />
+  </Svg>
+)
+
+/** Assinatura — cartão. */
+export const IconeAssinatura = (p: Props) => (
+  <Svg {...p}>
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <path d="M2 10h20M6 15h4" />
+  </Svg>
+)

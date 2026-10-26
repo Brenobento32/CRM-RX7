@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ALTURA_HORA_PX,
+  geometriaEvento,
   VISAO_PADRAO,
   VISOES,
   agruparPorDia,
@@ -273,5 +275,35 @@ describe('minutosParaHora', () => {
 
   it('nunca fica negativo', () => {
     expect(minutosParaHora(-30)).toBe('00:00')
+  })
+})
+
+describe('geometriaEvento', () => {
+  it('altura proporcional: 15 = 25%, 30 = 50%, 45 = 75%, 60 = 100% de uma hora', () => {
+    const H = 60
+    expect(geometriaEvento(600, 15, H).alturaPx).toBe(H * 0.25)
+    expect(geometriaEvento(600, 30, H).alturaPx).toBe(H * 0.5)
+    expect(geometriaEvento(600, 45, H).alturaPx).toBe(H * 0.75)
+    expect(geometriaEvento(600, 60, H).alturaPx).toBe(H)
+    expect(geometriaEvento(600, 90, H).alturaPx).toBe(H * 1.5)
+  })
+
+  it('topo exato pelo minuto de início, com qualquer altura de hora', () => {
+    expect(geometriaEvento(0, 30, 60).topoPx).toBe(0)
+    expect(geometriaEvento(615, 30, 60).topoPx).toBe(615)
+    expect(geometriaEvento(615, 30, 48).topoPx).toBe(492)
+    expect(geometriaEvento(615, 15, 48).alturaPx).toBe(12)
+  })
+
+  it('densidade decide só o texto: linha (até 20 min), compacto (até 50), completo', () => {
+    expect(geometriaEvento(0, 15).densidade).toBe('linha')
+    expect(geometriaEvento(0, 30).densidade).toBe('compacto')
+    expect(geometriaEvento(0, 45).densidade).toBe('compacto')
+    expect(geometriaEvento(0, 60).densidade).toBe('completo')
+  })
+
+  it('padrão: 1 px por minuto', () => {
+    expect(ALTURA_HORA_PX).toBe(60)
+    expect(geometriaEvento(540, 45).alturaPx).toBe(45)
   })
 })

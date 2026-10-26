@@ -262,3 +262,25 @@ export function minutosParaHora(minutos: number): string {
   const r = m % 60
   return `${String(h).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
+
+/** Altura de 1 hora na grade (Dia/Semana): 1 px por minuto. */
+export const ALTURA_HORA_PX = 60
+
+export type DensidadeEvento = 'linha' | 'compacto' | 'completo'
+
+/**
+ * Posição e altura EXATAS de um evento na grade: topo pelo minuto de início,
+ * altura proporcional à duração (15 min = 25% de uma hora, 30 = 50%,
+ * 45 = 75%, 60 = 100%, 90 = 150%...). A densidade só decide quanto texto
+ * cabe no bloco — a geometria nunca é inflada para caber texto.
+ */
+export function geometriaEvento(
+  minutoInicio: number,
+  duracaoMinutos: number,
+  alturaHoraPx: number = ALTURA_HORA_PX,
+): { topoPx: number; alturaPx: number; densidade: DensidadeEvento } {
+  const minutos = Math.max(duracaoMinutos, 0)
+  const alturaPx = (minutos / 60) * alturaHoraPx
+  const densidade: DensidadeEvento = minutos <= 20 ? 'linha' : minutos <= 50 ? 'compacto' : 'completo'
+  return { topoPx: (minutoInicio / 60) * alturaHoraPx, alturaPx, densidade }
+}

@@ -135,7 +135,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
           "Resultados do período" saiu (item 8 de uma rodada anterior).
           Responsividade já aprovada: celular/tablet vertical pode empilhar,
           tablet horizontal em diante mostra as duas colunas na mesma linha.
-          `@2xl` (672px de container): com a sidebar em 220px + 24px de
+          `@2xl` (672px de container): com a sidebar em 232px + 24px de
           padding por lado, um tablet horizontal de 1024px chega em ~756px
           de container, acima do limiar. Segunda coluna com piso de 320px
           (`minmax(320px,...)`) pra nunca espremer o donut, primeira com
