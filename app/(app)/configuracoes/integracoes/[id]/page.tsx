@@ -1,8 +1,26 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { botaoPrimarioClass, botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Aviso, AvisoDaUrl } from '@/components/ui/aviso'
+import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import {
+  botaoPerigoClass,
+  botaoPrimarioClass,
+  botaoSecundarioClass,
+  cartaoClass,
+  inputClass,
+  labelClass,
+  legendaClass,
+  linhaClass,
+  tabelaCaixaClass,
+  tabelaClass,
+  tdClass,
+  thClass,
+  theadClass,
+} from '@/components/ui/estilos'
+import { Selo } from '@/components/ui/selo'
 import {
   revogarFonteAction,
   salvarFonteAction,
@@ -48,27 +66,21 @@ export default async function FontePage({ params, searchParams }: Props) {
   const item = itemDoTipo(fonte.tipo)
   const situacao = situacaoDaFonte(fonte)
   const ativa = fonte.status !== 'revogada'
-  const ok = typeof busca.ok === 'string' ? busca.ok : null
-  const erro = typeof busca.erro === 'string' ? busca.erro : null
+  const secao = `${cartaoClass} space-y-3 p-5`
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <Link href="/configuracoes/integracoes" className="text-sm text-zinc-500 hover:underline">
-          ← Integrações
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold">{fonte.nome}</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {item.nome} · {situacao.rotulo}
-          {fonte.ultimoLeadEm ? ` · último lead ${formatarDataHoraCompleta(fonte.ultimoLeadEm)}` : ''}
-        </p>
-      </div>
-      {ok && <p role="status" className="text-sm text-emerald-700">{ok}</p>}
-      {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+      <PageHeaderPremium
+        titulo={fonte.nome}
+        subtitulo={`${item.nome}${fonte.ultimoLeadEm ? ` · último lead ${formatarDataHoraCompleta(fonte.ultimoLeadEm)}` : ''}`}
+        voltar={{ href: '/configuracoes/integracoes', rotulo: 'Integrações' }}
+        acoes={<Selo tom={situacao.tom === 'ok' ? 'verde' : situacao.tom === 'espera' ? 'ambar' : 'neutro'}>{situacao.rotulo}</Selo>}
+      />
+      <AvisoDaUrl ok={busca.ok} erro={busca.erro} />
       {fonte.ultimoErro && ativa && (
-        <p className="text-sm text-red-600">
-          Último erro{fonte.ultimoErroEm ? ` (${formatarDataHoraCompleta(fonte.ultimoErroEm)})` : ''}: {fonte.ultimoErro}
-        </p>
+        <Aviso tom="erro" titulo={`Último erro${fonte.ultimoErroEm ? ` (${formatarDataHoraCompleta(fonte.ultimoErroEm)})` : ''}`}>
+          {fonte.ultimoErro}
+        </Aviso>
       )}
 
       {ativa && <Instrucoes fonte={fonte} />}
@@ -76,9 +88,9 @@ export default async function FontePage({ params, searchParams }: Props) {
       {ativa && podeGerir && (
         <>
           {item.usaToken && (
-            <section className="space-y-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              <h2 className="font-semibold">Token</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <section className={secao}>
+              <h2 className={legendaClass}>Token</h2>
+              <p className="text-sm text-premium-secundario">
                 Atual: <code>{fonte.tokenPrefixo}…</code> (o restante nunca é mostrado de novo).
               </p>
               <GirarToken id={fonte.id} />
@@ -86,17 +98,17 @@ export default async function FontePage({ params, searchParams }: Props) {
           )}
 
           {item.exigeValidacao && (
-            <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              <h2 className="font-semibold">Conexão com a Meta</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <section className={secao}>
+              <h2 className={legendaClass}>Conexão com a Meta</h2>
+              <p className="text-sm text-premium-secundario">
                 {fonte.validadaEm
                   ? `Validada em ${formatarDataHoraCompleta(fonte.validadaEm)}.`
                   : 'Ainda não validada: nenhum evento é aceito até a validação com o token da empresa.'}
               </p>
               <form action={segredoFonteAction} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="id" value={fonte.id} />
-                <label className="block flex-1 text-sm">
-                  <span className="mb-1 block font-medium">
+                <label className="block min-w-60 flex-1">
+                  <span className={labelClass}>
                     {fonte.tipo === 'meta_lead_ads' ? 'Token de acesso da página' : 'Token de acesso do WhatsApp Cloud API'}
                   </span>
                   <input name="segredo" type="password" autoComplete="off" required minLength={20} className={inputClass} />
@@ -114,15 +126,18 @@ export default async function FontePage({ params, searchParams }: Props) {
             </section>
           )}
 
-          <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-            <h2 className="font-semibold">Destino e configuração</h2>
+          <section className={secao}>
+            <h2 className={legendaClass}>Destino e configuração</h2>
             <form action={salvarFonteAction} className="grid gap-3 sm:grid-cols-2">
               <input type="hidden" name="id" value={fonte.id} />
               <input type="hidden" name="tipo" value={fonte.tipo} />
               <CamposFonte
                 tipo={fonte.tipo}
                 opcoes={opcoes}
-                responsaveis={responsaveis.map((r) => ({ id: r.id, nome: r.nome }))}
+                responsaveis={responsaveis.map((r) => ({
+                  id: r.id,
+                  nome: r.nome,
+                }))}
                 valores={{
                   nome: fonte.nome,
                   destino: `${fonte.funilId}|${fonte.etapaId}`,
@@ -148,36 +163,44 @@ export default async function FontePage({ params, searchParams }: Props) {
             </form>
             <form action={revogarFonteAction}>
               <input type="hidden" name="id" value={fonte.id} />
-              <button type="submit" className={`${botaoSecundarioClass} text-red-600`}>
+              <BotaoConfirmar
+                pergunta={`Revogar a fonte "${fonte.nome}"? Ela para de aceitar leads e não pode ser reativada.`}
+                className={botaoPerigoClass}
+              >
                 Revogar (definitivo)
-              </button>
+              </BotaoConfirmar>
             </form>
           </section>
         </>
       )}
 
-      <section className="space-y-2">
-        <h2 className="font-semibold">Últimos recebimentos</h2>
+      <section aria-labelledby="recebimentos-titulo" className="space-y-3">
+        <h2 id="recebimentos-titulo" className={legendaClass}>
+          Últimos recebimentos
+        </h2>
         {eventos.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nada recebido ainda.</p>
+          <EstadoVazio
+            titulo="Nada recebido ainda"
+            descricao="Assim que esta fonte enviar o primeiro lead, o recebimento aparece aqui com o resultado."
+          />
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-800">
+          <div className={tabelaCaixaClass}>
+            <table className={tabelaClass}>
+              <thead className={theadClass}>
                 <tr>
-                  <th className="px-3 py-2">Quando</th>
-                  <th className="px-3 py-2">Resultado</th>
-                  <th className="px-3 py-2">Identificador</th>
-                  <th className="px-3 py-2">Detalhe</th>
+                  <th className={thClass}>Quando</th>
+                  <th className={thClass}>Resultado</th>
+                  <th className={thClass}>Identificador</th>
+                  <th className={thClass}>Detalhe</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <tbody>
                 {eventos.map((e) => (
-                  <tr key={e.id}>
-                    <td className="whitespace-nowrap px-3 py-2">{formatarDataHoraCompleta(e.recebidoEm)}</td>
-                    <td className="px-3 py-2">{e.resultado}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{e.externalId ?? '—'}</td>
-                    <td className="px-3 py-2 text-xs">
+                  <tr key={e.id} className={linhaClass}>
+                    <td className={`${tdClass} whitespace-nowrap`}>{formatarDataHoraCompleta(e.recebidoEm)}</td>
+                    <td className={tdClass}>{e.resultado}</td>
+                    <td className={`${tdClass} font-mono text-xs`}>{e.externalId ?? '—'}</td>
+                    <td className={`${tdClass} text-xs text-premium-secundario`}>
                       {e.erroMensagem ?? e.erroCodigo ?? (e.negociacaoId ? 'negociação criada/atualizada' : '—')}
                     </td>
                   </tr>
@@ -194,37 +217,40 @@ export default async function FontePage({ params, searchParams }: Props) {
 /** Como conectar, por tipo. Nunca mostra segredo: só endereços e o formato. */
 function Instrucoes({ fonte }: { fonte: Fonte }) {
   const end = enderecosIntegracao()
-  const caixa = 'space-y-2 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800'
-  const codigo = 'block overflow-x-auto whitespace-pre rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-900'
+  const caixa = `${cartaoClass} space-y-2 p-5 text-sm`
+  const codigo =
+    'block overflow-x-auto whitespace-pre rounded-lg border border-premium-borda-suave bg-premium-bg p-3 font-mono text-xs text-premium-texto'
 
   if (fonte.tipo === 'formulario_rx7') {
     return (
       <section className={caixa}>
-        <h2 className="font-semibold">Link do formulário</h2>
+        <h2 className={legendaClass}>Link do formulário</h2>
         <code className={codigo}>{`${serverEnv.siteUrl.replace(/\/+$/, '')}/f/${fonte.id}`}</code>
-        <p className="text-zinc-600 dark:text-zinc-400">Divulgue este link (site, bio, anúncios). Ele não contém nenhum segredo.</p>
+        <p className="text-premium-secundario">Divulgue este link (site, bio, anúncios). Ele não contém nenhum segredo.</p>
       </section>
     )
   }
   if (fonte.tipo === 'webhook' || fonte.tipo === 'google_sheets' || fonte.tipo === 'respondi') {
     return (
       <section className={caixa}>
-        <h2 className="font-semibold">Como conectar</h2>
+        <h2 className={legendaClass}>Como conectar</h2>
         <code className={codigo}>{`POST ${end.webhook}\nAuthorization: Bearer <token da fonte>`}</code>
         {fonte.tipo === 'webhook' && (
-          <code className={codigo}>{`{ "external_id": "id-do-lead-no-seu-sistema",\n  "dados": { "nome": "…", "telefone": "…", "email": "…" },\n  "atribuicao": { "utm_source": "…" } }`}</code>
+          <code
+            className={codigo}
+          >{`{ "external_id": "id-do-lead-no-seu-sistema",\n  "dados": { "nome": "…", "telefone": "…", "email": "…" },\n  "atribuicao": { "utm_source": "…" } }`}</code>
         )}
         {fonte.tipo === 'respondi' && (
-          <p className="text-zinc-600 dark:text-zinc-400">
-            No Respondi da empresa, configure o webhook para este endereço com o header acima. Se o Respondi não aceitar
-            header, use <code>?token=&lt;token da fonte&gt;</code> no fim da URL. O primeiro envio confirma a conexão.
+          <p className="text-premium-secundario">
+            No Respondi da empresa, configure o webhook para este endereço com o header acima. Se o Respondi não aceitar header, use{' '}
+            <code>?token=&lt;token da fonte&gt;</code> no fim da URL. O primeiro envio confirma a conexão.
           </p>
         )}
         {fonte.tipo === 'google_sheets' && (
           <>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Na planilha: Extensões → Apps Script. Guarde o token em Propriedades do script (<code>AVANTE_TOKEN</code>) e crie
-              um acionador &quot;Ao enviar formulário&quot; ou &quot;Ao editar&quot; para esta função:
+            <p className="text-premium-secundario">
+              Na planilha: Extensões → Apps Script. Guarde o token em Propriedades do script (<code>AVANTE_TOKEN</code>) e crie um acionador
+              &quot;Ao enviar formulário&quot; ou &quot;Ao editar&quot; para esta função:
             </p>
             <code className={codigo}>{`function enviarLeadAvante(e) {
   const linha = e.range.getRow();
@@ -246,11 +272,11 @@ function Instrucoes({ fonte }: { fonte: Fonte }) {
   }
   return (
     <section className={caixa}>
-      <h2 className="font-semibold">Como conectar</h2>
-      <p className="text-zinc-600 dark:text-zinc-400">
+      <h2 className={legendaClass}>Como conectar</h2>
+      <p className="text-premium-secundario">
         O app da Meta da Rio X7 recebe os eventos em <code>{end.meta}</code>. A empresa informa{' '}
-        {fonte.tipo === 'meta_lead_ads' ? 'a página e o token de acesso dela' : 'o número (Phone Number ID) e o token dela'}, e o
-        CRM valida com a Meta antes de aceitar qualquer lead.
+        {fonte.tipo === 'meta_lead_ads' ? 'a página e o token de acesso dela' : 'o número (Phone Number ID) e o token dela'}, e o CRM valida
+        com a Meta antes de aceitar qualquer lead.
       </p>
     </section>
   )

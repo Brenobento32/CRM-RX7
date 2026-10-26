@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import { criarNegociacaoAction, type EstadoNovaNegociacao } from '@/lib/actions/funis'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
@@ -35,7 +35,7 @@ export function NovaEntradaForm({
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -48,7 +48,7 @@ export function NovaEntradaForm({
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="valor_estimado" className="mb-1.5 block text-sm font-medium">
-            Valor estimado (R$) <span className="font-normal text-zinc-500">(opcional)</span>
+            Valor estimado (R$) <span className="font-normal text-premium-mudo">(opcional)</span>
           </label>
           <input
             id="valor_estimado"
@@ -64,7 +64,7 @@ export function NovaEntradaForm({
 
         <div>
           <label htmlFor="temperatura" className="mb-1.5 block text-sm font-medium">
-            Temperatura <span className="font-normal text-zinc-500">(opcional)</span>
+            Temperatura <span className="font-normal text-premium-mudo">(opcional)</span>
           </label>
           <select
             id="temperatura"
@@ -84,13 +84,13 @@ export function NovaEntradaForm({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Criando…' : 'Criar negociação'}
         </button>
         <Link
           href={cancelarHref}
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>

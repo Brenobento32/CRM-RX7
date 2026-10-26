@@ -134,7 +134,7 @@ export function ShellApp({
             className="min-h-full min-w-0 flex-1 bg-premium-bg pl-[232px] text-premium-texto transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] group-data-[sobreposto=sim]/shell:pl-[70px] motion-reduce:transition-none"
           >
             {topo && (
-              <header className="sticky top-0 z-20 flex h-14 items-center justify-end border-b border-premium-borda bg-premium-topo/95 px-3 shadow-[0_1px_2px_rgb(0_0_0/0.04)] backdrop-blur sm:px-6 lg:px-8">
+              <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-premium-borda bg-premium-topo/95 px-3 shadow-[0_1px_2px_rgb(0_0_0/0.04)] backdrop-blur sm:px-6 lg:px-8">
                 {topo}
               </header>
             )}

@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
 import {
   enviarMensagemAction,
   enviarMensagemAudioAction,
@@ -1347,10 +1348,10 @@ export function PainelConversa({ card, onFechar }: Props) {
         e.preventDefault()
         onFechar()
       }}
-      className="m-0 ml-auto h-dvh max-h-dvh w-full border-l border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 sm:w-[48vw] sm:min-w-[420px] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+      className="m-0 ml-auto h-dvh max-h-dvh w-full border-l border-premium-borda bg-premium-card p-0 text-premium-texto shadow-premium-alta backdrop:bg-black/50 sm:w-[48vw] sm:min-w-[420px]"
     >
       <div className="flex h-full flex-col">
-        <header className="flex items-start justify-between gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
+        <header className="flex items-start justify-between gap-3 border-b border-premium-borda p-4">
           {modoSelecao ? (
             <>
               <p id="painel-conversa-titulo" className="self-center text-sm font-medium">
@@ -1363,7 +1364,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                   disabled={selecionadas.size === 0}
                   aria-label="Encaminhar selecionadas"
                   title="Encaminhar"
-                  className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <IconeEncaminhar className="size-5" />
                 </button>
@@ -1373,14 +1374,14 @@ export function PainelConversa({ card, onFechar }: Props) {
                   disabled={selecionadas.size === 0}
                   aria-label="Excluir selecionadas para mim"
                   title="Excluir para mim"
-                  className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <IconeLixeira className="size-5" />
                 </button>
                 <button
                   type="button"
                   onClick={cancelarSelecao}
-                  className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-premium-bg dark:text-zinc-300"
                 >
                   Cancelar
                 </button>
@@ -1409,7 +1410,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                 type="button"
                 onClick={onFechar}
                 aria-label="Fechar conversa"
-                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg hover:text-premium-texto"
               >
                 <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
                   <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
@@ -1420,23 +1421,23 @@ export function PainelConversa({ card, onFechar }: Props) {
         </header>
 
         {avisoEncaminhar && (
-          <p role="status" className="border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+          <p role="status" className="border-b border-premium-borda bg-premium-bg px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300">
             {avisoEncaminhar}
           </p>
         )}
 
         <div ref={listaRef} className="flex-1 overflow-y-auto p-4">
           {estado.status === 'carregando' && (
-            <p className="text-center text-sm text-zinc-500">Carregando…</p>
+            <p className="text-center text-sm text-premium-mudo">Carregando…</p>
           )}
 
           {estado.status === 'erro' && (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
-              <p className="text-sm text-zinc-500">{estado.mensagem}</p>
+              <p className="text-sm text-premium-mudo">{estado.mensagem}</p>
               <button
                 type="button"
                 onClick={tentarCarregarNovamente}
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className={botaoSecundarioClass}
               >
                 Tentar novamente
               </button>
@@ -1445,7 +1446,7 @@ export function PainelConversa({ card, onFechar }: Props) {
 
           {(estado.status === 'sem-conversa' || estado.status === 'pronto') && mensagens.length === 0 && (
             <div className="flex h-full items-center justify-center">
-              <p className="text-center text-sm text-zinc-500">Nenhuma mensagem ainda.</p>
+              <p className="text-center text-sm text-premium-mudo">Nenhuma mensagem ainda.</p>
             </div>
           )}
 
@@ -1490,7 +1491,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                         className={`mb-1 flex size-5 shrink-0 items-center justify-center rounded-full border transition ${
                           selecionada
                             ? 'border-green-600 bg-green-600 text-white'
-                            : 'border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900'
+                            : 'border-premium-borda bg-premium-card'
                         }`}
                       >
                         {selecionada && <IconeCheck />}
@@ -1502,13 +1503,13 @@ export function PainelConversa({ card, onFechar }: Props) {
                       className={`rounded-lg px-3 py-2 text-sm ${modoSelecao ? 'cursor-pointer' : ''} ${
                         m.direcao === 'saida'
                           ? `bg-green-600 text-white ${item.primeiroDoGrupo ? 'rounded-tr-sm' : ''}`
-                          : `bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 ${item.primeiroDoGrupo ? 'rounded-tl-sm' : ''}`
+                          : `bg-premium-bg text-premium-texto ${item.primeiroDoGrupo ? 'rounded-tl-sm' : ''}`
                       }`}
                     >
                     {m.encaminhada && (
                       <p
                         className={`mb-1 flex items-center gap-1 text-[11px] italic ${
-                          m.direcao === 'saida' ? 'text-green-100/80' : 'text-zinc-500 dark:text-zinc-400'
+                          m.direcao === 'saida' ? 'text-green-100/80' : 'text-premium-mudo'
                         }`}
                       >
                         <IconeEncaminhar className="size-3" />
@@ -1574,7 +1575,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                     {m.conteudo && <p className="whitespace-pre-wrap">{m.conteudo}</p>}
                     <p
                       className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] ${
-                        m.direcao === 'saida' ? 'text-green-100' : 'text-zinc-500 dark:text-zinc-400'
+                        m.direcao === 'saida' ? 'text-green-100' : 'text-premium-mudo'
                       }`}
                     >
                       {formatarHora(m.createdAt)}
@@ -1619,7 +1620,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                             className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs transition ${
                               grupo.minha
                                 ? 'border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-950'
-                                : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                                : 'border-premium-borda bg-premium-card hover:bg-zinc-50 dark:hover:bg-zinc-800'
                             }`}
                           >
                             <span>{grupo.emoji}</span>
@@ -1630,7 +1631,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                     )}
 
                     {copiadoId === m.id && (
-                      <span className="absolute -top-2 right-1 rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-white shadow dark:bg-zinc-100 dark:text-zinc-900">
+                      <span className="absolute -top-2 right-1 rounded bg-premium-texto px-1.5 py-0.5 text-[10px] font-medium text-premium-bg shadow">
                         Copiado
                       </span>
                     )}
@@ -1658,7 +1659,7 @@ export function PainelConversa({ card, onFechar }: Props) {
         </div>
 
         <form
-          className="flex flex-col gap-1.5 border-t border-zinc-200 p-3 dark:border-zinc-800"
+          className="flex flex-col gap-1.5 border-t border-premium-borda p-3"
           onSubmit={(e) => {
             e.preventDefault()
             const formData = new FormData(e.currentTarget)
@@ -1693,12 +1694,12 @@ export function PainelConversa({ card, onFechar }: Props) {
             </p>
           )}
           {respostaAtiva && (
-            <div className="flex items-center gap-2 rounded-md border border-zinc-200 border-l-4 border-l-green-600 p-2 dark:border-zinc-700">
+            <div className="flex items-center gap-2 rounded-md border border-premium-borda border-l-4 border-l-green-600 p-2">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-green-700 dark:text-green-400">
                   {respostaAtiva.direcao === 'saida' ? 'Você' : card.clienteNome}
                 </p>
-                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="truncate text-xs text-premium-mudo">
                   {respostaAtiva.conteudo ??
                     (respostaAtiva.tipo === 'imagem'
                       ? 'Imagem'
@@ -1713,7 +1714,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                 type="button"
                 onClick={() => setRespostaAtiva(null)}
                 aria-label="Cancelar resposta"
-                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg"
               >
                 <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
                   <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
@@ -1722,14 +1723,14 @@ export function PainelConversa({ card, onFechar }: Props) {
             </div>
           )}
           {imagemSelecionada && (
-            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+            <div className="flex items-center gap-2 rounded-md border border-premium-borda p-2">
               {/* eslint-disable-next-line @next/next/no-img-element -- preview local (blob URL), nunca passa por next/image */}
               <img
                 src={imagemSelecionada.preview}
                 alt=""
                 className="h-14 w-14 shrink-0 rounded object-cover"
               />
-              <p className="flex-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="flex-1 truncate text-xs text-premium-mudo">
                 {imagemSelecionada.arquivo.name}
               </p>
               <button
@@ -1737,20 +1738,20 @@ export function PainelConversa({ card, onFechar }: Props) {
                 onClick={cancelarImagem}
                 disabled={enviandoImagem}
                 aria-label="Remover imagem"
-                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-800"
+                className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg disabled:cursor-not-allowed"
               >
                 ✕
               </button>
             </div>
           )}
           {documentoSelecionado && (
-            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+            <div className="flex items-center gap-2 rounded-md border border-premium-borda p-2">
               <span aria-hidden className="text-2xl">📄</span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                <p className="truncate text-xs font-medium text-premium-secundario">
                   {documentoSelecionado.arquivo.name}
                 </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-premium-mudo">
                   {(documentoSelecionado.arquivo.name.split('.').pop() ?? '').toUpperCase()} ·{' '}
                   {formatarTamanhoArquivo(documentoSelecionado.arquivo.size)}
                 </p>
@@ -1760,14 +1761,14 @@ export function PainelConversa({ card, onFechar }: Props) {
                 onClick={cancelarDocumento}
                 disabled={enviandoDocumento}
                 aria-label="Remover documento"
-                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-800"
+                className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg disabled:cursor-not-allowed"
               >
                 ✕
               </button>
             </div>
           )}
           {gravacaoAudio?.fase === 'pronta' && (
-            <div className="flex items-center gap-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+            <div className="flex items-center gap-2 rounded-md border border-premium-borda p-2">
               <div className="flex-1">
                 <PlayerAudio srcLocal={gravacaoAudio.preview} duracaoInicial={gravacaoAudio.duracaoSegundos} />
               </div>
@@ -1776,7 +1777,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                 onClick={cancelarGravacao}
                 disabled={enviandoAudio}
                 aria-label="Remover áudio"
-                className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 disabled:cursor-not-allowed dark:hover:bg-zinc-800"
+                className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg disabled:cursor-not-allowed"
               >
                 ✕
               </button>
@@ -1788,7 +1789,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                 type="button"
                 onClick={cancelarGravacao}
                 aria-label="Cancelar gravação"
-                className="shrink-0 rounded-md p-2 text-lg leading-none text-zinc-400 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="shrink-0 rounded-md p-2 text-lg leading-none text-premium-mudo transition hover:bg-premium-bg"
               >
                 🗑️
               </button>
@@ -1801,7 +1802,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                 type="button"
                 onClick={() => pararGravacao(true)}
                 aria-label="Parar gravação e revisar"
-                className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition dark:bg-zinc-100 dark:text-zinc-900"
+                className="shrink-0 rounded-md bg-premium-texto px-3 py-2 text-sm font-medium text-premium-bg transition"
               >
                 Concluir
               </button>
@@ -1838,13 +1839,13 @@ export function PainelConversa({ card, onFechar }: Props) {
                   }
                 }}
                 disabled={!conversaId || gravacaoAudio?.fase === 'pronta'}
-                className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+                className={`${inputClass} max-h-40 min-h-10 flex-1 resize-none overflow-y-auto`}
               />
               {imagemSelecionada || documentoSelecionado || gravacaoAudio?.fase === 'pronta' || texto.trim() ? (
                 <button
                   type="submit"
                   disabled={!conversaId || enviando || enviandoImagem || enviandoDocumento || enviandoAudio}
-                  className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+                  className="shrink-0 rounded-md bg-premium-texto px-3 py-2 text-sm font-medium text-premium-bg transition disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {enviando || enviandoImagem || enviandoDocumento || enviandoAudio ? 'Enviando…' : 'Enviar'}
                 </button>
@@ -1855,7 +1856,7 @@ export function PainelConversa({ card, onFechar }: Props) {
                   disabled={!conversaId}
                   aria-label="Gravar áudio"
                   title="Gravar áudio"
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-600 transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-300"
                 >
                   <IconeMicrofone />
                 </button>

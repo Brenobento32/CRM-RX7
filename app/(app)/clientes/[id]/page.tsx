@@ -12,6 +12,8 @@ import {
 } from '@/lib/actions/atividades'
 import { arquivarClienteAction } from '@/lib/actions/clientes'
 import { LIMITE_TIMELINE, listarProximasAcoes, listarTimeline } from '@/lib/dal/atividades'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { Secao } from '@/components/ui/secao'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterCliente, type NegociacaoDoCliente } from '@/lib/dal/clientes'
 import { listarEventosDoCliente } from '@/lib/dal/eventos'
@@ -112,24 +114,26 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
   ]
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="space-y-6">
       <div>
-        <Link href="/clientes" className="text-sm text-zinc-500 hover:underline">
-          ← Clientes
+        <Link href="/clientes" className="mb-2 inline-flex items-center gap-1 text-sm text-premium-mudo transition hover:text-premium-texto">
+          <span aria-hidden>←</span> Clientes
         </Link>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">{cliente.nome}</h1>
-            {cliente.empresa && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">{cliente.empresa}</p>
-            )}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-premium-acento-suave text-lg font-semibold text-premium-acento">
+              {cliente.nome.slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold tracking-tight text-premium-texto">{cliente.nome}</h1>
+              <p className="text-sm text-premium-secundario">
+                {[cliente.empresa, ROTULO_TIPO_CLIENTE[cliente.tipo_cliente]].filter(Boolean).join(' · ') || 'Cliente'}
+              </p>
+            </div>
           </div>
           <div className="flex shrink-0 items-start gap-2">
-            <Link
-              href={`/clientes/${cliente.id}/editar`}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-            >
-              Editar
+            <Link href={`/clientes/${cliente.id}/editar`} className={botaoSecundarioClass}>
+              Editar cliente
             </Link>
             {/* Atendente não arquiva clientes (o banco também recusa). */}
             {usuario.role !== 'atendente' && <BotaoArquivarCliente action={arquivarClienteAction.bind(null, cliente.id)} />}
@@ -137,172 +141,186 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
         </div>
       </div>
 
-      <dl className="grid gap-x-6 gap-y-4 rounded-lg border border-zinc-200 bg-white p-6 sm:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-950">
-        {itens.map((item) => (
-          <div key={item.rotulo}>
-            <dt className="text-xs uppercase tracking-wide text-zinc-500">{item.rotulo}</dt>
-            <dd className="mt-1 text-sm">{item.valor || '—'}</dd>
-          </div>
-        ))}
-        <div className="sm:col-span-2">
-          <dt className="text-xs uppercase tracking-wide text-zinc-500">Observações</dt>
-          <dd className="mt-1 whitespace-pre-wrap text-sm">{cliente.observacoes || '—'}</dd>
-        </div>
-      </dl>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Negociações</h2>
-        {cliente.negociacoes.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhuma negociação.</p>
-        ) : (
-          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
-            {cliente.negociacoes.map((n) => (
-              <li key={n.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm">
-                <div className="min-w-0 space-y-1.5">
-                  <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="flex items-center gap-2 font-medium">
-                      <PontoEtapa cor={n.etapa.cor} />
-                      {n.etapa.nome}
-                    </span>
-                    {n.funilNome && <span className="text-zinc-500">{n.funilNome}</span>}
-                    <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                      {ROTULO_ORIGEM[n.origem]}
-                    </span>
-                    <span className="text-zinc-500">Aberta em {data(n.created_at)}</span>
-                  </p>
-                  <ResumoNegociacao negociacao={n} />
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Secao
+            titulo="Negociações"
+            descricao={`${cliente.negociacoes.length} ${cliente.negociacoes.length === 1 ? 'negociação' : 'negociações'}`}
+            semPadding
+          >
+            <div className="p-2">
+            {cliente.negociacoes.length === 0 ? (
+              <EstadoVazio compacto titulo="Nenhuma negociação" descricao="Crie uma entrada no funil para começar a acompanhar este cliente." acao={{ href: '/funil/nova', rotulo: 'Nova entrada no funil' }} />
+            ) : (
+              <ul className="divide-y divide-premium-borda-suave">
+                {cliente.negociacoes.map((n) => (
+                  <li key={n.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm">
+                    <div className="min-w-0 space-y-1.5">
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="flex items-center gap-2 font-medium">
+                          <PontoEtapa cor={n.etapa.cor} />
+                          {n.etapa.nome}
+                        </span>
+                        {n.funilNome && <span className="text-premium-mudo">{n.funilNome}</span>}
+                        <span className="rounded bg-premium-bg px-1.5 py-0.5 text-xs text-premium-secundario">
+                          {ROTULO_ORIGEM[n.origem]}
+                        </span>
+                        <span className="text-premium-mudo">Aberta em {data(n.created_at)}</span>
+                      </p>
+                      <ResumoNegociacao negociacao={n} />
+                    </div>
+                    <Link href={`/negociacoes/${n.id}/editar`} className={botaoSecundarioClass}>
+                      {n.etapa.tipo === 'aberta' ? 'Editar' : 'Ver'}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
                 </div>
-                <Link href={`/negociacoes/${n.id}/editar`} className={botaoSecundarioClass}>
-                  {n.etapa.tipo === 'aberta' ? 'Editar' : 'Ver'}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          </Secao>
 
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Agenda</h2>
-          <Link href={`/agenda/novo?cliente=${cliente.id}`} className={botaoSecundarioClass}>
-            Agendar evento
-          </Link>
-        </div>
-        {eventos.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhum compromisso agendado.</p>
-        ) : (
-          <ListaEventos>
-            {eventos.map((e) => (
-              <EventoItem
-                key={e.id}
-                evento={e}
-                mostrarData
-                mostrarResponsavel={usuario.role === 'gerente'}
-              />
-            ))}
-          </ListaEventos>
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Próximas ações</h2>
-
-        {proximasAcoes.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhuma próxima ação pendente.</p>
-        ) : (
-          <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
-            {proximasAcoes.map((a) => {
-              const atrasada = a.data < hoje
-              const etapa = a.negociacaoId ? etapaDaNegociacao.get(a.negociacaoId) : undefined
-              return (
-                <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium">{a.titulo}</p>
-                    <p className="text-xs text-zinc-500">
-                      <span
-                        className={
-                          atrasada
-                            ? 'font-medium text-red-600 dark:text-red-400'
-                            : a.data === hoje
-                              ? 'font-medium text-amber-700 dark:text-amber-400'
-                              : undefined
-                        }
-                      >
-                        {a.data === hoje ? 'Hoje' : formatarDia(a.data)}
-                        {atrasada && ' · atrasada'}
-                      </span>
-                      {etapa && ` · ${etapa.nome}`}
-                    </p>
-                    {a.observacao && (
-                      <p className="mt-1 text-zinc-600 dark:text-zinc-400">{a.observacao}</p>
-                    )}
-                  </div>
-                  <form action={concluirProximaAcaoAction.bind(null, a.id, cliente.id)}>
-                    <button type="submit" className={botaoSecundarioClass}>
-                      Concluir
-                    </button>
-                  </form>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-
-        <details className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <summary className="cursor-pointer text-sm font-medium">Agendar próxima ação</summary>
-          <div className="mt-4">
-            <FormProximaAcao
-              action={criarProximaAcaoAction.bind(null, cliente.id)}
-              negociacoes={opcoesNegociacao}
-              hoje={hoje}
-            />
-          </div>
-        </details>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Atividades</h2>
-
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <FormAtividade
-            action={registrarAtividadeAction.bind(null, cliente.id)}
-            negociacoes={opcoesNegociacao}
-            agora={agoraSaoPauloLocal()}
-          />
-        </div>
-
-        {timeline.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhuma atividade registrada.</p>
-        ) : (
-          <ol className="relative space-y-5 border-l border-zinc-200 pl-5 dark:border-zinc-800">
-            {timeline.map((a) => (
-              <li key={a.id} className="relative">
-                <span
-                  className="absolute top-1.5 -left-[25px] size-2.5 rounded-full border-2 border-white bg-zinc-400 dark:border-zinc-950"
-                  aria-hidden
+          <Secao titulo="Atividades" descricao="Registre ligações, reuniões e mensagens — tudo fica na linha do tempo.">
+            <div className="space-y-5">
+              <div className="rounded-lg border border-premium-borda-suave bg-premium-bg/50 p-4">
+                <FormAtividade
+                  action={registrarAtividadeAction.bind(null, cliente.id)}
+                  negociacoes={opcoesNegociacao}
+                  agora={agoraSaoPauloLocal()}
                 />
-                <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
-                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    {ROTULO_TIPO_ATIVIDADE[a.tipo]}
-                  </span>
-                  <time dateTime={a.data}>{data(a.data)}</time>
-                  {a.usuario && <span>· {a.usuario}</span>}
+              </div>
+      
+              {timeline.length === 0 ? (
+                <EstadoVazio compacto titulo="Nenhuma atividade ainda" descricao="A primeira atividade registrada aparece aqui." />
+              ) : (
+                <ol className="relative space-y-5 border-l border-premium-borda pl-5">
+                  {timeline.map((a) => (
+                    <li key={a.id} className="relative">
+                      <span
+                        className="absolute top-1.5 -left-[25px] size-2.5 rounded-full border-2 border-premium-card bg-premium-acento"
+                        aria-hidden
+                      />
+                      <p className="flex flex-wrap items-center gap-x-2 text-xs text-premium-mudo">
+                        <span className="rounded bg-premium-bg px-1.5 py-0.5 font-medium text-premium-secundario">
+                          {ROTULO_TIPO_ATIVIDADE[a.tipo]}
+                        </span>
+                        <time dateTime={a.data}>{data(a.data)}</time>
+                        {a.usuario && <span>· {a.usuario}</span>}
+                      </p>
+                      <p className="mt-1 text-sm whitespace-pre-wrap">{a.descricao}</p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {timeline.length === LIMITE_TIMELINE && (
+                <p className="text-xs text-premium-mudo">
+                  Mostrando as {LIMITE_TIMELINE} atividades mais recentes.
                 </p>
-                <p className="mt-1 text-sm whitespace-pre-wrap">{a.descricao}</p>
-              </li>
-            ))}
-          </ol>
-        )}
-        {timeline.length === LIMITE_TIMELINE && (
-          <p className="text-xs text-zinc-500">
-            Mostrando as {LIMITE_TIMELINE} atividades mais recentes.
-          </p>
-        )}
-      </section>
+              )}
+                  </div>
+          </Secao>
+        </div>
 
-      <p className="text-xs text-zinc-500">
-        Cadastrado em {data(cliente.created_at)} · atualizado em {data(cliente.updated_at)}
-      </p>
+        <div className="space-y-6">
+          <Secao titulo="Dados de contato">
+            <dl className="space-y-3">
+              {itens.map((item) => (
+                <div key={item.rotulo} className="flex items-baseline justify-between gap-3 text-sm">
+                  <dt className="shrink-0 text-premium-mudo">{item.rotulo}</dt>
+                  <dd className="min-w-0 truncate text-right text-premium-texto">{item.valor || '—'}</dd>
+                </div>
+              ))}
+              <div className="border-t border-premium-borda-suave pt-3 text-sm">
+                <dt className="text-premium-mudo">Observações</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-premium-texto">{cliente.observacoes || '—'}</dd>
+              </div>
+            </dl>
+          </Secao>
+
+          <Secao titulo="Próximas ações">
+            <div className="space-y-4">
+              {proximasAcoes.length === 0 ? (
+                <p className="text-sm text-premium-mudo">Nenhuma ação pendente. Registre abaixo o próximo passo com este cliente.</p>
+              ) : (
+                <ul className="divide-y divide-premium-borda-suave">
+                  {proximasAcoes.map((a) => {
+                    const atrasada = a.data < hoje
+                    const etapa = a.negociacaoId ? etapaDaNegociacao.get(a.negociacaoId) : undefined
+                    return (
+                      <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium">{a.titulo}</p>
+                          <p className="text-xs text-premium-mudo">
+                            <span
+                              className={
+                                atrasada
+                                  ? 'font-medium text-red-600 dark:text-red-400'
+                                  : a.data === hoje
+                                    ? 'font-medium text-amber-700 dark:text-amber-400'
+                                    : undefined
+                              }
+                            >
+                              {a.data === hoje ? 'Hoje' : formatarDia(a.data)}
+                              {atrasada && ' · atrasada'}
+                            </span>
+                            {etapa && ` · ${etapa.nome}`}
+                          </p>
+                          {a.observacao && (
+                            <p className="mt-1 text-premium-secundario">{a.observacao}</p>
+                          )}
+                        </div>
+                        <form action={concluirProximaAcaoAction.bind(null, a.id, cliente.id)}>
+                          <button type="submit" className={botaoSecundarioClass}>
+                            Concluir
+                          </button>
+                        </form>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+      
+              <details className="rounded-lg border border-premium-borda-suave bg-premium-bg/50 p-3">
+                <summary className="cursor-pointer text-sm font-medium">Agendar próxima ação</summary>
+                <div className="mt-4">
+                  <FormProximaAcao
+                    action={criarProximaAcaoAction.bind(null, cliente.id)}
+                    negociacoes={opcoesNegociacao}
+                    hoje={hoje}
+                  />
+                </div>
+              </details>
+                  </div>
+          </Secao>
+
+          <Secao
+            titulo="Agenda"
+            acoes={
+              <Link href={`/agenda/novo?cliente=${cliente.id}`} className="text-sm font-medium text-premium-acento hover:underline">
+                Agendar
+              </Link>
+            }
+          >
+            {eventos.length === 0 ? (
+              <p className="text-sm text-premium-mudo">Nenhum compromisso com este cliente. Use “Agendar” para marcar uma reunião.</p>
+            ) : (
+              <ListaEventos>
+                {eventos.map((e) => (
+                  <EventoItem
+                    key={e.id}
+                    evento={e}
+                    mostrarData
+                    mostrarResponsavel={usuario.role === 'gerente'}
+                  />
+                ))}
+              </ListaEventos>
+            )}
+              </Secao>
+
+          <p className="text-xs text-premium-mudo">
+            Cadastrado em {data(cliente.created_at)} · atualizado em {data(cliente.updated_at)}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -325,16 +343,16 @@ function ResumoNegociacao({ negociacao: n }: { negociacao: NegociacaoDoCliente }
 
   return (
     <>
-      {dados.length > 0 && <p className="text-zinc-600 dark:text-zinc-400">{dados.join(' · ')}</p>}
+      {dados.length > 0 && <p className="text-premium-secundario">{dados.join(' · ')}</p>}
       {n.servicos.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Serviços">
           {n.servicos.map((s) => (
             <li
               key={s.nome}
-              className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              className="rounded bg-premium-bg px-1.5 py-0.5 text-xs text-premium-secundario"
             >
               {s.nome}
-              {!s.ativo && <span className="text-zinc-500"> (desativado)</span>}
+              {!s.ativo && <span className="text-premium-mudo"> (desativado)</span>}
             </li>
           ))}
         </ul>

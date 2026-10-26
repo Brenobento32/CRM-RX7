@@ -10,7 +10,7 @@ export function VisaoLista({ eventos, hoje, gerente }: { eventos: Evento[]; hoje
 
   if (dias.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
+      <p className="rounded-lg border border-dashed border-premium-borda px-4 py-8 text-center text-sm text-premium-mudo">
         Nenhum compromisso neste período.
       </p>
     )
@@ -20,7 +20,7 @@ export function VisaoLista({ eventos, hoje, gerente }: { eventos: Evento[]; hoje
     <div className="space-y-6">
       {dias.map((d) => (
         <section key={d} className="space-y-2">
-          <h3 className="text-sm font-semibold text-zinc-700 first-letter:uppercase dark:text-zinc-300">
+          <h3 className="text-sm font-semibold text-premium-secundario first-letter:uppercase">
             {d === hoje ? 'Hoje' : formatarDiaExtenso(d)}
           </h3>
           <ListaEventos>

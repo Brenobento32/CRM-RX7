@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass } from '@/components/ui/estilos'
 import { enviarFormularioPublicoAction } from '@/lib/actions/formulario-publico'
 import { createPublicClient } from '@/lib/supabase/publico'
 
@@ -34,13 +34,13 @@ export default async function FormularioPublicoPage({ params, searchParams }: Pr
   const erro = typeof busca.erro === 'string' ? busca.erro : null
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 dark:bg-zinc-950">
-      <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-xs uppercase tracking-wide text-zinc-500">{form.empresa}</p>
-        <h1 className="mt-1 text-xl font-semibold">{form.nome}</h1>
+    <main className="flex min-h-screen items-center justify-center bg-premium-bg px-4 py-12">
+      <div className="w-full max-w-md rounded-xl border border-premium-borda bg-premium-card p-8 shadow-sm">
+        <p className="text-xs uppercase tracking-wide text-premium-mudo">{form.empresa}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-premium-texto">{form.nome}</h1>
 
         {!form.ativo ? (
-          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Este formulário não está recebendo respostas no momento.</p>
+          <p className="mt-4 text-sm text-premium-secundario">Este formulário não está recebendo respostas no momento.</p>
         ) : enviado ? (
           <p role="status" className="mt-4 text-sm text-emerald-700 dark:text-emerald-300">
             Recebemos seus dados. Em breve entraremos em contato.
@@ -71,11 +71,11 @@ export default async function FormularioPublicoPage({ params, searchParams }: Pr
             <Campo rotulo="Mensagem (opcional)">
               <textarea name="mensagem" rows={3} maxLength={2000} className={inputClass} />
             </Campo>
-            {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+            {erro && <p role="alert" className={caixaErroClass}>{erro}</p>}
             <button type="submit" className={`${botaoPrimarioClass} w-full`}>
               Enviar
             </button>
-            <p className="text-xs text-zinc-500">Seus dados são usados só para este contato.</p>
+            <p className="text-xs text-premium-mudo">Seus dados são usados só para este contato.</p>
           </form>
         )}
       </div>

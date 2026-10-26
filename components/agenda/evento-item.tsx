@@ -10,17 +10,18 @@ import {
   statusEmAberto,
   type StatusEvento,
 } from '@/lib/validations/evento'
+import { botaoCompactoClass, cartaoClass } from '@/components/ui/estilos'
 
 export const COR_STATUS: Record<StatusEvento, string> = {
   agendado: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
   confirmado: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300',
   realizado: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
   nao_compareceu: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-  cancelado: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+  cancelado: 'bg-premium-bg text-premium-secundario',
 }
 
 const botaoStatus =
-  'rounded-md border border-zinc-300 px-2 py-1 text-xs transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'
+  botaoCompactoClass
 
 /**
  * Um compromisso da agenda com as ações de status. Os botões são formulários
@@ -46,7 +47,7 @@ export function EventoItem({
         {mostrarData && (
           <p className="font-medium">{formatarDia(diaEmSaoPaulo(evento.inicio), false)}</p>
         )}
-        <p className={mostrarData ? 'text-zinc-500' : 'font-medium'}>
+        <p className={mostrarData ? 'text-premium-mudo' : 'font-medium'}>
           {formatarHora(evento.inicio)}–{formatarHora(evento.fim)}
         </p>
       </div>
@@ -62,12 +63,12 @@ export function EventoItem({
             {evento.titulo}
           </span>
           {evento.serieId && (
-            <span title="Compromisso que se repete" className="text-xs text-zinc-500">
+            <span title="Compromisso que se repete" className="text-xs text-premium-mudo">
               <span aria-hidden>↻</span>
               <span className="sr-only">Repete</span>
             </span>
           )}
-          <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <span className="rounded bg-premium-bg px-1.5 py-0.5 text-xs text-premium-secundario">
             {ROTULO_TIPO_EVENTO[evento.tipo]}
           </span>
           <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${COR_STATUS[evento.status]}`}>
@@ -75,7 +76,7 @@ export function EventoItem({
           </span>
         </div>
 
-        <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-0.5 text-sm text-premium-secundario">
           {/* Sem cliente (agenda nativa): só o responsável. Com cliente que a RLS não mostra: aviso. */}
           {evento.clienteId === null ? null : evento.clienteNome ? (
             <Link href={`/clientes/${evento.clienteId}`} className="hover:underline">
@@ -90,7 +91,7 @@ export function EventoItem({
         </p>
 
         {evento.descricao && (
-          <p className="mt-1 line-clamp-2 text-sm whitespace-pre-wrap text-zinc-500">
+          <p className="mt-1 line-clamp-2 text-sm whitespace-pre-wrap text-premium-mudo">
             {evento.descricao}
           </p>
         )}
@@ -139,7 +140,7 @@ export function EventoItem({
 
 export function ListaEventos({ children }: { children: React.ReactNode }) {
   return (
-    <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
+    <ul className={`${cartaoClass} divide-y divide-premium-borda-suave`}>
       {children}
     </ul>
   )

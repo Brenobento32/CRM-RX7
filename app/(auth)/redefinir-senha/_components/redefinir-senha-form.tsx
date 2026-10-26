@@ -3,9 +3,8 @@
 import { useActionState } from 'react'
 
 import { redefinirSenhaAction } from '@/lib/actions/auth'
+import { inputClass, botaoPrimarioClass, caixaErroClass } from '@/components/ui/estilos'
 
-const inputClass =
-  'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
 
 export function RedefinirSenhaForm() {
   const [estado, action, pendente] = useActionState(redefinirSenhaAction, undefined)
@@ -17,7 +16,7 @@ export function RedefinirSenhaForm() {
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -69,7 +68,7 @@ export function RedefinirSenhaForm() {
       <button
         type="submit"
         disabled={pendente}
-        className="w-full rounded-md bg-premium-acento px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-premium-acento disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
+        className={`${botaoPrimarioClass} h-10 w-full`}
       >
         {pendente ? 'Salvando…' : 'Salvar nova senha'}
       </button>

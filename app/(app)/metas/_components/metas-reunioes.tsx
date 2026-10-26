@@ -1,12 +1,11 @@
+import { inputClass as inputBase, botaoPrimarioClass, tabelaCaixaClass, theadClass, tbodyClass } from '@/components/ui/estilos'
 import { salvarMetasReunioesAction } from '@/lib/actions/metas'
 import type { ProgressoReunioesSdr } from '@/lib/dal/metas-reunioes'
 
 import { BarraProgresso, CardMeta, TextoPercentual } from './progresso'
 
-const inputClass =
-  'w-24 rounded-md border border-premium-borda bg-premium-bg/60 px-2 py-1.5 text-right text-sm tabular-nums text-premium-texto outline-none transition placeholder:text-premium-mudo focus:border-premium-acento focus:ring-2 focus:ring-premium-acento/20'
-const botaoClass =
-  'rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-zinc-950 transition hover:brightness-110'
+const inputClass = `${inputBase} w-24 py-1.5 text-right tabular-nums`
+const botaoClass = botaoPrimarioClass
 
 const AJUDA =
   'Conta reuniões e apresentações marcadas pelo SDR para um Closer ou com cliente, uma vez por série. Agendadas: pela data em que foram marcadas (sem as canceladas). Realizadas: pela data da reunião, com status "realizado". Separado das metas de vendas.'
@@ -62,16 +61,16 @@ export function SecaoMetasReunioes({
           </div>
 
           <form action={salvarMetasReunioesAction.bind(null, mes)} className="space-y-3">
-            <div className="overflow-x-auto rounded-lg border border-premium-borda bg-premium-card">
+            <div className={tabelaCaixaClass}>
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-premium-borda bg-premium-bg/40 text-xs uppercase tracking-wide text-premium-mudo">
+                <thead className={theadClass}>
                   <tr>
                     <th className="px-4 py-3 font-medium">SDR</th>
                     <th className="px-4 py-3 font-medium">Agendadas (meta / feito)</th>
                     <th className="px-4 py-3 font-medium">Realizadas (meta / feito)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-premium-borda">
+                <tbody className={tbodyClass}>
                   {sdrs.map((s) => (
                     <tr key={s.usuarioId}>
                       <td className="px-4 py-3">

@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { editarEtapaAction } from '@/lib/actions/etapas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterEtapa } from '@/lib/dal/etapas'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 
 import { EtapaForm } from '../../../../_components/etapa-form'
 
@@ -26,23 +28,26 @@ export default async function EditarEtapaPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold">
-        {etapa.sistema ? `Cor de "${etapa.nome}"` : 'Editar etapa'}
-      </h1>
-
-      <EtapaForm
-        action={editarEtapaAction.bind(null, funilId, etapa.id)}
-        valoresIniciais={{
-          nome: etapa.nome,
-          cor: etapa.cor,
-          participaConversao: etapa.participaConversao,
-        }}
-        nomeTravado={etapa.sistema}
-        tipo={etapa.tipo}
-        posFechamentoFixo={etapa.posFechamento}
-        rotuloEnviar="Salvar"
-        cancelarHref={`/configuracoes/funis/${funilId}`}
+      <PageHeaderPremium
+        titulo={etapa.sistema ? `Cor de “${etapa.nome}”` : 'Editar etapa'}
+        voltar={{ href: `/configuracoes/funis/${funilId}`, rotulo: 'Funil' }}
       />
+
+      <Secao>
+        <EtapaForm
+          action={editarEtapaAction.bind(null, funilId, etapa.id)}
+          valoresIniciais={{
+            nome: etapa.nome,
+            cor: etapa.cor,
+            participaConversao: etapa.participaConversao,
+          }}
+          nomeTravado={etapa.sistema}
+          tipo={etapa.tipo}
+          posFechamentoFixo={etapa.posFechamento}
+          rotuloEnviar="Salvar"
+          cancelarHref={`/configuracoes/funis/${funilId}`}
+        />
+      </Secao>
     </div>
   )
 }

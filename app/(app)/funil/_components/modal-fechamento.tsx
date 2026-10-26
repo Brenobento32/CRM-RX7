@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState } from 'react'
 
+import { opcaoClass } from '@/components/ui/estilos'
 import { fecharNegociacaoAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
 import type { Servico } from '@/lib/dal/servicos'
@@ -120,7 +121,7 @@ export function ModalFechamento({ card, posicao, servicos, onCancelar, onConclui
 
         <div>
           <label htmlFor="link_contrato" className="mb-1.5 block text-sm font-medium">
-            Link do contrato <span className="font-normal text-zinc-500">(opcional)</span>
+            Link do contrato <span className="font-normal text-premium-mudo">(opcional)</span>
           </label>
           <input
             id="link_contrato"
@@ -187,13 +188,13 @@ export function ModalFechamento({ card, posicao, servicos, onCancelar, onConclui
         <fieldset aria-describedby={erro('servico_ids') ? 'servicos-erro' : undefined}>
           <legend className="mb-1.5 block text-sm font-medium">Serviços contratados</legend>
           {servicos.length === 0 ? (
-            <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p>
+            <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O gerente cadastra em Configurações → Serviços.</p>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {servicos.map((s) => (
                 <label
                   key={s.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-50 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-900"
+                  className={opcaoClass}
                 >
                   <input
                     type="checkbox"
@@ -212,7 +213,7 @@ export function ModalFechamento({ card, posicao, servicos, onCancelar, onConclui
 
         <div>
           <label htmlFor="observacoes" className="mb-1.5 block text-sm font-medium">
-            Observações <span className="font-normal text-zinc-500">(opcional)</span>
+            Observações <span className="font-normal text-premium-mudo">(opcional)</span>
           </label>
           <textarea
             id="observacoes"
@@ -246,7 +247,7 @@ function TipoVenda({ erro }: { erro?: string }) {
         {TIPOS_VENDA.map((v) => (
           <label
             key={v}
-            className="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-zinc-300 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900"
+            className={`${opcaoClass} flex-1 justify-center`}
           >
             <input type="radio" name="tipo_venda" value={v} className="sr-only" />
             {ROTULO_TIPO_VENDA[v]}
@@ -267,7 +268,7 @@ function SimNao({ nome, rotulo, erro }: { nome: string; rotulo: string; erro?: s
         {(['sim', 'nao'] as const).map((v) => (
           <label
             key={v}
-            className="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-zinc-300 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900"
+            className={`${opcaoClass} flex-1 justify-center`}
           >
             <input type="radio" name={nome} value={v} className="sr-only" />
             {v === 'sim' ? 'Sim' : 'Não'}

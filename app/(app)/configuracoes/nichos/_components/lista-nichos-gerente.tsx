@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 
-import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, botaoSecundarioClass, botaoCompactoClass, tabelaCaixaClass, theadClass, tbodyClass } from '@/components/ui/estilos'
 import { definirAtivoNichoAction, moverNichoAction } from '@/lib/actions/nichos'
 import type { NichoComUso } from '@/lib/dal/nichos'
 import { PALETA_ETAPAS } from '@/lib/utils/etapas'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
 
 import { ModalNicho } from './modal-nicho'
 
 const botaoIcone =
-  'rounded-md border border-zinc-300 px-2 py-1 text-xs transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800'
+  botaoCompactoClass
 
 /**
  * `nichos` vem direto da prop (nunca copiado para estado): depois de
@@ -31,13 +32,14 @@ export function ListaNichosGerente({ nichos }: { nichos: NichoComUso[] }) {
       </div>
 
       {nichos.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Nenhum nicho cadastrado.
-        </p>
+        <EstadoVazio
+          titulo="Nenhum nicho cadastrado"
+          descricao="Crie o primeiro nicho no botão acima. A cor do nicho aparece na borda dos cards do Kanban."
+        />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+        <div className={tabelaCaixaClass}>
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+            <thead className={theadClass}>
               <tr>
                 <th className="px-4 py-3 font-medium">Nicho</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -45,9 +47,9 @@ export function ListaNichosGerente({ nichos }: { nichos: NichoComUso[] }) {
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <tbody className={tbodyClass}>
               {nichos.map((n, i) => (
-                <tr key={n.id} className={n.ativo ? undefined : 'text-zinc-400'}>
+                <tr key={n.id} className={n.ativo ? undefined : 'text-premium-mudo'}>
                   <td className="px-4 py-3">
                     <span className="flex items-center gap-2 font-medium">
                       <span
@@ -63,7 +65,7 @@ export function ListaNichosGerente({ nichos }: { nichos: NichoComUso[] }) {
                       className={
                         n.ativo
                           ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800'
+                          : 'rounded bg-premium-bg px-1.5 py-0.5 text-xs font-medium text-premium-mudo'
                       }
                     >
                       {n.ativo ? 'Ativo' : 'Desativado'}

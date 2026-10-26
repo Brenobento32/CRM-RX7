@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { exigirCargo } from '@/lib/dal/auth'
 import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import { listarPropostasAbertas } from '@/lib/dal/propostas'
@@ -21,23 +22,25 @@ export default async function PropostasAbertasPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Propostas</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {eu.role === 'gerente' ? 'Da equipe inteira.' : 'Suas negociações.'} Abertas: negociações em
-          andamento com valor de proposta.
-        </p>
-      </div>
+      <PageHeaderPremium
+        titulo="Propostas"
+        subtitulo={`${eu.role === 'gerente' ? 'Da equipe inteira.' : 'Suas negociações.'} Abertas: negociações em andamento com valor de proposta.`}
+      />
 
       <AbasPropostas atual="/propostas/abertas" />
 
       {propostas.length === 0 ? (
-        <Vazio>Nenhuma proposta em aberto. Informe o valor da proposta na negociação.</Vazio>
+        <Vazio
+          acao={{ href: '/funil', rotulo: 'Abrir o funil' }}
+          descricao="Uma proposta aparece aqui quando a negociação recebe um valor de proposta."
+        >
+          Nenhuma proposta em aberto
+        </Vazio>
       ) : (
         <>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-premium-secundario">
             {propostas.length} {propostas.length === 1 ? 'proposta' : 'propostas'} ·{' '}
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">{formatarMoeda(total)}</span>
+            <span className="font-medium text-premium-texto">{formatarMoeda(total)}</span>
           </p>
           <TabelaPropostas
             colunas={[
@@ -55,16 +58,14 @@ export default async function PropostasAbertasPage() {
                   <Link href={`/clientes/${p.clienteId}`} className="font-medium hover:underline">
                     {p.clienteNome}
                   </Link>
-                  {p.dataProposta && (
-                    <p className="text-xs text-zinc-500">Enviada em {formatarDia(p.dataProposta)}</p>
-                  )}
+                  {p.dataProposta && <p className="text-xs text-premium-mudo">Enviada em {formatarDia(p.dataProposta)}</p>}
                 </td>
                 <td className="px-4 py-3">
                   <EtiquetasServicos servicos={p.servicos} />
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">{formatarMoeda(p.valorProposta)}</td>
                 <td className="px-4 py-3">
-                  {p.formaPagamento ? ROTULO_FORMA_PAGAMENTO[p.formaPagamento] : <span className="text-zinc-400">—</span>}
+                  {p.formaPagamento ? ROTULO_FORMA_PAGAMENTO[p.formaPagamento] : <span className="text-premium-mudo">—</span>}
                 </td>
                 <td className="px-4 py-3">{p.responsavel ?? '—'}</td>
                 <td className="px-4 py-3 text-right">

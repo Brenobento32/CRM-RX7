@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 
 import { CampoLogotipo } from '@/components/empresa/campo-logotipo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass, caixaSucessoClass, cartaoClass } from '@/components/ui/estilos'
 import { salvarDadosEmpresaAction } from '@/lib/actions/empresa-dados'
 import { exigirCargo } from '@/lib/dal/auth'
 import { obterDadosEmpresa } from '@/lib/dal/empresa-dados'
 import { formatarTelefone } from '@/lib/utils/documentos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
 export const metadata: Metadata = {
   title: 'Dados da empresa',
@@ -17,11 +17,7 @@ export const metadata: Metadata = {
  * comercial e endereço aparecem só para leitura — quem muda é a Rio X7
  * (Super Admin). O banco recusa qualquer outro campo.
  */
-export default async function DadosEmpresaPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
+export default async function DadosEmpresaPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await exigirCargo(['gerente'])
   const { ok, erro } = await searchParams
   const dados = await obterDadosEmpresa()
@@ -30,40 +26,35 @@ export default async function DadosEmpresaPage({
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <Link href="/configuracoes" className="text-sm text-zinc-500 hover:underline">
-          ← Configurações
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Dados da empresa</h1>
-      </div>
+      <PageHeaderPremium titulo="Dados da empresa" voltar={{ href: '/configuracoes', rotulo: 'Configurações' }} />
 
       {mensagemErro ? (
-        <p role="alert" className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+        <p role="alert" className={caixaErroClass}>
           {mensagemErro}
         </p>
       ) : mensagemOk ? (
-        <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+        <p role="status" className={caixaSucessoClass}>
           {mensagemOk}
         </p>
       ) : null}
 
-      <section className="grid gap-4 rounded-lg border border-zinc-200 p-4 text-sm sm:grid-cols-2 dark:border-zinc-800">
+      <section className="grid gap-4 rounded-lg border border-premium-borda p-4 text-sm sm:grid-cols-2">
         <div>
-          <p className="text-zinc-500">Nome comercial</p>
+          <p className="text-premium-mudo">Nome comercial</p>
           <p className="mt-0.5 font-medium">{dados.nome}</p>
         </div>
         <div>
-          <p className="text-zinc-500">Endereço no sistema</p>
+          <p className="text-premium-mudo">Endereço no sistema</p>
           <p className="mt-0.5 font-medium">/{dados.slug}</p>
         </div>
-        <p className="text-xs text-zinc-500 sm:col-span-2">
+        <p className="text-xs text-premium-mudo sm:col-span-2">
           Nome, endereço e plano são alterados pela Rio X7. Fale com o suporte se precisar mudar.
         </p>
       </section>
 
       <form
         action={salvarDadosEmpresaAction}
-        className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900"
+        className={`${cartaoClass} divide-y divide-premium-borda-suave`}
       >
         <section className="space-y-3 p-5">
           <h2 className="font-semibold">Identidade visual</h2>
@@ -72,20 +63,25 @@ export default async function DadosEmpresaPage({
 
         <section className="space-y-4 p-5">
           <h2 className="font-semibold">Contato</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Telefone</span>
+              <input
+                name="telefone"
+                inputMode="tel"
+                defaultValue={dados.telefone ? formatarTelefone(dados.telefone) : ''}
+                className={inputClass}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">E-mail da empresa</span>
+              <input name="email" type="email" maxLength={254} defaultValue={dados.email ?? ''} className={inputClass} />
+            </label>
+          </div>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">Telefone</span>
-            <input name="telefone" inputMode="tel" defaultValue={dados.telefone ? formatarTelefone(dados.telefone) : ''} className={inputClass} />
+            <span className="mb-1 block font-medium">Nome do responsável</span>
+            <input name="responsavel_nome" maxLength={120} defaultValue={dados.responsavelNome ?? ''} className={inputClass} />
           </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">E-mail da empresa</span>
-            <input name="email" type="email" maxLength={254} defaultValue={dados.email ?? ''} className={inputClass} />
-          </label>
-        </div>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">Nome do responsável</span>
-          <input name="responsavel_nome" maxLength={120} defaultValue={dados.responsavelNome ?? ''} className={inputClass} />
-        </label>
         </section>
 
         <div className="flex justify-end p-4">

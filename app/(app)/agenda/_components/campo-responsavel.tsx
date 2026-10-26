@@ -85,7 +85,7 @@ export function CampoResponsavel({
           ))}
         </select>
       </div>
-      <p className="mt-1.5 text-xs text-zinc-500">
+      <p className="mt-1.5 text-xs text-premium-mudo">
         {agendaParaCloser
           ? 'Você ou um Closer ativo da sua empresa. O aviso de conflito usa a agenda dele (só horários).'
           : ownerId

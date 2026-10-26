@@ -10,7 +10,7 @@ const LARGURA_MENU = 224
 const EMOJIS_RAPIDOS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const
 
 const ITEM_CLASSE =
-  'flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800'
+  'flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-60'
 
 function IconeMais({ className = 'size-4' }: { className?: string }) {
   return (
@@ -98,7 +98,7 @@ export function MenuMensagem({ copiavel, onCopiar, onResponder, onReagir, onEnca
         popover="auto"
         role="menu"
         aria-label="Ações da mensagem"
-        className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-1 text-zinc-900 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-premium-texto shadow-premium-alta"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
         <div className="flex items-center justify-between gap-0.5 px-0.5 py-1">
@@ -108,7 +108,7 @@ export function MenuMensagem({ copiavel, onCopiar, onResponder, onReagir, onEnca
               type="button"
               onClick={() => disparar(onReagir, emoji)}
               aria-label={`Reagir com ${emoji}`}
-              className="flex size-7 shrink-0 items-center justify-center rounded-full text-base transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="flex size-7 shrink-0 items-center justify-center rounded-full text-base transition hover:bg-premium-bg"
             >
               {emoji}
             </button>
@@ -118,7 +118,7 @@ export function MenuMensagem({ copiavel, onCopiar, onResponder, onReagir, onEnca
           </div>
         </div>
 
-        <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
+        <div className="my-1 border-t border-premium-borda" />
 
         <button type="button" role="menuitem" onClick={() => disparar(onResponder)} className={ITEM_CLASSE}>
           Responder

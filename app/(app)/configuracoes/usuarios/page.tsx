@@ -3,7 +3,15 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { Avatar } from '@/components/ui/avatar'
-import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
+import {
+  botaoPrimarioClass,
+  botaoSecundarioClass,
+  caixaErroClass,
+  caixaAlertaClass,
+  tabelaCaixaClass,
+  theadClass,
+  tbodyClass,
+} from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { definirAcessoAction } from '@/lib/actions/usuarios'
 import { getUsuarioAtual } from '@/lib/dal/auth'
@@ -11,14 +19,13 @@ import { listarUsuarios } from '@/lib/dal/usuarios'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { PALETA_ETAPAS } from '@/lib/utils/etapas'
 import { ROTULO_PAPEL } from '@/lib/validations/usuario'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
 export const metadata: Metadata = {
   title: 'Usuários',
 }
 
-export default async function UsuariosPage({
-  searchParams,
-}: PageProps<'/configuracoes/usuarios'>) {
+export default async function UsuariosPage({ searchParams }: PageProps<'/configuracoes/usuarios'>) {
   const eu = await getUsuarioAtual()
   // Para o closer a rota simplesmente não existe.
   if (eu.role !== 'gerente') notFound()
@@ -28,32 +35,30 @@ export default async function UsuariosPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link href="/configuracoes" className="text-sm text-zinc-500 hover:underline">
-            ← Configurações
+      <PageHeaderPremium
+        titulo="Usuários"
+        voltar={{ href: '/configuracoes', rotulo: 'Configurações' }}
+        acoes={
+          <Link href="/configuracoes/usuarios/novo" className={botaoPrimarioClass}>
+            Novo usuário
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold">Usuários</h1>
-        </div>
-        <Link href="/configuracoes/usuarios/novo" className={botaoPrimarioClass}>
-          Novo usuário
-        </Link>
-      </div>
+        }
+      />
 
       {typeof erro === 'string' && (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <p role="alert" className={caixaErroClass}>
           {erro}
         </p>
       )}
       {typeof aviso === 'string' && (
-        <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+        <p role="status" className={caixaAlertaClass}>
           {aviso}
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className={tabelaCaixaClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-3 font-medium">Usuário</th>
               <th className="px-4 py-3 font-medium">E-mail</th>
@@ -63,9 +68,9 @@ export default async function UsuariosPage({
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody className={tbodyClass}>
             {usuarios.map((u) => (
-              <tr key={u.id} className={u.ativo ? undefined : 'text-zinc-400'}>
+              <tr key={u.id} className={u.ativo ? undefined : 'text-premium-mudo'}>
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-3">
                     <Avatar nome={u.nome} fotoUrl={u.fotoUrl} tamanho="sm" />
@@ -76,21 +81,19 @@ export default async function UsuariosPage({
                         </span>
                       )}
                       {u.nome}
-                      {u.id === eu.id && <span className="ml-1 text-xs font-normal text-zinc-500">(você)</span>}
+                      {u.id === eu.id && <span className="ml-1 text-xs font-normal text-premium-mudo">(você)</span>}
                     </span>
                   </span>
                 </td>
                 <td className="px-4 py-3">{u.email}</td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {u.telefone ? formatarTelefone(u.telefone) : '—'}
-                </td>
+                <td className="px-4 py-3 whitespace-nowrap">{u.telefone ? formatarTelefone(u.telefone) : '—'}</td>
                 <td className="px-4 py-3">{ROTULO_PAPEL[u.role]}</td>
                 <td className="px-4 py-3">
                   <span
                     className={
                       u.ativo
                         ? 'rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-300'
-                        : 'rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                        : 'rounded-full bg-premium-bg px-2 py-0.5 text-xs font-medium text-premium-secundario'
                     }
                   >
                     {u.ativo ? 'Ativo' : 'Inativo'}
@@ -116,9 +119,9 @@ export default async function UsuariosPage({
         </table>
       </div>
 
-      <p className="text-xs text-zinc-500">
-        Usuários não são excluídos. Desativar bloqueia o login e mantém o histórico e a carteira —
-        transfira os clientes para outra pessoa pela edição de cada cliente.
+      <p className="text-xs text-premium-mudo">
+        Usuários não são excluídos. Desativar bloqueia o login e mantém o histórico e a carteira — transfira os clientes para outra pessoa
+        pela edição de cada cliente.
       </p>
     </div>
   )

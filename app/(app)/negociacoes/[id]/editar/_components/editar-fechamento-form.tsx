@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, opcaoClass, caixaErroClass, caixaAlertaClass } from '@/components/ui/estilos'
 import type { EstadoFormFechamento } from '@/lib/actions/negociacoes'
 import type { FechamentoEdicao } from '@/lib/dal/negociacoes'
 import type { Servico } from '@/lib/dal/servicos'
@@ -50,7 +50,7 @@ export function EditarFechamentoForm({
     return (
       <div
         role="alert"
-        className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
+        className={`${caixaAlertaClass} space-y-2`}
       >
         <p className="font-medium">Este fechamento foi anulado — não conta mais em TCV/MRR/metas/realizado.</p>
         {fechamento.motivoAnulacao && <p>Motivo: {fechamento.motivoAnulacao}</p>}
@@ -69,7 +69,7 @@ export function EditarFechamentoForm({
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -157,7 +157,7 @@ export function EditarFechamentoForm({
 
       <div>
         <label htmlFor="link_contrato" className="mb-1.5 block text-sm font-medium">
-          Link do contrato <span className="font-normal text-zinc-500">(opcional)</span>
+          Link do contrato <span className="font-normal text-premium-mudo">(opcional)</span>
         </label>
         <input
           id="link_contrato"
@@ -219,13 +219,13 @@ export function EditarFechamentoForm({
       <fieldset aria-describedby={erro('servico_ids') ? 'servicos-erro' : undefined}>
         <legend className="mb-1.5 block text-sm font-medium">Serviços contratados</legend>
         {servicos.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p>
+          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O gerente cadastra em Configurações → Serviços.</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {servicos.map((s) => (
               <label
                 key={s.id}
-                className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-50 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-900"
+                className={opcaoClass}
               >
                 <input
                   type="checkbox"
@@ -244,7 +244,7 @@ export function EditarFechamentoForm({
 
       <div>
         <label htmlFor="observacoes" className="mb-1.5 block text-sm font-medium">
-          Observações <span className="font-normal text-zinc-500">(opcional)</span>
+          Observações <span className="font-normal text-premium-mudo">(opcional)</span>
         </label>
         <textarea
           id="observacoes"
@@ -259,13 +259,13 @@ export function EditarFechamentoForm({
         <ErroCampo id="observacoes-erro" mensagem={erro('observacoes')} />
       </div>
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Salvando…' : 'Salvar'}
         </button>
         <Link
           href={cancelarHref}
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>
@@ -293,7 +293,7 @@ function SimNao({
         {(['sim', 'nao'] as const).map((v) => (
           <label
             key={v}
-            className="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-zinc-300 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900"
+            className={`${opcaoClass} flex-1 justify-center`}
           >
             <input
               type="radio"

@@ -9,13 +9,14 @@ import {
   TIPOS_CLIENTE,
   type CampoCliente,
 } from '@/lib/validations/cliente'
+import { botaoFantasmaClass, botaoPrimarioClass, caixaErroClass, inputClass, legendaClass, opcaoClass } from '@/components/ui/estilos'
 
 type Valores = Partial<Record<CampoCliente, string>>
 
 type EstadoComOk = EstadoFormCliente & { ok?: boolean }
 
 export const inputClassCliente =
-  'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
+  inputClass
 
 type PropsCampos = {
   valores: Valores
@@ -80,12 +81,12 @@ export function CamposCliente({
   return (
     <>
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium">Tipo de cliente</legend>
-        <div className="flex gap-2">
+        <legend className="text-sm font-medium text-premium-texto">Tipo de cliente</legend>
+        <div className="flex flex-wrap gap-2">
           {TIPOS_CLIENTE.map((opcao) => (
             <label
               key={opcao}
-              className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900"
+              className={opcaoClass}
             >
               <input
                 type="radio"
@@ -115,8 +116,8 @@ export function CamposCliente({
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-sm font-medium">Contato</h2>
-          <p className="text-xs text-zinc-500">
+          <h2 className={legendaClass}>Contato</h2>
+          <p className="text-xs text-premium-mudo">
             Informe ao menos telefone, WhatsApp ou e-mail.
           </p>
         </div>
@@ -240,7 +241,7 @@ export function ClienteForm({
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -265,7 +266,7 @@ export function ClienteForm({
               </option>
             ))}
           </select>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-premium-mudo">
             A negociação inicial entra na primeira etapa aberta deste funil.
           </p>
         </div>
@@ -278,11 +279,11 @@ export function ClienteForm({
         mostrarObservacoes={mostrarObservacoes}
       />
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button
           type="submit"
           disabled={pendente}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
+          className={botaoPrimarioClass}
         >
           {pendente ? 'Salvando…' : rotuloEnviar}
         </button>
@@ -290,14 +291,14 @@ export function ClienteForm({
           <button
             type="button"
             onClick={onCancelar}
-            className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            className={botaoFantasmaClass}
           >
             Cancelar
           </button>
         ) : (
           <Link
             href={cancelarHref ?? '#'}
-            className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            className={botaoFantasmaClass}
           >
             Cancelar
           </Link>

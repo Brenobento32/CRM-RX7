@@ -32,10 +32,10 @@ export function VisaoMes({
   const mesAtual = dia.slice(0, 7)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-hidden rounded-lg border border-premium-borda">
+      <div className="grid grid-cols-7 border-b border-premium-borda">
         {DIAS_SEMANA.map((d) => (
-          <p key={d.valor} aria-hidden className="border-l border-zinc-100 px-2 py-2 text-center text-xs text-zinc-500 first:border-l-0 dark:border-zinc-800">
+          <p key={d.valor} aria-hidden className="border-l border-premium-borda-suave px-2 py-2 text-center text-xs text-premium-mudo first:border-l-0">
             {d.nome}
           </p>
         ))}
@@ -52,16 +52,16 @@ export function VisaoMes({
           return (
             <div
               key={d}
-              className={`min-h-28 border-l border-t border-zinc-100 p-1 first:border-l-0 dark:border-zinc-800 ${foraDoMes ? 'bg-zinc-50/50 dark:bg-zinc-900/40' : ''}`}
+              className={`min-h-28 border-l border-t border-premium-borda-suave p-1 first:border-l-0 ${foraDoMes ? 'bg-zinc-50/50 dark:bg-zinc-900/40' : ''}`}
             >
               <Link
                 href={link({ visao: 'dia', dia: d })}
                 className={`mb-1 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
                   ehHoje
-                    ? 'bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900'
+                    ? 'bg-premium-texto font-semibold text-premium-bg'
                     : foraDoMes
                       ? 'text-zinc-400 dark:text-zinc-600'
-                      : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                      : 'text-premium-secundario hover:bg-premium-bg'
                 }`}
               >
                 {rotuloDia(d)}
@@ -78,7 +78,7 @@ export function VisaoMes({
               {resto > 0 && (
                 <Link
                   href={link({ visao: 'dia', dia: d })}
-                  className="mt-0.5 block text-xs text-zinc-500 hover:underline dark:text-zinc-400"
+                  className="mt-0.5 block text-xs text-premium-mudo hover:underline"
                 >
                   +{resto} mais
                 </Link>

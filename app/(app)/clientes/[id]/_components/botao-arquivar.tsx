@@ -3,7 +3,7 @@
 import { useActionState } from 'react'
 
 import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
-import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { botaoPerigoClass } from '@/components/ui/estilos'
 import type { EstadoArquivarCliente } from '@/lib/actions/clientes'
 
 type Props = {
@@ -21,7 +21,7 @@ export function BotaoArquivarCliente({ action }: Props) {
     <form action={formAction}>
       <BotaoConfirmar
         pergunta="Arquivar este cliente? Ele deixa de aparecer nas listagens."
-        className={`${botaoSecundarioClass} text-red-700 dark:text-red-400`}
+        className={botaoPerigoClass}
       >
         {pendente ? 'Arquivando…' : 'Arquivar cliente'}
       </BotaoConfirmar>

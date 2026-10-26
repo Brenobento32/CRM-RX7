@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useState } from 'react'
 
+import { botaoPrimarioClass, opcaoClass, caixaAlertaClass } from '@/components/ui/estilos'
 import {
   atualizarFechamentoRapidoAction,
   obterNegociacaoEdicaoAction,
@@ -87,12 +88,12 @@ export function ModalEdicaoRapida({ card, servicosAtivos, onCancelar, onConcluid
 
   return (
     <Modal titulo={titulo} descricao={descricao} onCancelar={onCancelar}>
-      {carregando && <p className="text-sm text-zinc-500">Carregando…</p>}
+      {carregando && <p className="text-sm text-premium-mudo">Carregando…</p>}
 
       {erroCarregar && (
         <div className="space-y-5">
           <ErroGeral mensagem={erroCarregar} />
-          <div className="flex justify-end border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <div className="flex justify-end border-t border-premium-borda pt-5">
             <BotaoFechar onClick={onCancelar} />
           </div>
         </div>
@@ -122,7 +123,7 @@ function BotaoFechar({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
+      className={botaoPrimarioClass}
     >
       Fechar
     </button>
@@ -421,7 +422,7 @@ function FormularioFechamento({
 
       <div>
         <label htmlFor="link_contrato" className="mb-1.5 block text-sm font-medium">
-          Link do contrato <span className="font-normal text-zinc-500">(opcional)</span>
+          Link do contrato <span className="font-normal text-premium-mudo">(opcional)</span>
         </label>
         <input
           id="link_contrato"
@@ -480,7 +481,7 @@ function FormularioFechamento({
 
       <div>
         <label htmlFor="observacoes" className="mb-1.5 block text-sm font-medium">
-          Observações <span className="font-normal text-zinc-500">(opcional)</span>
+          Observações <span className="font-normal text-premium-mudo">(opcional)</span>
         </label>
         <textarea
           id="observacoes"
@@ -518,19 +519,19 @@ function ResumoSomenteLeitura({ dados, onFechar }: { dados: NegociacaoEdicao; on
     <div className="space-y-5">
       <p
         role="note"
-        className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+        className={caixaAlertaClass}
       >
         {NEGOCIACAO_ENCERRADA_MSG}
       </p>
       <dl className="grid gap-4 sm:grid-cols-2">
         {itens.map(([rotulo, valor]) => (
           <div key={rotulo}>
-            <dt className="text-sm text-zinc-500">{rotulo}</dt>
+            <dt className="text-sm text-premium-mudo">{rotulo}</dt>
             <dd className="mt-0.5 text-sm">{valor || '—'}</dd>
           </div>
         ))}
       </dl>
-      <div className="flex justify-end border-t border-zinc-200 pt-5 dark:border-zinc-800">
+      <div className="flex justify-end border-t border-premium-borda pt-5">
         <BotaoFechar onClick={onFechar} />
       </div>
     </div>
@@ -552,13 +553,13 @@ function ListaServicos({
     <fieldset aria-describedby={erro ? 'servicos-erro' : undefined}>
       <legend className="mb-1.5 block text-sm font-medium">{legenda}</legend>
       {servicos.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p>
+        <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O gerente cadastra em Configurações → Serviços.</p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {servicos.map((s) => (
             <label
               key={s.id}
-              className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-50 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-900"
+              className={opcaoClass}
             >
               <input
                 type="checkbox"
@@ -569,7 +570,7 @@ function ListaServicos({
               />
               <span className="flex-1">{s.nome}</span>
               {!s.ativo && (
-                <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                <span className="rounded bg-premium-bg px-1.5 py-0.5 text-xs text-premium-secundario">
                   desativado
                 </span>
               )}
@@ -601,7 +602,7 @@ function SimNao({
         {(['sim', 'nao'] as const).map((v) => (
           <label
             key={v}
-            className="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-zinc-300 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900"
+            className={`${opcaoClass} flex-1 justify-center`}
           >
             <input
               type="radio"

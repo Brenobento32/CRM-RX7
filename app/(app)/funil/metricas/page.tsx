@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { cartaoClass } from '@/components/ui/estilos'
 import { exigirCargo } from '@/lib/dal/auth'
 import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
@@ -154,7 +155,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" variant="premium" />}
       />
 
-      <details className="space-y-6 rounded-lg border border-premium-borda bg-premium-card p-4">
+      <details className={`${cartaoClass} space-y-6 p-5`}>
         <summary className="cursor-pointer rounded-md text-sm font-semibold text-premium-secundario transition hover:text-premium-texto">
           Detalhes por etapa
         </summary>

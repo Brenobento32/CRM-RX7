@@ -1,14 +1,14 @@
 'use client'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { inputClass } from '@/components/ui/estilos'
+import { inputClass, opcaoClass } from '@/components/ui/estilos'
 import { horaFimDoFormulario } from '@/lib/utils/agenda'
 import { DURACOES, ROTULO_DURACAO, type Duracao } from '@/lib/validations/evento'
 
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
 
 const chipClass =
-  'cursor-pointer rounded-md border border-premium-borda px-3 py-1.5 text-sm text-premium-texto transition hover:bg-premium-elevado has-checked:border-premium-acento has-checked:bg-premium-acento has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-premium-acento/40 dark:has-checked:text-zinc-950'
+  opcaoClass
 
 /**
  * Duração em botões (15 min … 2h) ou término livre ("Personalizada"). Os

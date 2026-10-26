@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { CampoLogotipo } from '@/components/empresa/campo-logotipo'
-import { botaoPrimarioClass, botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
+import { Aviso as AvisoTom } from '@/components/ui/aviso'
+import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
+import { botaoPrimarioClass, botaoSecundarioClass, inputClass, botaoPerigoClass, cartaoClass, labelClass, legendaClass } from '@/components/ui/estilos'
 import {
   alterarSituacaoEmpresaAction,
   alterarSlugEmpresaAction,
@@ -21,6 +22,7 @@ import {
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { formatarData, formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 import { CICLOS, ROTULO_STATUS_ASSINATURA, STATUS_ASSINATURA } from '@/lib/validations/super-admin'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
 import { Aviso, ROTULO_STATUS_EMPRESA, ROTULO_TIPO_EMPRESA } from '../../_components/aviso'
 
@@ -58,39 +60,36 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin" className="text-sm text-zinc-500 hover:underline">
-          ← Empresas
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold">{empresa.nome}</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          /{empresa.slug} · {ROTULO_TIPO_EMPRESA[empresa.tipo]} · {ROTULO_STATUS_EMPRESA[empresa.status]} · criada em{' '}
-          {formatarData(empresa.criado_em)}
-        </p>
-      </div>
+      <PageHeaderPremium
+        titulo={empresa.nome}
+        subtitulo={
+          <>
+            /{empresa.slug} · {ROTULO_TIPO_EMPRESA[empresa.tipo]} · {ROTULO_STATUS_EMPRESA[empresa.status]} · criada em{' '}
+            {formatarData(empresa.criado_em)}
+          </>
+        }
+        voltar={{ href: '/admin', rotulo: 'Empresas' }}
+      />
 
       <Aviso ok={busca.ok} erro={busca.erro} />
 
       {cadastro && <FormCadastro cadastro={cadastro} />}
 
       {empresa.tipo !== 'arquivo' && (
-        <form
-          action={alterarSlugEmpresaAction}
-          className="space-y-3 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
-        >
+        <form action={alterarSlugEmpresaAction} className={`${cartaoClass} space-y-3 p-5`}>
           <input type="hidden" name="tenant_id" value={empresa.id} />
-          <h2 className="font-semibold">Endereço da empresa</h2>
-          <p className="text-xs text-zinc-500">
-            Atual: /{empresa.slug}. O endereço antigo continua levando à empresa (só para quem é membro dela) e
-            nunca poderá ser usado por outra empresa. A troca fica registrada na auditoria.
+          <h2 className={legendaClass}>Endereço da empresa</h2>
+          <p className="text-xs text-premium-mudo">
+            Atual: /{empresa.slug}. O endereço antigo continua levando à empresa (só para quem é membro dela) e nunca poderá ser usado por
+            outra empresa. A troca fica registrada na auditoria.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="mb-1 block font-medium">Novo endereço</span>
+              <span className={labelClass}>Novo endereço</span>
               <input name="slug" required maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" className={inputClass} />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block font-medium">Motivo</span>
+              <span className={labelClass}>Motivo</span>
               <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
             </label>
           </div>
@@ -100,22 +99,22 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
         </form>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Dado rotulo="Usuários ativos" valor={String(empresa.usuarios_ativos)} />
         <Dado rotulo="Integrações em uso" valor={String(empresa.integracoes_em_uso)} />
         <Dado rotulo="Administradores" valor={empresa.administradores.join(', ') || '—'} />
       </section>
 
       {!assinante ? (
-        <p className="rounded-md border border-zinc-200 bg-white p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900">
+        <AvisoTom tom="info" titulo={empresa.tipo === 'arquivo' ? 'Empresa de arquivo' : 'Empresa interna'}>
           {empresa.tipo === 'arquivo'
-            ? 'Empresa de arquivo: somente leitura, sem assinatura. Não pode ser suspensa, reativada ou excluída.'
-            : 'Empresa interna da Rio X7: sem assinatura e sem limites de plano. Não pode ser suspensa por aqui.'}
-        </p>
+            ? 'Somente leitura, sem assinatura. Não pode ser suspensa, reativada ou excluída.'
+            : 'Empresa da Rio X7: sem assinatura e sem limites de plano. Não pode ser suspensa por aqui.'}
+        </AvisoTom>
       ) : (
         <>
-          <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="font-semibold">Assinatura</h2>
+          <section className={`${cartaoClass} space-y-3 p-5`}>
+            <h2 className={legendaClass}>Assinatura</h2>
             <p className="text-sm">
               {empresa.plano_nome ?? 'Sem plano'} ·{' '}
               {empresa.assinatura_status ? ROTULO_STATUS_ASSINATURA[empresa.assinatura_status] : 'sem assinatura'}
@@ -178,9 +177,9 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
             </form>
           </section>
 
-          <section className="space-y-3 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="font-semibold">{suspensa ? 'Reativar empresa' : 'Suspender empresa'}</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <section className={`${cartaoClass} space-y-3 p-5`}>
+            <h2 className={legendaClass}>{suspensa ? 'Reativar empresa' : 'Suspender empresa'}</h2>
+            <p className="text-sm text-premium-secundario">
               {suspensa
                 ? 'Volta a mesma empresa, com todos os dados, para ativa (ou teste, se o teste não venceu).'
                 : 'A empresa fica somente leitura: ninguém grava, nada é apagado. Pagamentos não desfazem a suspensão.'}
@@ -191,14 +190,23 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
               <Campo rotulo="Motivo">
                 <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
               </Campo>
-              <button type="submit" className={botaoSecundarioClass}>
-                {suspensa ? 'Reativar' : 'Suspender'}
-              </button>
+              {suspensa ? (
+                <button type="submit" className={botaoPrimarioClass}>
+                  Reativar
+                </button>
+              ) : (
+                <BotaoConfirmar
+                  pergunta={`Suspender "${empresa.nome}"? A empresa fica somente leitura até ser reativada.`}
+                  className={botaoPerigoClass}
+                >
+                  Suspender
+                </BotaoConfirmar>
+              )}
             </form>
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-semibold">Histórico da assinatura</h2>
+            <h2 className={legendaClass}>Histórico da assinatura</h2>
             <Lista
               vazio="Sem mudanças."
               itens={historico.map((h) => ({
@@ -213,7 +221,7 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
       )}
 
       <section className="space-y-2">
-        <h2 className="font-semibold">Ações administrativas</h2>
+        <h2 className={legendaClass}>Ações administrativas</h2>
         <Lista
           vazio="Nenhuma ação registrada."
           itens={auditoria.map((a) => ({
@@ -230,9 +238,9 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
 
 function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="text-xs text-zinc-500">{rotulo}</p>
-      <p className="mt-1 break-words font-medium">{valor}</p>
+    <div className={`${cartaoClass} p-4`}>
+      <p className="text-xs text-premium-mudo">{rotulo}</p>
+      <p className="mt-1 break-words font-medium text-premium-texto">{valor}</p>
     </div>
   )
 }
@@ -240,20 +248,20 @@ function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
 function Campo({ rotulo, largo, children }: { rotulo: string; largo?: boolean; children: React.ReactNode }) {
   return (
     <label className={`block text-sm ${largo ? 'sm:col-span-2' : ''}`}>
-      <span className="mb-1 block font-medium">{rotulo}</span>
+      <span className={labelClass}>{rotulo}</span>
       {children}
     </label>
   )
 }
 
 function Lista({ itens, vazio }: { itens: { quando: string; texto: string }[]; vazio: string }) {
-  if (itens.length === 0) return <p className="text-sm text-zinc-500">{vazio}</p>
+  if (itens.length === 0) return <p className={`${cartaoClass} px-4 py-3 text-sm text-premium-mudo`}>{vazio}</p>
   return (
-    <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white text-sm dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+    <ul className={`${cartaoClass} divide-y divide-premium-borda-suave text-sm`}>
       {itens.map((i, n) => (
-        <li key={n} className="px-3 py-2">
-          <span className="text-xs text-zinc-500">{formatarDataHoraCompleta(i.quando)}</span>
-          <span className="block">{i.texto}</span>
+        <li key={n} className="px-4 py-2.5">
+          <span className="text-xs text-premium-mudo">{formatarDataHoraCompleta(i.quando)}</span>
+          <span className="block text-premium-texto">{i.texto}</span>
         </li>
       ))}
     </ul>
@@ -263,36 +271,38 @@ function Lista({ itens, vazio }: { itens: { quando: string; texto: string }[]; v
 /** Cadastro da empresa: nome comercial, contato, responsável e logotipo. */
 function FormCadastro({ cadastro }: { cadastro: CadastroEmpresa }) {
   return (
-    <form
-      action={salvarCadastroEmpresaAction}
-      className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
-    >
+    <form action={salvarCadastroEmpresaAction} className={`${cartaoClass} space-y-4 p-5`}>
       <input type="hidden" name="tenant_id" value={cadastro.id} />
       <div>
         <div>
-          <h2 className="font-semibold">Cadastro da empresa</h2>
-          <p className="text-xs text-zinc-500">
+          <h2 className={legendaClass}>Cadastro da empresa</h2>
+          <p className="text-xs text-premium-mudo">
             {cadastro.telefone ? formatarTelefone(cadastro.telefone) : 'Sem telefone'} · {cadastro.email ?? 'sem e-mail'} ·{' '}
             {cadastro.responsavelNome ?? 'sem responsável'}
           </p>
         </div>
       </div>
       <label className="block text-sm">
-        <span className="mb-1 block font-medium">Nome comercial</span>
+        <span className={labelClass}>Nome comercial</span>
         <input name="nome" required maxLength={120} defaultValue={cadastro.nome} className={inputClass} />
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Telefone</span>
-          <input name="telefone" inputMode="tel" defaultValue={cadastro.telefone ? formatarTelefone(cadastro.telefone) : ''} className={inputClass} />
+          <span className={labelClass}>Telefone</span>
+          <input
+            name="telefone"
+            inputMode="tel"
+            defaultValue={cadastro.telefone ? formatarTelefone(cadastro.telefone) : ''}
+            className={inputClass}
+          />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">E-mail da empresa</span>
+          <span className={labelClass}>E-mail da empresa</span>
           <input name="email" type="email" defaultValue={cadastro.email ?? ''} className={inputClass} />
         </label>
       </div>
       <label className="block text-sm">
-        <span className="mb-1 block font-medium">Nome do responsável</span>
+        <span className={labelClass}>Nome do responsável</span>
         <input name="responsavel_nome" maxLength={120} defaultValue={cadastro.responsavelNome ?? ''} className={inputClass} />
       </label>
       <CampoLogotipo logoUrl={cadastro.logoUrl} nome={cadastro.nome} />

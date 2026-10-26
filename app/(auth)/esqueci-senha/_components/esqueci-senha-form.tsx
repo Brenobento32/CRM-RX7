@@ -4,9 +4,8 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { esqueciSenha } from '@/lib/actions/auth'
+import { inputClass, botaoPrimarioClass, caixaErroClass, caixaSucessoClass } from '@/components/ui/estilos'
 
-const inputClass =
-  'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
 
 export function EsqueciSenhaForm() {
   const [estado, action, pendente] = useActionState(esqueciSenha, undefined)
@@ -19,11 +18,11 @@ export function EsqueciSenhaForm() {
       <div className="space-y-5">
         <div
           role="status"
-          className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+          className={caixaSucessoClass}
         >
           {estado.sucesso}
         </div>
-        <Link href="/login" className="block text-sm text-zinc-600 hover:underline dark:text-zinc-400">
+        <Link href="/login" className="block text-sm text-premium-secundario hover:underline">
           Voltar para o login
         </Link>
       </div>
@@ -35,7 +34,7 @@ export function EsqueciSenhaForm() {
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -67,12 +66,12 @@ export function EsqueciSenhaForm() {
       <button
         type="submit"
         disabled={pendente}
-        className="w-full rounded-md bg-premium-acento px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-premium-acento disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
+        className={`${botaoPrimarioClass} h-10 w-full`}
       >
         {pendente ? 'Enviando…' : 'Enviar instruções'}
       </button>
 
-      <Link href="/login" className="block text-center text-sm text-zinc-600 hover:underline dark:text-zinc-400">
+      <Link href="/login" className="block text-center text-sm text-premium-secundario hover:underline">
         Voltar para o login
       </Link>
     </form>

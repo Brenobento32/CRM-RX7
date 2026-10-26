@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { mesAtual, rotuloMes, somarMeses } from '@/lib/utils/periodo'
 
 const SETA_PADRAO =
-  'rounded-md px-2.5 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+  'rounded-md px-2.5 py-1.5 text-sm text-premium-secundario transition hover:bg-premium-bg'
 const SETA_PREMIUM =
   'rounded-md px-2.5 py-1.5 text-sm text-premium-mudo transition hover:bg-premium-borda hover:text-premium-texto'
 
@@ -41,7 +41,7 @@ export function SeletorMes({
       className={
         premium
           ? 'inline-flex items-center gap-1 rounded-lg border border-premium-borda bg-premium-card p-0.5'
-          : 'inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-950'
+          : 'inline-flex items-center gap-1 rounded-lg border border-premium-borda bg-premium-card p-0.5'
       }
     >
       <Link href={href(anterior)} aria-label={rotuloMes(anterior)} className={seta}>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState, useState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import { SeletorCor } from '@/components/ui/seletor-cor'
 import type { EstadoFormEtapa } from '@/lib/actions/etapas'
 import type { TipoEtapa } from '@/lib/utils/etapas'
@@ -58,7 +58,7 @@ export function EtapaForm({
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -77,10 +77,10 @@ export function EtapaForm({
           maxLength={60}
           aria-invalid={erro('nome') ? true : undefined}
           aria-describedby={nomeTravado ? 'nome-ajuda' : undefined}
-          className={`${inputClass} disabled:bg-zinc-50 disabled:text-zinc-500 dark:disabled:bg-zinc-900`}
+          className={`${inputClass} disabled:bg-zinc-50 disabled:text-premium-mudo dark:disabled:bg-zinc-900`}
         />
         {nomeTravado && (
-          <p id="nome-ajuda" className="mt-1 text-xs text-zinc-500">
+          <p id="nome-ajuda" className="mt-1 text-xs text-premium-mudo">
             Etapas padrão do funil mantêm o nome e a posição; só a cor pode mudar.
           </p>
         )}
@@ -104,7 +104,7 @@ export function EtapaForm({
               />
               <span>
                 <span className="block font-medium">Fluxo comercial</span>
-                <span className="block text-xs text-zinc-500">Entra antes de Fechado/Perdido.</span>
+                <span className="block text-xs text-premium-mudo">Entra antes de Fechado/Perdido.</span>
               </span>
             </label>
             <label className="flex items-start gap-2 text-sm">
@@ -118,7 +118,7 @@ export function EtapaForm({
               />
               <span>
                 <span className="block font-medium">Recuperação pós-perda</span>
-                <span className="block text-xs text-zinc-500">
+                <span className="block text-xs text-premium-mudo">
                   Entra depois de Fechado/Perdido, num fluxo à parte — não conta no funil comercial normal.
                 </span>
               </span>
@@ -130,13 +130,13 @@ export function EtapaForm({
 
       <ParticipaConversaoCampo tipo={tipo} posFechamento={posFechamentoAtual} participaConversao={valores.participaConversao} />
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Salvando…' : rotuloEnviar}
         </button>
         <Link
           href={cancelarHref}
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>
@@ -190,7 +190,7 @@ function ParticipaConversaoCampo({
         />
         <span>
           <span className="block font-medium">Participa do funil de conversão</span>
-          <span className="block text-xs text-zinc-500">
+          <span className="block text-xs text-premium-mudo">
             Quando desmarcada, a etapa aparece como estado lateral e não participa das taxas, oportunidades,
             pipeline ou cards parados.
           </span>

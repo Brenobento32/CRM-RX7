@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { botaoPrimarioClass } from '@/components/ui/estilos'
 import { CORES_PROGRESSO, IconBadge, PremiumCard, ProgressBarPremium, StatValue, type CorProgresso } from '@/components/ui/premium'
 import type { ProgressoEmpresa, ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
@@ -48,7 +49,7 @@ export function MetaMensal({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-1.5 text-lg font-semibold text-premium-texto">
-            <IconeTrofeu className="size-4 text-amber-400" />
+            <IconeTrofeu className="size-4 text-amber-700 dark:text-amber-400" />
             Meta mensal — {rotuloMes(mes)}
           </h2>
           <p className="text-xs text-premium-mudo">
@@ -60,7 +61,7 @@ export function MetaMensal({
           {seletorMes}
           <Link
             href="/metas"
-            className="rounded-md bg-premium-acento px-3.5 py-1.5 text-sm font-medium text-zinc-950 transition hover:brightness-110"
+            className={botaoPrimarioClass}
           >
             Gerenciar metas →
           </Link>
@@ -193,7 +194,7 @@ function AvisoDivergencia({
 }) {
   if (totalMeta === null || somaMetasFunis === 0 || totalMeta === somaMetasFunis) return null
   return (
-    <p className="text-xs text-amber-400">
+    <p className="text-xs text-amber-700 dark:text-amber-400">
       A soma das metas {rotulo} dos funis ({formatarMoeda(somaMetasFunis)}) difere da meta {rotulo} total (
       {formatarMoeda(totalMeta)}).
     </p>

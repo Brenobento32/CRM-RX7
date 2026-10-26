@@ -5,6 +5,8 @@ import { useEffect, useId, useRef } from 'react'
 
 import { Avatar } from '@/components/ui/avatar'
 import { logout } from '@/lib/actions/auth'
+import { useRotaInterna } from '@/lib/empresa/use-rota-interna'
+import { trilhaMenu } from '@/lib/navegacao/menu'
 import type { UsuarioAtual } from '@/lib/dal/auth'
 import { ROTULO_CARGO } from '@/lib/validations/usuario'
 
@@ -32,6 +34,7 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
   const botaoRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const tema = useTemaPremium()
+  const trilha = trilhaMenu(useRotaInterna(), usuario.role)
 
   useEffect(() => {
     const popover = popoverRef.current
@@ -58,17 +61,40 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
   }, [])
 
   return (
-    <div className="flex shrink-0 items-center gap-4">
+    <>
+    {/* Onde estou: grupos do menu até a página atual (só o que o cargo vê). */}
+    <nav aria-label="Você está em" className="min-w-0 flex-1">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+        {trilha.map((p, i) => {
+          const ultimo = i === trilha.length - 1
+          return (
+            <li key={`${p.rotulo}-${i}`} className={`flex min-w-0 items-center gap-1.5 ${ultimo ? '' : 'hidden sm:flex'}`}>
+              {i > 0 && <span aria-hidden className="hidden text-premium-mudo/70 sm:inline">/</span>}
+              {ultimo || !p.href ? (
+                <span aria-current={ultimo ? 'page' : undefined} className={`truncate ${ultimo ? 'font-medium text-premium-texto' : 'text-premium-mudo'}`}>
+                  {p.rotulo}
+                </span>
+              ) : (
+                <Link href={p.href} className="truncate text-premium-mudo transition hover:text-premium-texto">
+                  {p.rotulo}
+                </Link>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
+    <div className="flex shrink-0 items-center gap-2 sm:gap-4">
       <button
         type="button"
         title="Notificações"
         aria-label="Notificações (sem notificações pendentes)"
-        className="text-premium-mudo transition hover:text-premium-texto"
+        className="rounded-lg p-1.5 text-premium-mudo transition hover:bg-premium-bg hover:text-premium-texto"
       >
-        <IconeSino className="size-5" />
+        <IconeSino className="size-[18px]" />
       </button>
 
-      <span aria-hidden className="h-6 w-px bg-premium-borda" />
+      <span aria-hidden className="hidden h-6 w-px bg-premium-borda sm:block" />
 
       <button
         ref={botaoRef}
@@ -78,7 +104,7 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
         className="flex items-center gap-2.5 rounded-full py-1 pr-1 pl-0.5 transition hover:bg-premium-card"
       >
         <Avatar nome={usuario.nome} fotoUrl={usuario.fotoUrl} tamanho="sm" variant="premium" />
-        <span className="min-w-0 text-left leading-tight">
+        <span className="sr-only min-w-0 text-left leading-tight sm:not-sr-only">
           <span className="block truncate text-sm font-medium text-premium-texto">{usuario.nome}</span>
           <span className="block truncate text-xs text-premium-mudo">{ROTULO_CARGO[usuario.role]}</span>
         </span>
@@ -91,13 +117,13 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
         popover="auto"
         role="menu"
         aria-label="Menu do usuário"
-        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-lg shadow-black/40"
+        className="fixed m-0 rounded-xl border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-premium-alta"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
         <Link
           href="/perfil"
           role="menuitem"
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 transition hover:bg-premium-borda"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 transition hover:bg-premium-bg"
         >
           <IconeEditar className="size-4 text-premium-mudo" />
           Editar perfil
@@ -109,7 +135,7 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
             role="menuitemcheckbox"
             aria-checked={!tema.claro}
             onClick={tema.alternar}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition hover:bg-premium-borda"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition hover:bg-premium-bg"
           >
             {tema.claro ? <IconeSol className="size-4 text-premium-mudo" /> : <IconeLua className="size-4 text-premium-mudo" />}
             <span className="flex-1">Modo escuro</span>
@@ -144,5 +170,6 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
         </form>
       </div>
     </div>
+    </>
   )
 }

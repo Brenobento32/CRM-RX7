@@ -2,15 +2,15 @@
 
 import { useActionState } from 'react'
 
-import { botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoSecundarioClass, inputClass, caixaAlertaClass, caixaErroClass } from '@/components/ui/estilos'
 import { girarTokenAction, type EstadoToken } from '@/lib/actions/fontes-leads'
 
 /** Mostra o token uma única vez (ele não fica salvo em lugar nenhum além do hash). */
 export function TokenUmaVez({ token }: { token: string }) {
   return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950">
+    <div className={`${caixaAlertaClass} text-premium-texto`}>
       <p className="font-medium">Copie agora: este token não será mostrado de novo.</p>
-      <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+      <p className="mt-1 text-premium-secundario">
         Use só no servidor/automação que envia os leads (header <code>Authorization: Bearer …</code>). Nunca em página pública.
       </p>
       <input
@@ -35,7 +35,7 @@ export function GirarToken({ id }: { id: string }) {
           {enviando ? 'Gerando…' : 'Gerar novo token (invalida o atual)'}
         </button>
       </form>
-      {estado.erro && <p className="text-sm text-red-600">{estado.erro}</p>}
+      {estado.erro && <p role="alert" className={caixaErroClass}>{estado.erro}</p>}
       {estado.token && <TokenUmaVez token={estado.token} />}
     </div>
   )

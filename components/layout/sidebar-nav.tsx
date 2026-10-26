@@ -151,7 +151,7 @@ function GrupoTopo({ grupo, ativo, estaAberto, alternar }: PropsArvore & { grupo
       </Link>
 
       <div className="absolute top-0 left-full z-40 hidden pl-2 group-data-[sidebar=recolhida]/shell:group-focus-within/item:block group-data-[sidebar=recolhida]/shell:group-hover/item:block">
-        <div className="min-w-48 rounded-md border border-premium-borda bg-premium-elevado p-1 shadow-lg shadow-black/30">
+        <div className="min-w-48 rounded-md border border-premium-borda bg-premium-elevado p-1 shadow-premium-alta">
           <p className="px-2.5 py-1.5 text-xs font-semibold tracking-wide text-premium-mudo uppercase">{grupo.titulo ?? grupo.rotulo}</p>
           <ul className="space-y-0.5">
             {grupo.filhos!.map((f) => (

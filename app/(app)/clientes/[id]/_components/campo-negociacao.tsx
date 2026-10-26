@@ -16,7 +16,7 @@ export function CampoNegociacao({
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
-        Negociação <span className="font-normal text-zinc-500">(opcional)</span>
+        Negociação <span className="font-normal text-premium-mudo">(opcional)</span>
       </label>
       <select id={id} name="negociacao_id" defaultValue="" className={inputClass}>
         <option value="">Nenhuma</option>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { z } from 'zod'
 
 import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
-import { botaoPrimarioClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, caixaErroClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import {
@@ -183,8 +183,8 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Agenda</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <h1 className="text-2xl font-semibold tracking-tight text-premium-texto">Agenda</h1>
+          <p className="text-sm text-premium-secundario">
             {gerente ? 'Compromissos da equipe.' : 'Seus compromissos.'}
           </p>
         </div>
@@ -196,7 +196,7 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
       {erroAcao && !modalReuniao && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {erroAcao}
         </div>
@@ -206,7 +206,7 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold">Aguardando status</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="text-sm text-premium-secundario">
               Já passaram e ainda estão como agendados (últimos {DIAS_AGUARDANDO_STATUS} dias). Marque se
               aconteceram. Quando há cliente, o resultado também vai para a timeline dele.
             </p>

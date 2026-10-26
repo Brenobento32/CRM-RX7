@@ -130,3 +130,46 @@ export function menuDoCargo(papel: Cargo): string[] {
     nos.flatMap((n) => [`${'  '.repeat(nivel)}${n.rotulo}${n.href ? ` ${n.href}` : ''}`, ...(n.filhos ? linhas(n.filhos, nivel + 1) : [])])
   return linhas(filtrarMenu(papel), 0)
 }
+
+export type PassoTrilha = { rotulo: string; href?: string }
+
+const ROTAS_FORA_DO_MENU: Record<string, string> = { '/perfil': 'Meu perfil', '/configuracoes': 'Configurações' }
+/** Telas internas sem item no menu (ex.: edição de negociação, aberta a partir do cliente ou do funil). */
+const PREFIXOS_FORA_DO_MENU: Record<string, string> = { '/negociacoes/': 'Negociação' }
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Trilha "onde estou" do cabeçalho: grupos do menu até o link ativo e, para
+ * páginas internas (novo, editar, detalhe), um último passo descritivo. Só
+ * usa o menu já filtrado pelo cargo — nunca revela área proibida.
+ */
+export function trilhaMenu(pathname: string, papel: Cargo): PassoTrilha[] {
+  if (ROTAS_FORA_DO_MENU[pathname]) return [{ rotulo: ROTAS_FORA_DO_MENU[pathname] }]
+  const nos = filtrarMenu(papel)
+  const ativo = hrefAtivoMenu(pathname, nos)
+  if (!ativo) {
+    const prefixo = Object.keys(PREFIXOS_FORA_DO_MENU).find((p) => pathname.startsWith(p))
+    return prefixo ? [{ rotulo: PREFIXOS_FORA_DO_MENU[prefixo] }] : []
+  }
+
+  const caminho: NoMenu[] = []
+  const buscar = (lista: NoMenu[]): boolean =>
+    lista.some((n) => {
+      caminho.push(n)
+      if (n.href === ativo || (n.filhos && buscar(n.filhos))) return true
+      caminho.pop()
+      return false
+    })
+  buscar(nos)
+
+  const trilha: PassoTrilha[] = caminho.map((n) => ({ rotulo: n.rotulo, href: n.href }))
+  if (ativo === '/') return trilha
+
+  const resto = pathname.slice(ativo.length).split('/').filter(Boolean)
+  const ultimo = resto.at(-1)
+  if (ultimo) {
+    const rotulo = ultimo === 'novo' || ultimo === 'nova' ? 'Novo' : ultimo === 'editar' ? 'Editar' : UUID.test(ultimo) ? 'Detalhes' : null
+    if (rotulo) trilha.push({ rotulo })
+  }
+  return trilha
+}

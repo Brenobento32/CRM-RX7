@@ -63,19 +63,19 @@ export function ModalObservacoes({ card, podeTrabalharCard, onFechar }: Props) {
     <Modal titulo="Observações" descricao={descricao} onCancelar={onFechar}>
       <div className="space-y-5">
         {carregando && timeline === null ? (
-          <p className="text-sm text-zinc-500">Carregando…</p>
+          <p className="text-sm text-premium-mudo">Carregando…</p>
         ) : timeline === null || timeline.length === 0 ? (
-          <p className="text-sm text-zinc-500">Não há observações ainda.</p>
+          <p className="text-sm text-premium-mudo">Não há observações ainda.</p>
         ) : (
-          <ol className="relative max-h-72 space-y-4 overflow-y-auto border-l border-zinc-200 pl-4 dark:border-zinc-800">
+          <ol className="relative max-h-72 space-y-4 overflow-y-auto border-l border-premium-borda pl-4">
             {timeline.map((a) => (
               <li key={a.id} className="relative">
                 <span
                   className="absolute top-1.5 -left-[21px] size-2 rounded-full border-2 border-white bg-zinc-400 dark:border-zinc-950"
                   aria-hidden
                 />
-                <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
-                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <p className="flex flex-wrap items-center gap-x-2 text-xs text-premium-mudo">
+                  <span className="rounded bg-premium-bg px-1.5 py-0.5 font-medium text-premium-secundario">
                     {ROTULO_TIPO_ATIVIDADE[a.tipo]}
                   </span>
                   <time dateTime={a.data}>{formatarDataHoraCompleta(a.data)}</time>
@@ -87,14 +87,14 @@ export function ModalObservacoes({ card, podeTrabalharCard, onFechar }: Props) {
           </ol>
         )}
 
-        <div className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <div className="border-t border-premium-borda pt-4">
           {podeTrabalharCard ? (
             <FormObservacaoRapida
               action={registrarObservacaoAction.bind(null, card.clienteId, card.id)}
               onRegistrada={recarregarTimeline}
             />
           ) : (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-premium-mudo">
               Você só pode visualizar este card — sem permissão para registrar observações nele.
             </p>
           )}

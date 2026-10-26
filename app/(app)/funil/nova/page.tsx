@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 import { listarFunis } from '@/lib/dal/funis'
 
 import { NovaEntradaForm } from './_components/nova-entrada-form'
@@ -17,14 +19,15 @@ export default async function NovaEntradaPage({ searchParams }: PageProps<'/funi
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Nova entrada em &ldquo;{funil.nome}&rdquo;</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Para um cliente já cadastrado. O responsável é sempre o dono atual do cliente.
-        </p>
-      </div>
+      <PageHeaderPremium
+        titulo={`Nova entrada em “${funil.nome}”`}
+        subtitulo="Para um cliente já cadastrado. O responsável é sempre o dono atual do cliente."
+        voltar={{ href: `/funil?funil=${funil.id}`, rotulo: 'Funil' }}
+      />
 
-      <NovaEntradaForm funilId={funil.id} cancelarHref={`/funil?funil=${funil.id}`} />
+      <Secao>
+        <NovaEntradaForm funilId={funil.id} cancelarHref={`/funil?funil=${funil.id}`} />
+      </Secao>
     </div>
   )
 }

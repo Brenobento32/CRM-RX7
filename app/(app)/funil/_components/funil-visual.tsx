@@ -56,7 +56,7 @@ export function FunilVisual({
     <div className="flex flex-col gap-1 border-b border-premium-borda pb-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-1.5 text-base font-semibold text-premium-texto">
-          <IconeTrofeu className="size-4 shrink-0 text-amber-400" />
+          <IconeTrofeu className="size-4 shrink-0 text-amber-700 dark:text-amber-400" />
           Funil de vendas
         </h2>
         <SeletorFunil funis={funis} funilId={funilId} variant="premium" comRotulo={false} />

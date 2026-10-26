@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { botaoPrimarioClass, segmentoClass, segmentoItemClass, botaoSecundarioClass, botaoPerigoClass, inputClass, tabelaCaixaClass, theadClass, tbodyClass } from '@/components/ui/estilos'
+
 import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
 import {
   excluirClienteAction,
@@ -94,42 +98,33 @@ export default async function ClientesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Clientes</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {gerente ? 'Todos os clientes da equipe.' : 'Sua carteira de clientes.'}
-          </p>
-        </div>
-        {/* Empresa somente leitura (arquivo): o banco recusa a gravação; a tela nem oferece. */}
-        {empresa.somenteLeitura ? null : (
-          <Link
-            href="/clientes/novo"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
-          >
-            Novo cliente
-          </Link>
-        )}
-      </div>
+      <PageHeaderPremium
+        titulo="Clientes"
+        subtitulo={gerente ? 'Todos os clientes da equipe.' : 'Sua carteira de clientes.'}
+        acoes={
+          /* Empresa somente leitura (arquivo): o banco recusa a gravação; a tela nem oferece. */
+          empresa.somenteLeitura ? null : (
+            <Link href="/clientes/novo" className={botaoPrimarioClass}>
+              Novo cliente
+            </Link>
+          )
+        }
+      />
 
-      <nav className="flex gap-1" aria-label="Origem">
+      <nav className={segmentoClass} aria-label="Origem">
         {ABAS_ORIGEM.map((a) => (
           <Link
             key={a.valor}
             href={hrefOrigem(a.valor)}
             aria-current={origemFiltro === a.valor ? 'page' : undefined}
-            className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-              origemFiltro === a.valor
-                ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                : 'border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800'
-            }`}
+            className={segmentoItemClass(origemFiltro === a.valor)}
           >
             {a.rotulo}
           </Link>
         ))}
       </nav>
 
-      <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Status do cliente">
+      <nav className="flex gap-1 border-b border-premium-borda" aria-label="Status do cliente">
         {ABAS.map((a) => (
           <Link
             key={a.valor}
@@ -137,8 +132,8 @@ export default async function ClientesPage({
             aria-current={aba === a.valor ? 'page' : undefined}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${
               aba === a.valor
-                ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
-                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                ? 'border-premium-acento text-premium-texto'
+                : 'border-transparent text-premium-mudo hover:text-premium-texto'
             }`}
           >
             {a.rotulo}
@@ -150,9 +145,9 @@ export default async function ClientesPage({
         <BuscaClientes valorInicial={busca} />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div className={tabelaCaixaClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-3 font-medium">Nome</th>
               <th className="px-4 py-3 font-medium">Empresa</th>
@@ -163,9 +158,9 @@ export default async function ClientesPage({
               {temAcoes && <th className="px-4 py-3 font-medium">Ações</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody className={tbodyClass}>
             {clientes.map((c) => (
-              <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900">
+              <tr key={c.id} className="hover:bg-premium-bg">
                 <td className="px-4 py-3">
                   {nomeAbrePagina ? (
                     <Link href={`/clientes/${c.id}`} className="font-medium hover:underline">
@@ -175,22 +170,22 @@ export default async function ClientesPage({
                     <span className="font-medium">{c.nome}</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                <td className="px-4 py-3 text-premium-secundario">
                   {c.empresa ?? '—'}
                 </td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                <td className="px-4 py-3 text-premium-secundario">
                   {ROTULO_TIPO_CLIENTE[c.tipo_cliente]}
                 </td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                <td className="px-4 py-3 text-premium-secundario">
                   {c.whatsapp
                     ? formatarTelefone(c.whatsapp)
                     : c.telefone
                       ? formatarTelefone(c.telefone)
                       : (c.email ?? '—')}
                 </td>
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{c.origens}</td>
+                <td className="px-4 py-3 text-premium-secundario">{c.origens}</td>
                 {gerente && (
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                  <td className="px-4 py-3 text-premium-secundario">
                     {c.dono ?? '—'}
                   </td>
                 )}
@@ -200,7 +195,7 @@ export default async function ClientesPage({
                       <form action={restaurarClienteAction.bind(null, c.id)}>
                         <button
                           type="submit"
-                          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                          className={botaoSecundarioClass}
                         >
                           Restaurar
                         </button>
@@ -212,11 +207,11 @@ export default async function ClientesPage({
                           required
                           placeholder="Motivo da exclusão"
                           aria-label={`Motivo da exclusão de ${c.nome}`}
-                          className="w-40 rounded-md border border-zinc-300 px-2 py-1.5 text-xs outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950"
+                          className={`${inputClass} w-40 py-1.5 text-xs`}
                         />
                         <BotaoConfirmar
                           pergunta="Excluir este cliente? O histórico de negociações e fechamentos não é apagado, mas ele some de Ativos e Arquivados."
-                          className="shrink-0 rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-red-700 transition hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-950"
+                          className={`${botaoPerigoClass} shrink-0`}
                         >
                           Excluir
                         </BotaoConfirmar>
@@ -229,7 +224,7 @@ export default async function ClientesPage({
                     <form action={restaurarClienteExcluidoAction.bind(null, c.id)}>
                       <button
                         type="submit"
-                        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        className={botaoSecundarioClass}
                       >
                         Restaurar
                       </button>
@@ -242,15 +237,22 @@ export default async function ClientesPage({
               <tr>
                 <td
                   colSpan={(gerente ? 6 : 5) + (temAcoes ? 1 : 0)}
-                  className="px-4 py-10 text-center text-zinc-500"
+                  className="px-4 py-4"
                 >
-                  {busca
-                    ? `Nenhum cliente encontrado para “${busca}”.`
-                    : arquivados
-                      ? 'Nenhum cliente arquivado.'
-                      : excluidos
-                        ? 'Nenhum cliente excluído.'
-                        : 'Nenhum cliente cadastrado ainda.'}
+                  {busca ? (
+                    <EstadoVazio compacto titulo={`Nenhum cliente encontrado para “${busca}”`} descricao="Confira a grafia ou busque pelo telefone, e-mail ou nome da empresa." />
+                  ) : arquivados ? (
+                    <EstadoVazio compacto titulo="Nenhum cliente arquivado" descricao="Clientes arquivados saem da carteira ativa e aparecem aqui." />
+                  ) : excluidos ? (
+                    <EstadoVazio compacto titulo="Nenhum cliente excluído" />
+                  ) : (
+                    <EstadoVazio
+                      compacto
+                      titulo="Nenhum cliente cadastrado ainda"
+                      descricao="Cadastre o primeiro cliente — ele já entra no funil escolhido."
+                      acao={empresa.somenteLeitura ? undefined : { href: '/clientes/novo', rotulo: 'Novo cliente' }}
+                    />
+                  )}
                 </td>
               </tr>
             )}
@@ -259,14 +261,14 @@ export default async function ClientesPage({
       </div>
 
       {total > 0 && (
-        <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
+        <div className="flex items-center justify-between text-sm text-premium-secundario">
           <span>
             {total} {total === 1 ? 'cliente' : 'clientes'}
           </span>
           {totalPaginas > 1 && (
             <div className="flex items-center gap-2">
               {pagina > 1 && (
-                <Link href={hrefPagina(pagina - 1)} className="rounded-md px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                <Link href={hrefPagina(pagina - 1)} className="rounded-md px-3 py-1 hover:bg-premium-bg">
                   Anterior
                 </Link>
               )}
@@ -274,7 +276,7 @@ export default async function ClientesPage({
                 Página {pagina} de {totalPaginas}
               </span>
               {pagina < totalPaginas && (
-                <Link href={hrefPagina(pagina + 1)} className="rounded-md px-3 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                <Link href={hrefPagina(pagina + 1)} className="rounded-md px-3 py-1 hover:bg-premium-bg">
                   Próxima
                 </Link>
               )}

@@ -81,7 +81,7 @@ export function FormProximaAcao({ action, negociacoes, hoje }: Props) {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="sm:col-span-2">
           <label htmlFor="acao-observacao" className="mb-1.5 block text-sm font-medium">
-            Observação <span className="font-normal text-zinc-500">(opcional)</span>
+            Observação <span className="font-normal text-premium-mudo">(opcional)</span>
           </label>
           <input
             id="acao-observacao"

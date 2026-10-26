@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass, caixaAlertaClass } from '@/components/ui/estilos'
 import type { EstadoFormEvento } from '@/lib/actions/eventos'
 import type { ResponsavelAgenda } from '@/lib/dal/eventos'
 import { conflitosDeHorario, horaFimDoFormulario, type Ocupado } from '@/lib/utils/agenda'
@@ -81,7 +81,7 @@ export function ReuniaoForm({ modo, action, valoresIniciais, responsaveis, eu, v
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -97,7 +97,7 @@ export function ReuniaoForm({ modo, action, valoresIniciais, responsaveis, eu, v
 
       <div>
         <label htmlFor="titulo" className="mb-1.5 block text-sm font-medium">
-          Nome da reunião <span className="text-red-600">*</span>
+          Nome da reunião <span aria-hidden className="text-red-600 dark:text-red-400">*</span>
         </label>
         <input
           id="titulo"
@@ -178,7 +178,7 @@ export function ReuniaoForm({ modo, action, valoresIniciais, responsaveis, eu, v
       {conflitos.length > 0 && (
         <div
           role="status"
-          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+          className={caixaAlertaClass}
         >
           <p className="font-medium">
             {nomeResponsavel} já tem {conflitos.length === 1 ? 'uma reunião' : `${conflitos.length} reuniões`} nesse horário:

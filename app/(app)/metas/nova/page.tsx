@@ -6,6 +6,8 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarAlvosDeMeta } from '@/lib/dal/metas'
 import { lerMes } from '@/lib/utils/periodo'
 import { ALVO_EMPRESA, TIPOS_META } from '@/lib/validations/meta'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 
 import { MetaForm } from '../_components/meta-form'
 
@@ -26,20 +28,19 @@ export default async function NovaMetaPage({ searchParams }: PageProps<'/metas/n
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Nova meta</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Uma meta por mês, por tipo (TCV ou MRR), para a empresa e para cada closer.
-        </p>
-      </div>
-
-      <MetaForm
-        action={criarMetaAction}
-        alvos={alvos}
-        valoresIniciais={{ alvo: alvoInicial, tipo_meta: tipoInicial, mes }}
-        cancelarHref={`/metas?mes=${mes}`}
-        rotuloEnviar="Criar meta"
+      <PageHeaderPremium titulo="Nova meta" subtitulo="Uma meta por mês, por tipo (TCV ou MRR), para a empresa e para cada closer."
+        voltar={{ href: `/metas?mes=${mes}`, rotulo: 'Metas' }}
       />
+
+      <Secao>
+        <MetaForm
+          action={criarMetaAction}
+          alvos={alvos}
+          valoresIniciais={{ alvo: alvoInicial, tipo_meta: tipoInicial, mes }}
+          cancelarHref={`/metas?mes=${mes}`}
+          rotuloEnviar="Criar meta"
+        />
+      </Secao>
     </div>
   )
 }

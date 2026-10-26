@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
+import { botaoSecundarioClass, botaoPerigoClass } from '@/components/ui/estilos'
 import { reativarNegociacaoAction } from '@/lib/actions/funil'
 
 import { ModalExcluirLead } from './modal-excluir-lead'
@@ -20,7 +21,7 @@ export function AcoesLeadArquivado({ id, clienteNome }: { id: string; clienteNom
       <form action={reativarNegociacaoAction.bind(null, id)}>
         <BotaoConfirmar
           pergunta={`Reativar o lead de ${clienteNome}? Ele volta para a etapa inicial do funil.`}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          className={botaoSecundarioClass}
         >
           Reativar
         </BotaoConfirmar>
@@ -29,7 +30,7 @@ export function AcoesLeadArquivado({ id, clienteNome }: { id: string; clienteNom
       <button
         type="button"
         onClick={() => setExcluindo(true)}
-        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-red-700 transition hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-950"
+        className={botaoPerigoClass}
       >
         Excluir permanentemente
       </button>

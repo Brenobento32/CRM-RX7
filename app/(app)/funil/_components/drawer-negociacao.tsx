@@ -12,6 +12,7 @@ import { formatarMoeda } from '@/lib/utils/formatacao'
 import { formatarDuracaoHistorico, montarHistorico, type LinhaHistoricoBruta } from '@/lib/utils/historico'
 import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
+import { botaoCompactoClass } from '@/components/ui/estilos'
 
 type Props = {
   card: CardFunil
@@ -85,10 +86,10 @@ export function DrawerNegociacao({
         e.preventDefault()
         onFechar()
       }}
-      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-sm border-l border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-sm border-l border-premium-borda bg-premium-card p-0 text-premium-texto shadow-premium-alta backdrop:bg-black/50"
     >
       <div className="flex h-full flex-col">
-        <header className="flex items-start justify-between gap-3 border-b border-zinc-200 p-4 dark:border-zinc-800">
+        <header className="flex items-start justify-between gap-3 border-b border-premium-borda p-4">
           <div className="min-w-0">
             {card.clienteEmpresa && (
               <p className="truncate text-base font-semibold" title={card.clienteEmpresa}>
@@ -107,7 +108,7 @@ export function DrawerNegociacao({
             type="button"
             onClick={onFechar}
             aria-label="Fechar painel"
-            className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg hover:text-premium-texto"
           >
             <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
               <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
@@ -118,7 +119,7 @@ export function DrawerNegociacao({
         <div className="flex-1 space-y-6 overflow-y-auto p-4">
           {/* LEAD — nome/empresa já estão no header acima, sem repetir aqui (item 3: não duplicar). */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Lead</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Lead</h3>
             <dl className="space-y-3 text-sm">
               {detalhes?.clienteInstagram && <Campo rotulo="Instagram" valor={detalhes.clienteInstagram} />}
               {card.clienteTelefone && <Campo rotulo="WhatsApp" valor={formatarTelefone(card.clienteTelefone)} />}
@@ -132,24 +133,24 @@ export function DrawerNegociacao({
           <SecaoCampanha atribuicao={card.atribuicao} />
 
           {respostas !== null && respostas.length > 0 && (
-            <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Qualificação</h3>
+            <section className="space-y-3 border-t border-premium-borda pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Qualificação</h3>
               <dl className="space-y-3 text-sm">
                 {respostas.map((r, i) => (
                   <div key={`${r.pergunta}-${i}`}>
-                    <dt className="text-zinc-500">{r.pergunta}</dt>
-                    <dd className="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{r.resposta}</dd>
+                    <dt className="text-premium-mudo">{r.pergunta}</dt>
+                    <dd className="mt-0.5 font-medium text-premium-texto">{r.resposta}</dd>
                   </div>
                 ))}
               </dl>
             </section>
           )}
 
-          <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Negociação</h3>
+          <section className="space-y-3 border-t border-premium-borda pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Negociação</h3>
             <dl className="space-y-3 text-sm">
               <div>
-                <dt className="text-zinc-500">Etapa atual</dt>
+                <dt className="text-premium-mudo">Etapa atual</dt>
                 <dd className="mt-1 flex items-center gap-2 font-medium">
                   {etapa && <PontoEtapa cor={etapa.cor} />}
                   {etapa?.nome ?? '—'}
@@ -157,7 +158,7 @@ export function DrawerNegociacao({
               </div>
 
               <div>
-                <dt className="text-zinc-500">Tempo parado</dt>
+                <dt className="text-premium-mudo">Tempo parado</dt>
                 <dd className="mt-1">
                   {carregando
                     ? '…'
@@ -177,8 +178,8 @@ export function DrawerNegociacao({
             </dl>
           </section>
 
-          <section className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Ações rápidas</h3>
+          <section className="space-y-2 border-t border-premium-borda pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Ações rápidas</h3>
 
             <button
               type="button"
@@ -186,7 +187,7 @@ export function DrawerNegociacao({
                 onFechar()
                 onEditar(card)
               }}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="w-full rounded-md border border-premium-borda px-3 py-2 text-left text-sm transition hover:bg-premium-bg"
             >
               Editar negociação
             </button>
@@ -194,7 +195,7 @@ export function DrawerNegociacao({
             <button
               type="button"
               onClick={() => onAbrirFicha(card)}
-              className="block w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="block w-full rounded-md border border-premium-borda px-3 py-2 text-left text-sm transition hover:bg-premium-bg"
             >
               Ver ficha do cliente
             </button>
@@ -212,7 +213,7 @@ export function DrawerNegociacao({
 
             {etapas.length > 1 && (
               <div className="pt-1">
-                <p className="mb-1.5 text-xs text-zinc-500">Mover para</p>
+                <p className="mb-1.5 text-xs text-premium-mudo">Mover para</p>
                 <div className="flex flex-wrap gap-1.5">
                   {etapas
                     .filter((e) => e.id !== card.etapaId)
@@ -224,7 +225,7 @@ export function DrawerNegociacao({
                           onMover(card.id, e.id)
                           onFechar()
                         }}
-                        className="flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        className={botaoCompactoClass}
                       >
                         <PontoEtapa cor={e.cor} />
                         {e.nome}
@@ -236,8 +237,8 @@ export function DrawerNegociacao({
           </section>
 
           {whatsappHabilitado && (
-            <section className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">WhatsApp</h3>
+            <section className="space-y-2 border-t border-premium-borda pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">WhatsApp</h3>
 
               <button
                 type="button"
@@ -246,7 +247,7 @@ export function DrawerNegociacao({
                 // fechado, revela este de volta sozinho, com o mesmo
                 // estado/contexto — sem recriar nada.
                 onClick={() => onAbrirConversa(card)}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-left text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="w-full rounded-md border border-premium-borda px-3 py-2 text-left text-sm transition hover:bg-premium-bg"
               >
                 Abrir conversa
               </button>
@@ -262,8 +263,8 @@ export function DrawerNegociacao({
 function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div>
-      <dt className="text-zinc-500">{rotulo}</dt>
-      <dd className="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{valor}</dd>
+      <dt className="text-premium-mudo">{rotulo}</dt>
+      <dd className="mt-0.5 font-medium text-premium-texto">{valor}</dd>
     </div>
   )
 }
@@ -305,8 +306,8 @@ function SecaoCampanha({ atribuicao }: { atribuicao: AtribuicaoCampanha | null }
   if (camposPreenchidos.length === 0 && idsPreenchidos.length === 0 && !formName) return null
 
   return (
-    <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Campanha / Atribuição</h3>
+    <section className="space-y-3 border-t border-premium-borda pt-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Campanha / Atribuição</h3>
 
       {camposPreenchidos.length > 0 && (
         <dl className="space-y-3 text-sm">
@@ -317,19 +318,19 @@ function SecaoCampanha({ atribuicao }: { atribuicao: AtribuicaoCampanha | null }
       )}
 
       {(idsPreenchidos.length > 0 || formName) && (
-        <dl className="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+        <dl className="space-y-2 border-t border-zinc-100 pt-3 dark:border-premium-acento">
           {formName && (
             <div>
-              <dt className="text-xs text-zinc-400">Form Name</dt>
-              <dd className="mt-0.5 truncate text-xs text-zinc-500" title={formName}>
+              <dt className="text-xs text-premium-mudo">Form Name</dt>
+              <dd className="mt-0.5 truncate text-xs text-premium-mudo" title={formName}>
                 {formName}
               </dd>
             </div>
           )}
           {idsPreenchidos.map((c) => (
             <div key={c.rotulo}>
-              <dt className="text-xs text-zinc-400">{c.rotulo}</dt>
-              <dd className="mt-0.5 flex items-center gap-1 font-mono text-xs text-zinc-500">
+              <dt className="text-xs text-premium-mudo">{c.rotulo}</dt>
+              <dd className="mt-0.5 flex items-center gap-1 font-mono text-xs text-premium-mudo">
                 <span className="min-w-0 truncate" title={c.valor}>
                   {c.valor}
                 </span>
@@ -362,7 +363,7 @@ function BotaoCopiar({ valor }: { valor: string }) {
       }}
       aria-label="Copiar"
       title={copiado ? 'Copiado!' : 'Copiar'}
-      className="shrink-0 rounded p-0.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+      className="shrink-0 rounded p-0.5 text-premium-mudo transition hover:bg-premium-bg hover:text-premium-texto"
     >
       {copiado ? (
         <svg viewBox="0 0 24 24" className="size-3.5" fill="currentColor" aria-hidden>

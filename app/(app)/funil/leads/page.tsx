@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { tabelaCaixaClass, theadClass, tbodyClass } from '@/components/ui/estilos'
 import { listarLeadsAtivos, type CardFunil } from '@/lib/dal/funil'
 import { listarFunis } from '@/lib/dal/funis'
 import { listarNegociacoesArquivadas, type NegociacaoArquivada } from '@/lib/dal/negociacoes'
@@ -52,15 +55,10 @@ export default async function LeadsPage({ searchParams }: PageProps<'/funil/lead
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Leads</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Ativos e arquivados, de qualquer funil ou de um só.
-        </p>
-      </div>
+      <PageHeaderPremium titulo="Leads" subtitulo="Ativos e arquivados, de qualquer funil ou de um só." />
 
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Status do lead">
+        <nav className="flex gap-1 border-b border-premium-borda" aria-label="Status do lead">
           {ABAS.map((a) => (
             <Link
               key={a.valor}
@@ -68,8 +66,8 @@ export default async function LeadsPage({ searchParams }: PageProps<'/funil/lead
               aria-current={aba === a.valor ? 'page' : undefined}
               className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${
                 aba === a.valor
-                  ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  ? 'border-premium-acento text-premium-texto'
+                  : 'border-transparent text-premium-mudo hover:text-premium-texto'
               }`}
             >
               {a.rotulo}
@@ -91,9 +89,9 @@ export default async function LeadsPage({ searchParams }: PageProps<'/funil/lead
 
 function TabelaAtivos({ leads, mostrarFunil }: { leads: CardFunil[]; mostrarFunil: boolean }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className={tabelaCaixaClass}>
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+        <thead className={theadClass}>
           <tr>
             <th className="px-4 py-3 font-medium">Nome</th>
             <th className="px-4 py-3 font-medium">Empresa</th>
@@ -105,33 +103,31 @@ function TabelaAtivos({ leads, mostrarFunil }: { leads: CardFunil[]; mostrarFuni
             {mostrarFunil && <th className="px-4 py-3 font-medium">Funil</th>}
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <tbody className={tbodyClass}>
           {leads.map((l) => (
-            <tr key={l.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900">
+            <tr key={l.id} className="hover:bg-premium-bg">
               <td className="px-4 py-3">
                 <Link href={`/clientes/${l.clienteId}`} className="font-medium hover:underline">
                   {l.clienteNome}
                 </Link>
               </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.clienteEmpresa ?? '—'}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.nichoNome ?? 'Outros'}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{ROTULO_ORIGEM[l.origem]}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                {l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}
-              </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                {l.clienteTelefone ? formatarTelefone(l.clienteTelefone) : '—'}
-              </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.responsavel ?? '—'}</td>
-              {mostrarFunil && (
-                <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.funilNome ?? '—'}</td>
-              )}
+              <td className="px-4 py-3 text-premium-secundario">{l.clienteEmpresa ?? '—'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.nichoNome ?? 'Outros'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{ROTULO_ORIGEM[l.origem]}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.clienteTelefone ? formatarTelefone(l.clienteTelefone) : '—'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.responsavel ?? '—'}</td>
+              {mostrarFunil && <td className="px-4 py-3 text-premium-secundario">{l.funilNome ?? '—'}</td>}
             </tr>
           ))}
           {leads.length === 0 && (
             <tr>
-              <td colSpan={mostrarFunil ? 8 : 7} className="px-4 py-10 text-center text-zinc-500">
-                Nenhum lead ativo.
+              <td colSpan={mostrarFunil ? 8 : 7} className="px-4 py-4">
+                <EstadoVazio
+                  compacto
+                  titulo="Nenhum lead ativo"
+                  descricao="Leads novos dos formulários, do WhatsApp ou cadastrados à mão aparecem aqui."
+                />
               </td>
             </tr>
           )}
@@ -143,9 +139,9 @@ function TabelaAtivos({ leads, mostrarFunil }: { leads: CardFunil[]; mostrarFuni
 
 function TabelaArquivados({ leads }: { leads: NegociacaoArquivada[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className={tabelaCaixaClass}>
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+        <thead className={theadClass}>
           <tr>
             <th className="px-4 py-3 font-medium">Nome</th>
             <th className="px-4 py-3 font-medium">Empresa</th>
@@ -158,21 +154,19 @@ function TabelaArquivados({ leads }: { leads: NegociacaoArquivada[] }) {
             <th className="px-4 py-3 font-medium">Ações</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <tbody className={tbodyClass}>
           {leads.map((l) => (
-            <tr key={l.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900">
+            <tr key={l.id} className="hover:bg-premium-bg">
               <td className="px-4 py-3 font-medium">{l.clienteNome}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.clienteEmpresa ?? '—'}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.nichoNome ?? 'Outros'}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{ROTULO_ORIGEM[l.origem]}</td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                {l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}
-              </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.responsavel ?? '—'}</td>
-              <td className="max-w-56 truncate px-4 py-3 text-zinc-600 dark:text-zinc-400" title={l.motivoArquivamento}>
+              <td className="px-4 py-3 text-premium-secundario">{l.clienteEmpresa ?? '—'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.nichoNome ?? 'Outros'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{ROTULO_ORIGEM[l.origem]}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}</td>
+              <td className="px-4 py-3 text-premium-secundario">{l.responsavel ?? '—'}</td>
+              <td className="max-w-56 truncate px-4 py-3 text-premium-secundario" title={l.motivoArquivamento}>
                 {l.motivoArquivamento}
               </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{formatarData(l.arquivadaEm)}</td>
+              <td className="px-4 py-3 text-premium-secundario">{formatarData(l.arquivadaEm)}</td>
               <td className="px-4 py-3">
                 <AcoesLeadArquivado id={l.id} clienteNome={l.clienteNome} />
               </td>
@@ -180,7 +174,7 @@ function TabelaArquivados({ leads }: { leads: NegociacaoArquivada[] }) {
           ))}
           {leads.length === 0 && (
             <tr>
-              <td colSpan={9} className="px-4 py-10 text-center text-zinc-500">
+              <td colSpan={9} className="px-4 py-10 text-center text-premium-mudo">
                 Nenhum lead arquivado.
               </td>
             </tr>

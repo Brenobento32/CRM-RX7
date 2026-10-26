@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { criarServicoAction } from '@/lib/actions/servicos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarCategoriasDeServico } from '@/lib/dal/servicos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 
 import { ServicoForm } from '../_components/servico-form'
 
@@ -19,13 +21,15 @@ export default async function NovoServicoPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold">Novo serviço</h1>
-      <ServicoForm
-        action={criarServicoAction}
-        valoresIniciais={{}}
-        categorias={categorias}
-        rotuloEnviar="Criar serviço"
-      />
+      <PageHeaderPremium titulo="Novo serviço" voltar={{ href: '/configuracoes/servicos', rotulo: 'Serviços' }} />
+      <Secao>
+        <ServicoForm
+          action={criarServicoAction}
+          valoresIniciais={{}}
+          categorias={categorias}
+          rotuloEnviar="Criar serviço"
+        />
+      </Secao>
     </div>
   )
 }

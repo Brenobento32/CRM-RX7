@@ -12,12 +12,12 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Gráficos. Série única (magnitude) em azul, validada contra a superfície
-     de cada modo; grade e texto recessivos. */
-  --chart-serie: #2a78d6;
-  --chart-trilha: #cde2fb;
-  --chart-grade: #e4e4e7;
-  --chart-texto: #52525b;
+  /* Gráficos (Precision Green): série principal no verde da marca, trilha
+     verde bem clara; grade e texto recessivos. */
+  --chart-serie: #12a07a;
+  --chart-trilha: #d4f1e7;
+  --chart-grade: #e2e5e9;
+  --chart-texto: #525962;
   --chart-cursor: rgb(0 0 0 / 0.04);
 
   /**
@@ -40,11 +40,18 @@
   --premium-topo: #1a1d21;
   --premium-card: #1c1f23;
   --premium-borda: #2c3036;
+  --premium-borda-suave: #23262b;
   --premium-texto: #f1f3f5;
   --premium-secundario: #b3b9c2;
-  --premium-mudo: #7d848f;
+  /* Mudo com contraste AA (≥ 4.5:1) sobre fundo e cartões escuros. */
+  --premium-mudo: #8a919c;
   --premium-acento: #2dd4a7;
+  --premium-acento-forte: #5ee3c0;
+  /* Texto sobre o verde: grafite no escuro (o verde é claro). */
+  --premium-acento-texto: #08110e;
   --premium-acento-suave: rgb(45 212 167 / 0.12);
+  --premium-sombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 1px rgb(0 0 0 / 0.2);
+  --premium-sombra-alta: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.35);
 }
 
 /**
@@ -63,12 +70,19 @@
   --premium-lateral: #fbfbfc;
   --premium-topo: #ffffff;
   --premium-card: #ffffff;
-  --premium-borda: #cfd5dd;
+  --premium-borda: #d9dee4;
+  --premium-borda-suave: #e9ecef;
   --premium-texto: #15181f;
   --premium-secundario: #4b5563;
-  --premium-mudo: #8b93a3;
-  --premium-acento: #0f9d75;
-  --premium-acento-suave: rgb(15 157 117 / 0.1);
+  /* Mudo com contraste AA (≥ 4.5:1) sobre branco e sobre o fundo. */
+  --premium-mudo: #687080;
+  /* Verde mais profundo no claro: texto branco sobre ele passa de 5:1 (AA). */
+  --premium-acento: #0a7d5c;
+  --premium-acento-forte: #086a4e;
+  --premium-acento-texto: #ffffff;
+  --premium-acento-suave: rgb(10 125 92 / 0.09);
+  --premium-sombra: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 1px rgb(16 24 40 / 0.03);
+  --premium-sombra-alta: 0 16px 40px -12px rgb(16 24 40 / 0.22), 0 2px 6px rgb(16 24 40 / 0.06);
 }
 
 @theme inline {
@@ -86,19 +100,44 @@
   --color-premium-topo: var(--premium-topo);
   --color-premium-card: var(--premium-card);
   --color-premium-borda: var(--premium-borda);
+  --color-premium-borda-suave: var(--premium-borda-suave);
   --color-premium-texto: var(--premium-texto);
   --color-premium-secundario: var(--premium-secundario);
   --color-premium-mudo: var(--premium-mudo);
   --color-premium-acento: var(--premium-acento);
+  --color-premium-acento-forte: var(--premium-acento-forte);
+  --color-premium-acento-texto: var(--premium-acento-texto);
   --color-premium-acento-suave: var(--premium-acento-suave);
+  --shadow-premium: var(--premium-sombra);
+  --shadow-premium-alta: var(--premium-sombra-alta);
+}
+
+/*
+ * AVANTE — Precision Green. A escala de cinzas que as telas usam (`zinc-*`)
+ * vira o GRAFITE da marca: mais quente e menos saturado que o zinco padrão,
+ * alinhado aos tokens `premium-*`. Assim toda página fala a mesma paleta,
+ * sem reescrever classe por classe. 500 mantém AA sobre branco.
+ */
+@theme {
+  --color-zinc-50: #f6f7f8;
+  --color-zinc-100: #eef0f2;
+  --color-zinc-200: #e2e5e9;
+  --color-zinc-300: #cbd0d6;
+  --color-zinc-400: #98a0aa;
+  --color-zinc-500: #6c7480;
+  --color-zinc-600: #525962;
+  --color-zinc-700: #3a3f47;
+  --color-zinc-800: #272a30;
+  --color-zinc-900: #1b1d21;
+  --color-zinc-950: #111315;
 }
 
 [data-tema='escuro'] {
   --background: #111315;
   --foreground: #f1f3f5;
 
-  --chart-serie: #3987e5;
-  --chart-trilha: #1c2a3d;
+  --chart-serie: #2dd4a7;
+  --chart-trilha: #173a31;
   --chart-grade: #2c3036;
   --chart-texto: #b3b9c2;
   --chart-cursor: rgb(255 255 255 / 0.05);
@@ -113,4 +152,29 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+/* Foco visível e consistente pelo teclado (WCAG 2.4.7 / 2.4.11) em todo link,
+   botão e controle — campos de texto já têm o próprio anel de foco. */
+:where(a, button, summary, [role='button'], [role='menuitem'], [role='menuitemcheckbox'], [role='tab'], [tabindex]):focus-visible {
+  outline: 2px solid var(--premium-acento);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--premium-acento-suave);
+}
+
+/* Números de indicadores e tabelas alinhados. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -8,6 +8,7 @@ import {
   formatarMoedaCompacta,
   formatarPercentual,
 } from '@/lib/utils/formatacao'
+import { theadClass, tbodyClass } from '@/components/ui/estilos'
 
 /**
  * Indicadores e tabela por etapa. Só apresentação: toda regra (o que conta
@@ -137,7 +138,7 @@ function TabelaEtapas({
       <p className="px-4 pt-3 pb-1 text-xs font-semibold text-premium-secundario">{titulo}</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-premium-bg/40 text-xs text-premium-mudo">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-2 text-left font-medium">Etapa</th>
               <th className="px-4 py-2 text-right font-medium">Cards</th>
@@ -149,7 +150,7 @@ function TabelaEtapas({
               <th className="px-4 py-2 text-right font-medium">+{DIAS_PARADO} dias</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-premium-borda tabular-nums">
+          <tbody className={`${tbodyClass} tabular-nums`}>
             {etapas.map((e) => (
               <LinhaEtapa key={e.etapaId} etapa={e} totalEntraram={totalEntraram} />
             ))}
@@ -212,7 +213,7 @@ function LinhaEtapa({ etapa: e, totalEntraram }: { etapa: MetricaEtapa; totalEnt
         {!aberta ? (
           <span className="text-premium-mudo">—</span>
         ) : e.parados > 0 ? (
-          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-400">{e.parados}</span>
+          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">{e.parados}</span>
         ) : (
           0
         )}

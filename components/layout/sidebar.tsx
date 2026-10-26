@@ -82,7 +82,7 @@ function LogoMarca() {
   return (
     <span
       aria-hidden
-      className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-premium-acento text-sm font-bold text-zinc-950"
+      className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-premium-acento text-sm font-bold text-premium-acento-texto"
     >
       A
     </span>

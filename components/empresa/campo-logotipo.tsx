@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { IconeEditar } from '@/components/layout/icones'
+import { botaoPerigoClass } from '@/components/ui/estilos'
 
 const TIPOS = ['image/png', 'image/jpeg', 'image/webp']
 const TAMANHO_MAXIMO = 2 * 1024 * 1024
@@ -62,7 +63,7 @@ export function CampoLogotipo({ logoUrl, nome }: { logoUrl: string | null; nome:
             // eslint-disable-next-line @next/next/no-img-element -- logo público do Storage ou prévia local (blob:)
             <img src={exibida} alt={`Logotipo de ${nome}`} className="size-full object-contain p-2" />
           ) : (
-            <span aria-hidden className="text-3xl font-semibold text-zinc-400">
+            <span aria-hidden className="text-3xl font-semibold text-premium-mudo">
               {nome.slice(0, 1).toUpperCase()}
             </span>
           )}
@@ -70,7 +71,7 @@ export function CampoLogotipo({ logoUrl, nome }: { logoUrl: string | null; nome:
         <label
           htmlFor={id}
           title={temLogoAtual ? 'Trocar logotipo' : 'Enviar logotipo'}
-          className="absolute -right-2 -bottom-2 flex size-8 cursor-pointer items-center justify-center rounded-full border-2 border-premium-card bg-premium-acento text-zinc-950 shadow transition hover:brightness-110 focus-within:outline-2 focus-within:outline-premium-acento"
+          className="absolute -right-2 -bottom-2 flex size-8 cursor-pointer items-center justify-center rounded-full border-2 border-premium-card bg-premium-acento text-premium-acento-texto shadow transition hover:brightness-110 focus-within:outline-2 focus-within:outline-premium-acento"
         >
           <IconeEditar className="size-4" />
           <span className="sr-only">{temLogoAtual ? 'Trocar logotipo' : 'Enviar logotipo'}</span>
@@ -110,7 +111,7 @@ export function CampoLogotipo({ logoUrl, nome }: { logoUrl: string | null; nome:
             <button
               type="button"
               onClick={() => setRemover(true)}
-              className="rounded-md px-3 py-1.5 text-sm text-red-600 transition hover:bg-red-500/10 dark:text-red-400"
+              className={botaoPerigoClass}
             >
               Remover
             </button>

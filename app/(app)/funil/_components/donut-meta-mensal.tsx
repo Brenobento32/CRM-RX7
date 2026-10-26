@@ -15,8 +15,8 @@ const ESPESSURA = 18
 const CIRCUNFERENCIA = 2 * Math.PI * RAIO
 
 const CORES: Record<'tcv' | 'mrr', { trilho: string; preenchimento: string; texto: string }> = {
-  tcv: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-emerald-400', texto: 'text-emerald-400' },
-  mrr: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-sky-400', texto: 'text-sky-400' },
+  tcv: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-emerald-400', texto: 'text-emerald-700 dark:text-emerald-400' },
+  mrr: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-sky-400', texto: 'text-sky-700 dark:text-sky-400' },
 }
 
 /**
@@ -72,7 +72,7 @@ export function DonutMetaMensal({ progresso, mes }: { progresso: ProgressoEmpres
             aria-selected={aba === t}
             onClick={() => setAba(t)}
             className={`rounded px-4 py-1.5 text-xs font-medium uppercase transition ${
-              aba === t ? 'bg-premium-acento text-zinc-950' : 'text-premium-mudo hover:bg-premium-borda/60 hover:text-premium-texto'
+              aba === t ? 'bg-premium-acento text-premium-acento-texto' : 'text-premium-mudo hover:bg-premium-borda/60 hover:text-premium-texto'
             }`}
           >
             {t}

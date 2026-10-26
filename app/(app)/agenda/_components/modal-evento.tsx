@@ -10,9 +10,10 @@ import { alterarStatusEventoAction } from '@/lib/actions/eventos'
 import type { Evento } from '@/lib/dal/eventos'
 import { diaEmSaoPaulo, formatarDiaExtenso, formatarHora } from '@/lib/utils/formatacao'
 import { ROTULO_STATUS_EVENTO, ROTULO_TIPO_EVENTO, statusEmAberto, type StatusEvento } from '@/lib/validations/evento'
+import { botaoFantasmaClass, botaoCompactoClass } from '@/components/ui/estilos'
 
 const botaoStatus =
-  'rounded-md border border-zinc-300 px-2 py-1 text-xs transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'
+  botaoCompactoClass
 
 /**
  * Detalhes do evento por deep link (`?evento=<id>`). `evento` já vem resolvido
@@ -58,7 +59,7 @@ export function ModalEvento({
       onClick={(e) => {
         if (e.target === ref.current) fechar()
       }}
-      className="m-auto w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+      className="m-auto w-full max-w-lg rounded-2xl border border-premium-borda bg-premium-card p-0 text-premium-texto shadow-premium-alta backdrop:bg-black/50 backdrop:backdrop-blur-[2px]"
     >
       <div className="max-h-[85vh] overflow-y-auto p-6">
         {evento ? (
@@ -77,13 +78,13 @@ function NaoEncontrado({ fechar }: { fechar: () => void }) {
       <h2 id="modal-evento-titulo" className="text-lg font-semibold">
         Evento não encontrado
       </h2>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="mt-2 text-sm text-premium-secundario">
         Esse compromisso não existe mais ou você não tem acesso a ele.
       </p>
       <button
         type="button"
         onClick={fechar}
-        className="mt-5 rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        className={`${botaoFantasmaClass} mt-5`}
       >
         Fechar
       </button>
@@ -112,18 +113,18 @@ function ConteudoEvento({ evento, fechar, editarHref }: { evento: Evento; fechar
 
       <dl className="mt-3 space-y-1.5 text-sm">
         <div className="flex gap-2">
-          <dt className="w-24 shrink-0 text-zinc-500">Quando</dt>
+          <dt className="w-24 shrink-0 text-premium-mudo">Quando</dt>
           <dd>
             {formatarDiaExtenso(dia)}, {formatarHora(evento.inicio)}–{formatarHora(evento.fim)}
           </dd>
         </div>
         <div className="flex gap-2">
-          <dt className="w-24 shrink-0 text-zinc-500">Tipo</dt>
+          <dt className="w-24 shrink-0 text-premium-mudo">Tipo</dt>
           <dd>{ROTULO_TIPO_EVENTO[evento.tipo]}</dd>
         </div>
         {evento.usuario && (
           <div className="flex items-center gap-2">
-            <dt className="w-24 shrink-0 text-zinc-500">Responsável</dt>
+            <dt className="w-24 shrink-0 text-premium-mudo">Responsável</dt>
             <dd className="flex items-center gap-1.5">
               {evento.usuarioCor && <PontoEtapa cor={evento.usuarioCor} />}
               {evento.usuario}
@@ -132,13 +133,13 @@ function ConteudoEvento({ evento, fechar, editarHref }: { evento: Evento; fechar
         )}
         {evento.criadoPor && evento.criadoPor !== evento.usuarioId && evento.criadoPorNome && (
           <div className="flex gap-2">
-            <dt className="w-24 shrink-0 text-zinc-500">Agendada por</dt>
+            <dt className="w-24 shrink-0 text-premium-mudo">Agendada por</dt>
             <dd>{evento.criadoPorNome}</dd>
           </div>
         )}
         {evento.clienteId && (
         <div className="flex gap-2">
-          <dt className="w-24 shrink-0 text-zinc-500">Cliente</dt>
+          <dt className="w-24 shrink-0 text-premium-mudo">Cliente</dt>
           <dd>
             {evento.clienteNome ? (
               <Link href={`/clientes/${evento.clienteId}`} className="hover:underline" onClick={fechar}>
@@ -153,19 +154,19 @@ function ConteudoEvento({ evento, fechar, editarHref }: { evento: Evento; fechar
         )}
         {evento.etapa && (
           <div className="flex gap-2">
-            <dt className="w-24 shrink-0 text-zinc-500">Negociação</dt>
+            <dt className="w-24 shrink-0 text-premium-mudo">Negociação</dt>
             <dd>{evento.etapa.nome}</dd>
           </div>
         )}
         {evento.descricao && (
           <div className="flex gap-2">
-            <dt className="w-24 shrink-0 text-zinc-500">Descrição</dt>
+            <dt className="w-24 shrink-0 text-premium-mudo">Descrição</dt>
             <dd className="whitespace-pre-wrap">{evento.descricao}</dd>
           </div>
         )}
       </dl>
 
-      <div className="mt-5 flex flex-wrap items-center gap-1.5 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <div className="mt-5 flex flex-wrap items-center gap-1.5 border-t border-premium-borda pt-4">
         {statusEmAberto(evento.status) ? (
           <>
             {evento.status === 'agendado' && (
@@ -204,7 +205,7 @@ function ConteudoEvento({ evento, fechar, editarHref }: { evento: Evento; fechar
         <button
           type="button"
           onClick={fechar}
-          className="ml-auto rounded-md px-3 py-1.5 text-xs text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="ml-auto rounded-md px-3 py-1.5 text-xs text-premium-mudo transition hover:bg-premium-bg"
         >
           Fechar
         </button>

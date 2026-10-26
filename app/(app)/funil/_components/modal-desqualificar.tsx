@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState } from 'react'
 
+import { botaoFantasmaClass } from '@/components/ui/estilos'
 import { arquivarNegociacaoAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
 
@@ -75,12 +76,12 @@ export function ModalDesqualificar({ card, onCancelar, onConcluido }: Props) {
           <ErroCampo id="motivo-desqualificar-erro" mensagem={erro} />
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+        <div className="flex justify-end gap-3 border-t border-premium-borda pt-5">
           <button
             type="button"
             onClick={onCancelar}
             disabled={pendente}
-            className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            className={botaoFantasmaClass}
           >
             Cancelar
           </button>

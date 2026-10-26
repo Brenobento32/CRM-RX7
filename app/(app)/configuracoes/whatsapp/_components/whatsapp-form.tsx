@@ -3,7 +3,7 @@
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass } from '@/components/ui/estilos'
 import { salvarConfiguracaoWhatsappAction } from '@/lib/actions/whatsapp'
 import type { OpcaoResponsavel } from '@/lib/dal/clientes'
 import type { Funil } from '@/lib/dal/funis'
@@ -33,7 +33,7 @@ export function WhatsappForm({
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>

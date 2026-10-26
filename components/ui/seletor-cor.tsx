@@ -17,7 +17,7 @@ type Props = {
 }
 
 const opcaoClass =
-  'flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-2.5 py-1.5 text-sm has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:ring-zinc-100'
+  'flex cursor-pointer items-center gap-2 rounded-lg border border-premium-borda px-2.5 py-1.5 text-sm text-premium-texto transition hover:border-premium-mudo/60 has-checked:border-premium-acento has-checked:ring-1 has-checked:ring-premium-acento has-focus-visible:ring-3 has-focus-visible:ring-premium-acento/25'
 
 /**
  * Paleta fixa (a mesma das etapas do funil) em radios. A cor nunca aparece

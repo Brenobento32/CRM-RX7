@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { botaoSecundarioClass, botaoPerigoClass, botaoCompactoClass, tabelaCaixaClass, theadClass, tbodyClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import {
   definirAtendentePodeMoverAction,
@@ -13,7 +13,7 @@ import type { EtapaComUso } from '@/lib/dal/etapas'
 import { ROTULO_TIPO_ETAPA } from '@/lib/utils/etapas'
 
 const botaoIcone =
-  'rounded-md border border-zinc-300 px-2 py-1 text-xs transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800'
+  botaoCompactoClass
 
 /**
  * Lista de etapas de um funil. `faixaPipeline`/`faixaRecuperacao` são as
@@ -33,9 +33,9 @@ export function TabelaEtapas({
   faixaRecuperacao: EtapaComUso[]
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className={tabelaCaixaClass}>
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+        <thead className={theadClass}>
           <tr>
             <th className="px-4 py-3 font-medium">Etapa</th>
             <th className="px-4 py-3 font-medium">Tipo</th>
@@ -47,7 +47,7 @@ export function TabelaEtapas({
             <th className="px-4 py-3" />
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <tbody className={tbodyClass}>
           {etapas.map((e) => {
             const faixa = e.posFechamento ? faixaRecuperacao : faixaPipeline
             const i = faixa.findIndex((f) => f.id === e.id)
@@ -57,13 +57,13 @@ export function TabelaEtapas({
               : 'Etapas de fluxo comercial ficam antes do fechamento'
             const tituloSubir = e.posFechamento ? 'Etapa de recuperação já é a primeira depois do fechamento' : undefined
             return (
-              <tr key={e.id} className={e.ativo ? undefined : 'text-zinc-400'}>
+              <tr key={e.id} className={e.ativo ? undefined : 'text-premium-mudo'}>
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-2 font-medium">
                     <PontoEtapa cor={e.cor} />
                     {e.nome}
                     {e.sistema && (
-                      <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-normal text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                      <span className="rounded bg-premium-bg px-1.5 py-0.5 text-xs font-normal text-premium-secundario">
                         padrão
                       </span>
                     )}
@@ -111,12 +111,12 @@ export function TabelaEtapas({
                       </form>
                     </span>
                   ) : (
-                    <span className="text-xs text-zinc-500">{e.sistema ? 'Fixa' : '—'}</span>
+                    <span className="text-xs text-premium-mudo">{e.sistema ? 'Fixa' : '—'}</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   {e.tipo !== 'aberta' ? (
-                    <span className="text-xs text-zinc-500" title="Fechamento e perda nunca são liberados para Atendentes">
+                    <span className="text-xs text-premium-mudo" title="Fechamento e perda nunca são liberados para Atendentes">
                       Protegida
                     </span>
                   ) : (
@@ -128,7 +128,7 @@ export function TabelaEtapas({
                         className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
                           e.atendentePodeMover
                             ? 'border-premium-acento bg-premium-acento-suave text-premium-acento'
-                            : 'border-zinc-300 text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'
+                            : 'border-premium-borda text-premium-mudo hover:bg-premium-bg'
                         }`}
                       >
                         {e.atendentePodeMover ? 'Liberada' : 'Bloqueada'}
@@ -205,7 +205,7 @@ function AcaoRemover({ funilId, etapa }: { funilId: string; etapa: EtapaComUso }
 
   return (
     <form action={excluirEtapaAction.bind(null, funilId, etapa.id)}>
-      <button type="submit" className={`${botaoSecundarioClass} text-red-700 dark:text-red-400`}>
+      <button type="submit" className={botaoPerigoClass}>
         Excluir
       </button>
     </form>

@@ -3,15 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
+import { inputClass, botaoSecundarioClass, botaoPrimarioClass } from '@/components/ui/estilos'
 import type { Funil } from '@/lib/dal/funis'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
 
 import { SeletorFunil } from './seletor-funil'
 
-const selectClass =
-  'rounded-lg border border-premium-borda bg-premium-card px-2.5 py-2 text-sm text-premium-texto outline-none transition focus:border-premium-acento focus:ring-2 focus:ring-premium-acento/20'
-const botaoClass =
-  'rounded-lg border border-premium-borda px-3 py-2 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto'
+const selectClass = `${inputClass} w-auto py-2 pr-8`
+const botaoClass = botaoSecundarioClass
 
 /**
  * Toolbar do Kanban: funil selecionado, filtros de Responsável e
@@ -94,7 +93,7 @@ export function BarraFunil({
       )}
       <Link
         href={`/funil/nova?funil=${funilId}`}
-        className="rounded-lg bg-premium-acento px-3 py-2 text-sm font-medium text-zinc-950 transition hover:brightness-110"
+        className={botaoPrimarioClass}
       >
         + Nova entrada
       </Link>

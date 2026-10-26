@@ -3,9 +3,10 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import type { Funil } from '@/lib/dal/funis'
+import { inputClass } from '@/components/ui/estilos'
 
 const selectClass =
-  'rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
+  `${inputClass} w-auto pr-8`
 
 /**
  * Filtro de funil da tela de Leads — "Todos" (sem `?funil=`) ou um funil
@@ -33,7 +34,7 @@ export function SeletorFunilLeads({
 
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="seletor-funil-leads" className="text-sm text-zinc-600 dark:text-zinc-400">
+      <label htmlFor="seletor-funil-leads" className="text-sm text-premium-secundario">
         Funil:
       </label>
       <select

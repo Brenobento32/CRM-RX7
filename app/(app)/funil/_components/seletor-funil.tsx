@@ -2,11 +2,15 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
+import { inputClass } from '@/components/ui/estilos'
 import type { Funil } from '@/lib/dal/funis'
 import { COOKIE_FUNIL, COOKIE_FUNIL_MAX_AGE } from '@/lib/utils/preferencia-funil'
 
 const CLASSE_PADRAO =
-  'rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-300'
+  `${inputClass} w-auto pr-8`
+
+/** Mesmo campo dos outros filtros da barra do Kanban. */
+const CLASSE_FILTRO = `${inputClass} w-auto py-2 pr-8`
 
 /** Visual do dashboard premium (claro ou escuro, pelo `data-theme` da shell) — `BarraFunil` do Kanban e `/funil/metricas` passam `variant="premium"`. */
 const CLASSE_PREMIUM =
@@ -54,7 +58,7 @@ export function SeletorFunil({
         value={funilId}
         onChange={(e) => trocar(e.target.value)}
         aria-label={comRotulo ? undefined : 'Funil'}
-        className={premium ? CLASSE_PREMIUM : CLASSE_PADRAO}
+        className={premium ? (comRotulo ? CLASSE_FILTRO : CLASSE_PREMIUM) : CLASSE_PADRAO}
       >
         {funis
           .filter((f) => f.ativo || f.id === funilId)

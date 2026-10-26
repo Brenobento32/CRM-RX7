@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 
 import { FunilForm } from '../_components/funil-form'
 
@@ -15,14 +17,15 @@ export default async function NovoFunilPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Novo funil</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Nasce sempre com uma etapa ganha e uma perdida — não dá pra ficar sem fechamento.
-        </p>
-      </div>
+      <PageHeaderPremium
+        titulo="Novo funil"
+        subtitulo="Nasce sempre com uma etapa ganha e uma perdida — não dá pra ficar sem fechamento."
+        voltar={{ href: '/configuracoes/funis', rotulo: 'Funis' }}
+      />
 
-      <FunilForm />
+      <Secao>
+        <FunilForm />
+      </Secao>
     </div>
   )
 }

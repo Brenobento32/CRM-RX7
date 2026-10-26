@@ -1,10 +1,12 @@
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { linhaClass, tabelaClass, theadClass, thClass } from '@/components/ui/estilos'
 import type { PerformanceUsuario } from '@/lib/dal/dashboard'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 
 /** Visão do gerente: uma linha por closer, ordenada pelo valor vendido. */
 export function TabelaPerformance({ pessoas }: { pessoas: PerformanceUsuario[] }) {
   if (pessoas.length === 0) {
-    return <p className="text-sm text-zinc-500">Nenhum closer ativo.</p>
+    return <EstadoVazio compacto titulo="Nenhuma pessoa com vendas ativa" descricao="Cadastre closers ou vendedores em Configurações → Usuários." />
   }
 
   const colunasNumericas = [
@@ -21,24 +23,24 @@ export function TabelaPerformance({ pessoas }: { pessoas: PerformanceUsuario[] }
   ]
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <table className="w-full text-sm">
-        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="overflow-x-auto">
+      <table className={tabelaClass}>
+        <thead className={theadClass}>
           <tr>
-            <th className="px-4 py-3 text-left font-medium">Closer</th>
+            <th className={`${thClass} text-left`}>Pessoa</th>
             {colunasNumericas.map((c) => (
-              <th key={c} className="px-4 py-3 text-right font-medium whitespace-nowrap">
+              <th key={c} className={`${thClass} text-right`}>
                 {c}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 tabular-nums dark:divide-zinc-800">
+        <tbody className="tabular-nums">
           {pessoas.map((p) => (
-            <tr key={p.usuarioId}>
-              <td className="px-4 py-3 whitespace-nowrap">
+            <tr key={p.usuarioId} className={linhaClass}>
+              <td className="px-4 py-3 font-medium whitespace-nowrap text-premium-texto">
                 {p.nome}
-                {p.role === 'gerente' && <span className="ml-1 text-xs text-zinc-500">(gerente)</span>}
+                {p.role === 'gerente' && <span className="ml-1 text-xs text-premium-mudo">(gerente)</span>}
               </td>
               <td className="px-4 py-3 text-right whitespace-nowrap">{formatarMoeda(p.pipelineValor)}</td>
               <td className="px-4 py-3 text-right">{p.abertas}</td>
@@ -51,7 +53,7 @@ export function TabelaPerformance({ pessoas }: { pessoas: PerformanceUsuario[] }
                 {p.emRecuperacaoQtd > 0 ? (
                   <>
                     {p.emRecuperacaoQtd}{' '}
-                    <span className="text-xs text-zinc-500">({formatarMoeda(p.emRecuperacaoValor)})</span>
+                    <span className="text-xs text-premium-mudo">({formatarMoeda(p.emRecuperacaoValor)})</span>
                   </>
                 ) : (
                   '—'

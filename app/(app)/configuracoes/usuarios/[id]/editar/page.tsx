@@ -9,6 +9,8 @@ import { listarFunis } from '@/lib/dal/funis'
 import { listarPermissoesDoColaborador } from '@/lib/dal/permissoes'
 import { coresEmUso, obterUsuario } from '@/lib/dal/usuarios'
 import { formatarTelefone } from '@/lib/utils/documentos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 
 import { PermissoesComerciais } from '../../_components/permissoes-comerciais'
 import { UsuarioForm } from '../../_components/usuario-form'
@@ -45,23 +47,25 @@ export default async function EditarUsuarioPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold">Editar usuário</h1>
+      <PageHeaderPremium titulo="Editar usuário" voltar={{ href: '/configuracoes/usuarios', rotulo: 'Usuários' }} />
 
-      <UsuarioForm
-        modo="editar"
-        action={editarUsuarioAction.bind(null, usuario.id)}
-        fotoAtual={usuario.fotoUrl}
-        proprioUsuario={usuario.id === eu.id}
-        coresEmUso={cores}
-        valoresIniciais={{
-          nome: usuario.nome,
-          email: usuario.email,
-          telefone: usuario.telefone ? formatarTelefone(usuario.telefone) : '',
-          role: usuario.role,
-          cor_agenda: usuario.corAgenda ?? '',
-          ativo: usuario.ativo ? 'sim' : 'nao',
-        }}
-      />
+      <Secao>
+        <UsuarioForm
+          modo="editar"
+          action={editarUsuarioAction.bind(null, usuario.id)}
+          fotoAtual={usuario.fotoUrl}
+          proprioUsuario={usuario.id === eu.id}
+          coresEmUso={cores}
+          valoresIniciais={{
+            nome: usuario.nome,
+            email: usuario.email,
+            telefone: usuario.telefone ? formatarTelefone(usuario.telefone) : '',
+            role: usuario.role,
+            cor_agenda: usuario.corAgenda ?? '',
+            ativo: usuario.ativo ? 'sim' : 'nao',
+          }}
+        />
+      </Secao>
 
       {mostrarPermissoes && (
         <PermissoesComerciais

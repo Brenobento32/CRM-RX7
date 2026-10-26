@@ -96,7 +96,7 @@ export function AnexoMenu({ disabled = false, onSelecionarImagem, onSelecionarDo
         aria-label="Anexar"
         title="Anexar"
         disabled={disabled}
-        className="shrink-0 rounded-md p-2 text-lg leading-none transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800"
+        className="shrink-0 rounded-md p-2 text-lg leading-none transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-60"
       >
         📎
       </button>
@@ -107,7 +107,7 @@ export function AnexoMenu({ disabled = false, onSelecionarImagem, onSelecionarDo
         popover="auto"
         role="menu"
         aria-label="Anexar arquivo"
-        className="fixed m-0 rounded-lg border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm shadow-premium-alta"
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
         <button
@@ -115,7 +115,7 @@ export function AnexoMenu({ disabled = false, onSelecionarImagem, onSelecionarDo
           role="menuitem"
           onClick={escolherFotos}
           disabled={disabled}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span aria-hidden>🖼️</span>
           <span className="truncate">Fotos e vídeos</span>
@@ -126,7 +126,7 @@ export function AnexoMenu({ disabled = false, onSelecionarImagem, onSelecionarDo
           role="menuitem"
           onClick={escolherDocumento}
           disabled={disabled}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span aria-hidden>📄</span>
           <span className="truncate">Documento</span>

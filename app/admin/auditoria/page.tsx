@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { tabelaCaixaClass, tabelaClass, tbodyClass, tdClass, thClass, theadClass } from '@/components/ui/estilos'
 import { listarAuditoria } from '@/lib/dal/super-admin'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
@@ -14,37 +17,37 @@ export default async function AuditoriaPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Auditoria</h1>
+      <PageHeaderPremium titulo="Auditoria" subtitulo="Últimas 200 ações administrativas: criação de empresas, assinaturas, suspensões e planos." />
       {eventos.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nenhuma ação registrada.</p>
+        <EstadoVazio titulo="Nenhuma ação registrada" descricao="Criações, mudanças de assinatura e suspensões feitas no painel aparecem aqui." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-800">
+        <div className={tabelaCaixaClass}>
+          <table className={tabelaClass}>
+            <thead className={theadClass}>
               <tr>
-                <th className="px-3 py-2">Quando</th>
-                <th className="px-3 py-2">Ação</th>
-                <th className="px-3 py-2">Empresa</th>
-                <th className="px-3 py-2">Quem</th>
-                <th className="px-3 py-2">Motivo</th>
+                <th className={thClass}>Quando</th>
+                <th className={thClass}>Ação</th>
+                <th className={thClass}>Empresa</th>
+                <th className={thClass}>Quem</th>
+                <th className={thClass}>Motivo</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <tbody className={tbodyClass}>
               {eventos.map((e) => (
                 <tr key={e.id}>
-                  <td className="whitespace-nowrap px-3 py-2">{formatarDataHoraCompleta(e.criado_em)}</td>
-                  <td className="px-3 py-2">{e.acao}</td>
-                  <td className="px-3 py-2">
+                  <td className={`${tdClass} whitespace-nowrap`}>{formatarDataHoraCompleta(e.criado_em)}</td>
+                  <td className={tdClass}>{e.acao}</td>
+                  <td className={tdClass}>
                     {e.tenant_id ? (
-                      <Link href={`/admin/empresas/${e.tenant_id}`} className="hover:underline">
+                      <Link href={`/admin/empresas/${e.tenant_id}`} className="font-medium hover:underline">
                         {e.empresa}
                       </Link>
                     ) : (
                       '—'
                     )}
                   </td>
-                  <td className="px-3 py-2">{e.ator_email ?? '—'}</td>
-                  <td className="px-3 py-2">
+                  <td className={tdClass}>{e.ator_email ?? '—'}</td>
+                  <td className={tdClass}>
                     {typeof e.detalhes === 'object' && e.detalhes && 'motivo' in e.detalhes ? String(e.detalhes.motivo) : '—'}
                   </td>
                 </tr>

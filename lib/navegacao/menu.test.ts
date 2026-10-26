@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { menuDoCargo } from './menu'
+import { menuDoCargo, trilhaMenu } from './menu'
 
 describe('menu lateral por cargo', () => {
   it('Gerente: CRM com Configurações (Etapas, Nichos, Serviços) e as Configurações da empresa', () => {
@@ -50,5 +50,33 @@ describe('menu lateral por cargo', () => {
     expect(menuDoCargo('sdr')).toContain('Metas /metas')
     expect(menuDoCargo('vendedor').some((l) => l.startsWith('Propostas'))).toBe(true)
     expect(menuDoCargo('closer').some((l) => l.startsWith('Propostas'))).toBe(true)
+  })
+})
+
+describe('trilha do cabeçalho', () => {
+  it('mostra os grupos até a página ativa', () => {
+    expect(trilhaMenu('/configuracoes/funis/abc', 'gerente').map((p) => p.rotulo)).toEqual(['CRM', 'Configurações', 'Etapas'])
+    expect(trilhaMenu('/funil/metricas', 'closer').map((p) => p.rotulo)).toEqual(['CRM', 'Métricas'])
+    expect(trilhaMenu('/', 'sdr').map((p) => p.rotulo)).toEqual(['Início'])
+  })
+
+  it('descreve páginas internas: novo, editar e detalhe', () => {
+    expect(trilhaMenu('/clientes/novo', 'vendedor').map((p) => p.rotulo)).toEqual(['Clientes', 'Novo'])
+    expect(trilhaMenu('/clientes/2baefe3b-5644-41e1-9e15-7528ba5fa9c3', 'atendente').map((p) => p.rotulo)).toEqual(['Clientes', 'Detalhes'])
+    expect(trilhaMenu('/configuracoes/usuarios/2baefe3b-5644-41e1-9e15-7528ba5fa9c3/editar', 'gerente').map((p) => p.rotulo)).toEqual([
+      'Configurações',
+      'Usuários',
+      'Editar',
+    ])
+  })
+
+  it('nunca revela área proibida: rota sem permissão não gera trilha', () => {
+    expect(trilhaMenu('/configuracoes/usuarios', 'atendente')).toEqual([])
+    expect(trilhaMenu('/funil/metricas', 'atendente').map((p) => p.rotulo)).toEqual(['CRM', 'Funil'])
+  })
+
+  it('telas internas fora do menu ganham um rótulo próprio', () => {
+    expect(trilhaMenu('/negociacoes/2baefe3b-5644-41e1-9e15-7528ba5fa9c3/editar', 'closer').map((p) => p.rotulo)).toEqual(['Negociação'])
+    expect(trilhaMenu('/rota-que-nao-existe', 'gerente')).toEqual([])
   })
 })

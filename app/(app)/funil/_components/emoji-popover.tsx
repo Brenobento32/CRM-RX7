@@ -73,7 +73,7 @@ export function EmojiPopover({
         aria-label="Inserir emoji"
         title="Emoji"
         disabled={disabled}
-        className="shrink-0 rounded-md p-2 text-lg leading-none transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-zinc-800"
+        className="shrink-0 rounded-md p-2 text-lg leading-none transition hover:bg-premium-bg disabled:cursor-not-allowed disabled:opacity-60"
       >
         😊
       </button>
@@ -83,7 +83,7 @@ export function EmojiPopover({
         id={`${id}-emoji`}
         popover="auto"
         aria-label="Selecionar emoji"
-        className="fixed m-0 overflow-hidden rounded-lg border border-zinc-200 bg-white p-0 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+        className="fixed m-0 overflow-hidden rounded-lg border border-premium-borda bg-premium-card p-0 shadow-premium-alta"
         style={{ width: LARGURA_POPOVER, height: ALTURA_POPOVER, inset: 'auto' }}
       >
         {aberto && (

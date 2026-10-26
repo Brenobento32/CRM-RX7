@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { inputClass } from '@/components/ui/estilos'
+import { inputClass, cartaoClass } from '@/components/ui/estilos'
 import { formatarDia } from '@/lib/utils/formatacao'
 import {
   DIAS_SEMANA,
@@ -35,7 +35,7 @@ const FREQUENCIA: Record<Unidade, Frequencia> = { dias: 'diaria', semanas: 'sema
 const ROTULO_UNIDADE: Record<Unidade, string> = { dias: 'dias', semanas: 'semanas', meses: 'meses' }
 
 const diaClass =
-  'flex size-9 cursor-pointer items-center justify-center rounded-full border border-zinc-300 text-sm transition has-checked:border-zinc-900 has-checked:bg-zinc-900 has-checked:text-white has-focus-visible:ring-2 has-focus-visible:ring-zinc-900/30 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-100 dark:has-checked:text-zinc-900'
+  'flex size-9 cursor-pointer items-center justify-center rounded-full border border-premium-borda text-sm text-premium-texto transition hover:border-premium-mudo/60 has-checked:border-premium-acento has-checked:bg-premium-acento has-checked:font-medium has-checked:text-premium-acento-texto has-focus-visible:ring-3 has-focus-visible:ring-premium-acento/25'
 
 /**
  * Repetição do evento (só na criação). Os atalhos usam o dia da data
@@ -105,7 +105,7 @@ export function CampoRecorrencia({
       <SeletorRecorrencia valor={recorrencia} onChange={setRecorrencia} erro={erro('recorrencia')} />
 
       {personalizada && (
-        <div className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+        <div className={`${cartaoClass} space-y-3 p-5`}>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
               <span className="mb-1.5 block font-medium">A cada</span>
@@ -174,7 +174,7 @@ export function CampoRecorrencia({
                 aria-invalid={erro('dia_mes') ? true : undefined}
                 className={`${semLargura} w-24`}
               />
-              <span className="mt-1 block text-xs text-zinc-500">
+              <span className="mt-1 block text-xs text-premium-mudo">
                 29, 30 ou 31 caem no último dia dos meses mais curtos.
               </span>
               <ErroCampo mensagem={erro('dia_mes')} />
@@ -236,19 +236,19 @@ export function CampoRecorrencia({
             ocorrências
           </label>
         </div>
-        <p className="mt-1 text-xs text-zinc-500">No máximo 12 meses ou {MAX_OCORRENCIAS} ocorrências.</p>
+        <p className="mt-1 text-xs text-premium-mudo">No máximo 12 meses ou {MAX_OCORRENCIAS} ocorrências.</p>
         <ErroCampo mensagem={erro('termino') ?? erro('termina_em') ?? erro('ocorrencias')} />
       </fieldset>
 
       {regra && datas.length > 0 && (
         <p
           role="status"
-          className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+          className="rounded-md border border-premium-borda bg-premium-bg px-3 py-2 text-sm"
         >
           <span aria-hidden>↻ </span>
           {descreverRecorrencia(regra)} · <span className="font-medium">{datas.length}</span>{' '}
           {datas.length === 1 ? 'compromisso' : 'compromissos'}
-          <span className="text-zinc-500">
+          <span className="text-premium-mudo">
             {' '}
             (de {formatarDia(datas[0])} a {formatarDia(datas.at(-1)!)})
           </span>

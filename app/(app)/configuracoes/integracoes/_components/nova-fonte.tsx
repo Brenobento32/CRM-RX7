@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useActionState, useState } from 'react'
 
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass, caixaSucessoClass } from '@/components/ui/estilos'
 import { criarFonteAction, type EstadoToken } from '@/lib/actions/fontes-leads'
 import type { OpcoesFonte } from '@/lib/dal/fontes-leads'
 import { CATALOGO, TIPOS_FONTE, type TipoFonte } from '@/lib/integracoes/catalogo'
@@ -18,9 +18,9 @@ export function NovaFonte({ opcoes, responsaveis }: { opcoes: OpcoesFonte; respo
   if (estado.id) {
     return (
       <div className="space-y-3">
-        <p className="text-sm">Fonte criada.</p>
+        <p role="status" className={caixaSucessoClass}>Fonte criada.</p>
         {estado.token && <TokenUmaVez token={estado.token} />}
-        <Link href={`/configuracoes/integracoes/${estado.id}`} className="text-sm underline">
+        <Link href={`/configuracoes/integracoes/${estado.id}`} className="text-sm font-medium text-premium-acento hover:underline">
           Ver instruções de conexão
         </Link>
       </div>
@@ -40,7 +40,7 @@ export function NovaFonte({ opcoes, responsaveis }: { opcoes: OpcoesFonte; respo
         </select>
       </label>
       <CamposFonte key={tipo} tipo={tipo} opcoes={opcoes} responsaveis={responsaveis} />
-      {estado.erro && <p className="text-sm text-red-600 sm:col-span-2">{estado.erro}</p>}
+      {estado.erro && <p role="alert" className={`${caixaErroClass} sm:col-span-2`}>{estado.erro}</p>}
       <div className="sm:col-span-2">
         <button type="submit" disabled={enviando} className={botaoPrimarioClass}>
           {enviando ? 'Criando…' : 'Criar fonte'}

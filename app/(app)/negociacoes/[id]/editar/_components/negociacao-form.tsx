@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, opcaoClass, caixaErroClass, legendaClass } from '@/components/ui/estilos'
 import type { EstadoFormNegociacao } from '@/lib/actions/negociacoes'
 import type { Servico } from '@/lib/dal/servicos'
 import {
@@ -25,7 +25,6 @@ type Props = {
   cancelarHref: string
 }
 
-const legendaClass = 'text-base font-semibold'
 
 export function NegociacaoForm({ action, valoresIniciais, servicos, cancelarHref }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
@@ -38,7 +37,7 @@ export function NegociacaoForm({ action, valoresIniciais, servicos, cancelarHref
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -145,16 +144,16 @@ export function NegociacaoForm({ action, valoresIniciais, servicos, cancelarHref
         <legend className={legendaClass}>Serviços</legend>
 
         {servicos.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nenhum serviço cadastrado.</p>
+          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O gerente cadastra em Configurações → Serviços.</p>
         ) : (
           agrupar(servicos).map(([categoria, lista]) => (
             <div key={categoria ?? ''} className="space-y-2">
-              {categoria && <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{categoria}</p>}
+              {categoria && <p className="text-xs font-medium uppercase tracking-wide text-premium-mudo">{categoria}</p>}
               <div className="grid gap-2 sm:grid-cols-2">
                 {lista.map((s) => (
                   <label
                     key={s.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm has-checked:border-zinc-900 has-checked:bg-zinc-50 dark:border-zinc-700 dark:has-checked:border-zinc-100 dark:has-checked:bg-zinc-900"
+                    className={opcaoClass}
                   >
                     <input
                       type="checkbox"
@@ -167,7 +166,7 @@ export function NegociacaoForm({ action, valoresIniciais, servicos, cancelarHref
                     {!s.ativo && (
                       <span
                         title="Desmarcado, não poderá ser marcado de novo."
-                        className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                        className="rounded bg-premium-bg px-1.5 py-0.5 text-xs text-premium-secundario"
                       >
                         desativado
                       </span>
@@ -181,13 +180,13 @@ export function NegociacaoForm({ action, valoresIniciais, servicos, cancelarHref
         <ErroCampo id="servicos-erro" mensagem={erro('servico_ids')} />
       </fieldset>
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Salvando…' : 'Salvar'}
         </button>
         <Link
           href={cancelarHref}
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>

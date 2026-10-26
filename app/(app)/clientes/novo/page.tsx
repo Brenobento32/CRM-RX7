@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { Secao } from '@/components/ui/secao'
 import { criarClienteAction } from '@/lib/actions/clientes'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarResponsaveis } from '@/lib/dal/clientes'
@@ -18,10 +21,12 @@ export default async function NovoClientePage() {
   if (empresa.somenteLeitura) {
     return (
       <div className="max-w-3xl space-y-6">
-        <h1 className="text-2xl font-semibold">Novo cliente</h1>
-        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Esta empresa é somente leitura. Não é possível cadastrar clientes aqui.
-        </p>
+        <PageHeaderPremium titulo="Novo cliente" voltar={{ href: '/clientes', rotulo: 'Clientes' }} />
+        <EstadoVazio
+          titulo="Cadastro indisponível"
+          descricao="Esta empresa está em modo somente leitura: os dados podem ser consultados, mas não alterados."
+          acao={{ href: '/clientes', rotulo: 'Voltar para clientes' }}
+        />
       </div>
     )
   }
@@ -32,31 +37,37 @@ export default async function NovoClientePage() {
   if (funisAtivos.length === 0) {
     return (
       <div className="max-w-3xl space-y-6">
-        <h1 className="text-2xl font-semibold">Novo cliente</h1>
-        <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          Você ainda não tem acesso a nenhum funil. Peça ao gerente para configurar suas permissões.
-        </p>
+        <PageHeaderPremium titulo="Novo cliente" voltar={{ href: '/clientes', rotulo: 'Clientes' }} />
+        <EstadoVazio
+          titulo="Nenhum funil liberado para você"
+          descricao="Todo cliente novo entra num funil. Peça ao gerente para liberar ao menos um funil nas suas permissões."
+          acao={{ href: '/clientes', rotulo: 'Voltar para clientes' }}
+        />
       </div>
     )
   }
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Novo cliente</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Uma negociação é aberta automaticamente, na primeira etapa aberta do funil escolhido abaixo.
-        </p>
-      </div>
-
-      <ClienteForm
-        action={criarClienteAction}
-        valoresIniciais={{ tipo_cliente: 'pessoa_fisica', owner_id: usuario.id }}
-        responsaveis={responsaveis}
-        funis={funisAtivos}
-        rotuloEnviar="Cadastrar cliente"
-        cancelarHref="/clientes"
+      <PageHeaderPremium
+        titulo="Novo cliente"
+        subtitulo="Uma negociação é aberta automaticamente, na primeira etapa aberta do funil escolhido."
+        voltar={{ href: '/clientes', rotulo: 'Clientes' }}
       />
+
+      <Secao>
+        <ClienteForm
+          action={criarClienteAction}
+          valoresIniciais={{
+            tipo_cliente: 'pessoa_fisica',
+            owner_id: usuario.id,
+          }}
+          responsaveis={responsaveis}
+          funis={funisAtivos}
+          rotuloEnviar="Cadastrar cliente"
+          cancelarHref="/clientes"
+        />
+      </Secao>
     </div>
   )
 }

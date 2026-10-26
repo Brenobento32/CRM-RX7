@@ -400,7 +400,7 @@ export function Kanban({
         <div className="flex min-w-0 flex-1 items-center gap-3" aria-live="polite">
           {salvando && <span className="text-premium-mudo">Salvando…</span>}
           {erro && (
-            <span role="alert" className="text-red-400">
+            <span role="alert" className="text-red-600 dark:text-red-400">
               {erro}
             </span>
           )}
@@ -595,7 +595,7 @@ function Coluna({
                   ? 'A partir daqui, só o CLOSER movimenta o lead.'
                   : 'Você não tem permissão configurada para movimentar nesta etapa.'
               }
-              className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+              className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
             >
               {aviso}
             </span>

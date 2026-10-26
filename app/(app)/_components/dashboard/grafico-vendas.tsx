@@ -50,7 +50,7 @@ export function GraficoVendas({ dados }: { dados: VendaMensal[] }) {
                 return (
                   <CaixaTooltip titulo={ponto.rotulo}>
                     <p className="font-medium tabular-nums">{formatarMoeda(ponto.valor)}</p>
-                    <p className="text-zinc-500">
+                    <p className="text-premium-mudo">
                       {ponto.quantidade} {ponto.quantidade === 1 ? 'negócio' : 'negócios'}
                     </p>
                   </CaixaTooltip>

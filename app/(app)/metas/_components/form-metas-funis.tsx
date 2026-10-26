@@ -1,12 +1,10 @@
 import { salvarMetasFunisAction } from '@/lib/actions/metas'
 import type { ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda } from '@/lib/utils/formatacao'
+import { inputClass, botaoPrimarioClass, cartaoClass } from '@/components/ui/estilos'
 
-/** Visual próprio (escuro) — `inputClass`/`botaoPrimarioClass` compartilhados são claros, usados em telas que não migraram pro premium ainda. */
-const inputPremiumClass =
-  'w-full rounded-md border border-premium-borda bg-premium-bg/60 px-3 py-2 text-sm text-premium-texto outline-none transition placeholder:text-premium-mudo focus:border-premium-acento focus:ring-2 focus:ring-premium-acento/20'
-const botaoPremiumClass =
-  'rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-zinc-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60'
+const inputPremiumClass = inputClass
+const botaoPremiumClass = botaoPrimarioClass
 
 /**
  * "Metas mensais por funil" — só GERENTE vê este formulário (a página
@@ -33,7 +31,7 @@ export function FormMetasFunis({
     <form action={salvarMetasFunisAction.bind(null, mes, funis)} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         {progresso.map((p) => (
-          <fieldset key={p.funilId} className="space-y-3 rounded-lg border border-premium-borda p-4">
+          <fieldset key={p.funilId} className={`${cartaoClass} space-y-3 p-5`}>
             <legend className="px-1 font-medium text-premium-texto">{p.funilNome}</legend>
 
             <div>

@@ -70,13 +70,13 @@ export function IconBadge({
 export type CorProgresso = { trilho: string; fill: string; texto: string }
 
 export const CORES_PROGRESSO = {
-  verde: { trilho: 'bg-emerald-500/15', fill: 'bg-emerald-400', texto: 'text-emerald-400' },
-  azul: { trilho: 'bg-sky-500/15', fill: 'bg-sky-400', texto: 'text-sky-400' },
-  roxo: { trilho: 'bg-violet-500/15', fill: 'bg-violet-400', texto: 'text-violet-400' },
-  rosa: { trilho: 'bg-pink-500/15', fill: 'bg-pink-400', texto: 'text-pink-400' },
-  laranja: { trilho: 'bg-orange-500/15', fill: 'bg-orange-400', texto: 'text-orange-400' },
-  ambar: { trilho: 'bg-amber-500/15', fill: 'bg-amber-400', texto: 'text-amber-400' },
-  teal: { trilho: 'bg-teal-500/15', fill: 'bg-teal-400', texto: 'text-teal-400' },
+  verde: { trilho: 'bg-emerald-500/15', fill: 'bg-emerald-400', texto: 'text-emerald-700 dark:text-emerald-400' },
+  azul: { trilho: 'bg-sky-500/15', fill: 'bg-sky-400', texto: 'text-sky-700 dark:text-sky-400' },
+  roxo: { trilho: 'bg-violet-500/15', fill: 'bg-violet-400', texto: 'text-violet-700 dark:text-violet-400' },
+  rosa: { trilho: 'bg-pink-500/15', fill: 'bg-pink-400', texto: 'text-pink-700 dark:text-pink-400' },
+  laranja: { trilho: 'bg-orange-500/15', fill: 'bg-orange-400', texto: 'text-orange-700 dark:text-orange-400' },
+  ambar: { trilho: 'bg-amber-500/15', fill: 'bg-amber-400', texto: 'text-amber-700 dark:text-amber-400' },
+  teal: { trilho: 'bg-teal-500/15', fill: 'bg-teal-400', texto: 'text-teal-700 dark:text-teal-400' },
 } as const satisfies Record<string, CorProgresso>
 
 /** Barra de progresso — trilho translúcido, preenchimento sólido, limite visual em 100% (`Math.min`). `null` = trilho vazio, nunca cheio. */

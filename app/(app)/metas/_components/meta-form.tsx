@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import type { EstadoFormMeta } from '@/lib/actions/metas'
 import type { OpcaoAlvo } from '@/lib/dal/metas'
 import { ROTULO_TIPO_META, TIPOS_META, type CampoMeta } from '@/lib/validations/meta'
@@ -28,7 +28,7 @@ export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloE
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -109,13 +109,13 @@ export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloE
         <ErroCampo mensagem={erro('valor_meta')} />
       </div>
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Salvando…' : rotuloEnviar}
         </button>
         <Link
           href={cancelarHref}
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>

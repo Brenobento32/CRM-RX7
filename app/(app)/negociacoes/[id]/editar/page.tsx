@@ -1,17 +1,14 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { caixaAlertaClass } from '@/components/ui/estilos'
+import { Secao } from '@/components/ui/secao'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { atualizarFechamentoAction, salvarNegociacaoAction } from '@/lib/actions/negociacoes'
 import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
-import {
-  NEGOCIACAO_ENCERRADA,
-  obterNegociacaoParaEdicao,
-  type FechamentoEdicao,
-  type NegociacaoEdicao,
-} from '@/lib/dal/negociacoes'
+import { NEGOCIACAO_ENCERRADA, obterNegociacaoParaEdicao, type FechamentoEdicao, type NegociacaoEdicao } from '@/lib/dal/negociacoes'
 import { listarServicosAtivos, ordenarServicos } from '@/lib/dal/servicos'
 import { formatarDia, formatarMoeda } from '@/lib/utils/formatacao'
 import { montarHistorico } from '@/lib/utils/historico'
@@ -42,10 +39,7 @@ export default async function EditarNegociacaoPage({ params }: PageProps<'/negoc
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
 
-  const [negociacao, historico] = await Promise.all([
-    obterNegociacaoParaEdicao(id),
-    listarHistoricoDaNegociacao(id),
-  ])
+  const [negociacao, historico] = await Promise.all([obterNegociacaoParaEdicao(id), listarHistoricoDaNegociacao(id)])
   if (!negociacao) notFound()
 
   const tipo = negociacao.etapa.tipo
@@ -56,26 +50,23 @@ export default async function EditarNegociacaoPage({ params }: PageProps<'/negoc
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <Link href={voltar} className="text-sm text-zinc-500 hover:underline">
-          ← {negociacao.clienteNome}
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold">{titulo}</h1>
-        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-          <span className="flex items-center gap-1.5 font-medium text-zinc-900 dark:text-zinc-100">
-            <PontoEtapa cor={negociacao.etapa.cor} />
-            {negociacao.etapa.nome}
+      <PageHeaderPremium
+        titulo={titulo}
+        voltar={{ href: voltar, rotulo: negociacao.clienteNome }}
+        subtitulo={
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1.5 font-medium text-premium-texto">
+              <PontoEtapa cor={negociacao.etapa.cor} />
+              {negociacao.etapa.nome}
+            </span>
+            <span>· A etapa muda pelo funil.</span>
           </span>
-          <span>· A etapa muda pelo funil.</span>
-        </p>
-      </div>
+        }
+      />
 
       {tipo === 'perdida' && (
         <>
-          <p
-            role="note"
-            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
-          >
+          <p role="note" className={caixaAlertaClass}>
             {NEGOCIACAO_ENCERRADA}
           </p>
           <SomenteLeitura negociacao={negociacao} mostrarServicos />
@@ -84,24 +75,25 @@ export default async function EditarNegociacaoPage({ params }: PageProps<'/negoc
 
       {tipo === 'ganha' && negociacao.fechamento && (
         <>
-          <p
-            role="note"
-            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
-          >
-            Qualificação e proposta não podem mais ser alteradas. Os dados do fechamento continuam editáveis
-            abaixo.
+          <p role="note" className={caixaAlertaClass}>
+            Qualificação e proposta não podem mais ser alteradas. Os dados do fechamento continuam editáveis abaixo.
           </p>
           <SomenteLeitura negociacao={negociacao} mostrarServicos={false} />
-          <EditarFechamento negociacao={negociacao} fechamento={negociacao.fechamento} voltar={voltar} />
+          <Secao titulo="Fechamento">
+            <EditarFechamento negociacao={negociacao} fechamento={negociacao.fechamento} voltar={voltar} />
+          </Secao>
         </>
       )}
 
-      {tipo === 'aberta' && <Formulario negociacao={negociacao} voltar={voltar} />}
+      {tipo === 'aberta' && (
+        <Secao>
+          <Formulario negociacao={negociacao} voltar={voltar} />
+        </Secao>
+      )}
 
-      <section className="space-y-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <h2 className="text-base font-semibold">Histórico do funil</h2>
+      <Secao titulo="Histórico do funil" descricao="Cada mudança de etapa, com data e responsável.">
         <HistoricoFunil entradas={entradasHistorico} />
-      </section>
+      </Secao>
     </div>
   )
 }
@@ -110,10 +102,7 @@ async function Formulario({ negociacao, voltar }: { negociacao: NegociacaoEdicao
   // Desativados só aparecem se já estão nesta negociação.
   const ativos = await listarServicosAtivos()
   const idsAtivos = new Set(ativos.map((s) => s.id))
-  const servicos = ordenarServicos([
-    ...ativos,
-    ...negociacao.servicos.filter((s) => !idsAtivos.has(s.id)),
-  ])
+  const servicos = ordenarServicos([...ativos, ...negociacao.servicos.filter((s) => !idsAtivos.has(s.id))])
 
   return (
     <NegociacaoForm
@@ -146,10 +135,7 @@ async function EditarFechamento({
   // Mesmo padrão de Formulario: desativados só aparecem se já vinculados.
   const ativos = await listarServicosAtivos()
   const idsAtivos = new Set(ativos.map((s) => s.id))
-  const servicos = ordenarServicos([
-    ...ativos,
-    ...negociacao.servicos.filter((s) => !idsAtivos.has(s.id)),
-  ])
+  const servicos = ordenarServicos([...ativos, ...negociacao.servicos.filter((s) => !idsAtivos.has(s.id))])
 
   return (
     <EditarFechamentoForm
@@ -194,40 +180,38 @@ function SomenteLeitura({
   ]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {blocos.map((b) => (
-        <section key={b.titulo} className="space-y-3">
-          <h2 className="text-base font-semibold">{b.titulo}</h2>
-          <dl className="grid gap-4 sm:grid-cols-2">
+        <Secao key={b.titulo} titulo={b.titulo}>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {b.itens.map(([rotulo, valor]) => (
               <div key={rotulo} className={rotulo === 'Objeção principal' ? 'sm:col-span-2' : undefined}>
-                <dt className="text-sm text-zinc-500">{rotulo}</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap text-sm">{valor || '—'}</dd>
+                <dt className="text-xs text-premium-mudo">{rotulo}</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-premium-texto">{valor || '—'}</dd>
               </div>
             ))}
           </dl>
-        </section>
+        </Secao>
       ))}
 
       {mostrarServicos && (
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold">Serviços</h2>
+        <Secao titulo="Serviços">
           {n.servicos.length === 0 ? (
-            <p className="text-sm text-zinc-500">Nenhum serviço.</p>
+            <p className="text-sm text-premium-mudo">Nenhum serviço vinculado a esta negociação.</p>
           ) : (
             <ul className="flex flex-wrap gap-1.5">
               {ordenarServicos([...n.servicos]).map((s) => (
                 <li
                   key={s.id}
-                  className="rounded bg-zinc-100 px-2 py-1 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  className="rounded-md bg-premium-bg px-2 py-1 text-sm text-premium-secundario ring-1 ring-premium-borda ring-inset"
                 >
                   {s.nome}
-                  {!s.ativo && <span className="text-zinc-500"> (desativado)</span>}
+                  {!s.ativo && <span className="text-premium-mudo"> (desativado)</span>}
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Secao>
       )}
     </div>
   )

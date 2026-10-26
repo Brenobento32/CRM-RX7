@@ -1,61 +1,56 @@
+import { Indicador } from '@/components/ui/indicador'
 import type { Kpis } from '@/lib/dal/dashboard'
-import {
-  formatarMoeda,
-  formatarMoedaCompacta,
-  formatarPercentual,
-} from '@/lib/utils/formatacao'
+import { formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '@/lib/utils/formatacao'
 
-/** Stat tiles. Os números vêm prontos do DAL; aqui só formatação. */
+const icone = (d: string) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-4">
+    <path d={d} />
+  </svg>
+)
+
+/**
+ * Indicadores do período. "Vendido" é o destaque (o resultado); os demais
+ * dão contexto. Cada cartão leva à tela onde o número é trabalhado.
+ */
 export function CardsKpi({ kpis }: { kpis: Kpis }) {
   const encerradas = kpis.ganhos + kpis.perdidos
 
-  const cards: { rotulo: string; valor: string; titulo?: string; detalhe: string }[] = [
-    {
-      rotulo: 'Valor em pipeline',
-      valor: formatarMoedaCompacta(kpis.pipelineValor),
-      titulo: formatarMoeda(kpis.pipelineValor),
-      detalhe: 'Estimado das negociações abertas',
-    },
-    {
-      rotulo: 'Vendido no período',
-      valor: formatarMoedaCompacta(kpis.vendidoValor),
-      titulo: formatarMoeda(kpis.vendidoValor),
-      detalhe: `${kpis.ganhos} ${kpis.ganhos === 1 ? 'negócio fechado' : 'negócios fechados'}`,
-    },
-    {
-      rotulo: 'Negociações abertas',
-      valor: String(kpis.abertas),
-      detalhe: 'Da reunião agendada à negociação',
-    },
-    {
-      rotulo: 'Reuniões próximas',
-      valor: String(kpis.reunioesProximas),
-      detalhe: 'Reuniões e apresentações nos próximos 7 dias',
-    },
-    {
-      rotulo: 'Taxa de conversão',
-      valor: kpis.conversao === null ? '—' : formatarPercentual(kpis.conversao),
-      detalhe:
-        encerradas === 0
-          ? 'Nenhuma negociação encerrada no período'
-          : `${kpis.ganhos} de ${encerradas} encerradas no período`,
-    },
-  ]
-
   return (
-    <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      {cards.map((c) => (
-        <div
-          key={c.rotulo}
-          className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-        >
-          <dt className="text-sm text-zinc-600 dark:text-zinc-400">{c.rotulo}</dt>
-          <dd className="mt-1 text-2xl font-semibold" title={c.titulo}>
-            {c.valor}
-          </dd>
-          <dd className="mt-1 text-xs text-zinc-500">{c.detalhe}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <Indicador
+        destaque
+        rotulo="Vendido no período"
+        valor={<span title={formatarMoeda(kpis.vendidoValor)}>{formatarMoedaCompacta(kpis.vendidoValor)}</span>}
+        detalhe={`${kpis.ganhos} ${kpis.ganhos === 1 ? 'negócio fechado' : 'negócios fechados'}`}
+        icone={icone('M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6')}
+      />
+      <Indicador
+        rotulo="Valor em pipeline"
+        valor={<span title={formatarMoeda(kpis.pipelineValor)}>{formatarMoedaCompacta(kpis.pipelineValor)}</span>}
+        detalhe="Estimado das negociações abertas"
+        icone={icone('M3 5h18l-7 8v5l-4 2v-7z')}
+        href="/funil"
+      />
+      <Indicador
+        rotulo="Negociações abertas"
+        valor={kpis.abertas}
+        detalhe="Da reunião agendada à negociação"
+        icone={icone('M4 6h16M4 12h16M4 18h10')}
+        href="/funil"
+      />
+      <Indicador
+        rotulo="Reuniões próximas"
+        valor={kpis.reunioesProximas}
+        detalhe="Nos próximos 7 dias"
+        icone={icone('M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z')}
+        href="/agenda"
+      />
+      <Indicador
+        rotulo="Taxa de conversão"
+        valor={kpis.conversao === null ? '—' : formatarPercentual(kpis.conversao)}
+        detalhe={encerradas === 0 ? 'Nenhuma negociação encerrada no período' : `${kpis.ganhos} de ${encerradas} encerradas`}
+        icone={icone('M3 17l6-6 4 4 8-8M15 7h6v6')}
+      />
+    </div>
   )
 }

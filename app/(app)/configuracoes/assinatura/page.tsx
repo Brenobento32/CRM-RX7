@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
+
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Aviso } from '@/components/ui/aviso'
+import { Secao } from '@/components/ui/secao'
+import { Selo } from '@/components/ui/selo'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMinhaAssinatura, podeVerAssinatura } from '@/lib/dal/assinatura'
@@ -21,57 +25,71 @@ export default async function MinhaAssinaturaPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <Link href="/configuracoes" className="text-sm text-zinc-500 hover:underline">
-          ← Configurações
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold">Minha assinatura</h1>
-      </div>
+      <PageHeaderPremium
+        titulo="Minha assinatura"
+        subtitulo="Plano, situação, limites e consumo da empresa."
+        voltar={{ href: '/configuracoes', rotulo: 'Configurações' }}
+      />
 
       {!pode ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Somente o administrador da empresa vê a assinatura.</p>
+        <Aviso tom="info" titulo="Acesso restrito">
+          Somente o administrador da empresa vê a assinatura.
+        </Aviso>
       ) : !assinatura?.plano_codigo ? (
-        <p className="rounded-lg border border-zinc-200 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-          Esta empresa não tem assinatura (empresa interna): sem limites de plano.
-        </p>
+        <Aviso tom="info" titulo="Sem assinatura">
+          Esta empresa é interna: não há plano nem limites de uso.
+        </Aviso>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2">
-            <Dado rotulo="Plano" valor={assinatura.plano_nome ?? '—'} />
-            <Dado
-              rotulo="Situação"
-              valor={assinatura.status ? ROTULO_STATUS_ASSINATURA[assinatura.status] : '—'}
-              destaque={assinatura.status === 'suspensa' || assinatura.status === 'vencida' || assinatura.status === 'cancelada'}
-            />
-            <Dado rotulo="Ciclo" valor={assinatura.ciclo === 'anual' ? 'Anual' : 'Mensal'} />
-            <Dado
-              rotulo="Valor"
-              valor={
-                (assinatura.ciclo === 'anual' ? assinatura.preco_anual : assinatura.preco_mensal) === null
-                  ? 'A definir'
-                  : formatarMoeda(Number(assinatura.ciclo === 'anual' ? assinatura.preco_anual : assinatura.preco_mensal))
-              }
-            />
-            {assinatura.teste_ate && <Dado rotulo="Teste até" valor={formatarData(assinatura.teste_ate)} />}
-            <Dado rotulo="Próxima renovação" valor={assinatura.renovacao_em ? formatarData(assinatura.renovacao_em) : '—'} />
-          </section>
+          <Secao
+            titulo={assinatura.plano_nome ?? 'Plano'}
+            descricao={assinatura.ciclo === 'anual' ? 'Cobrança anual' : 'Cobrança mensal'}
+            acoes={
+              assinatura.status && (
+                <Selo tom={assinatura.status === 'ativa' ? 'verde' : assinatura.status === 'teste' ? 'azul' : 'vermelho'}>
+                  {ROTULO_STATUS_ASSINATURA[assinatura.status]}
+                </Selo>
+              )
+            }
+          >
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              <Dado rotulo="Plano" valor={assinatura.plano_nome ?? '—'} />
+              <Dado
+                rotulo="Situação"
+                valor={assinatura.status ? ROTULO_STATUS_ASSINATURA[assinatura.status] : '—'}
+                destaque={assinatura.status === 'suspensa' || assinatura.status === 'vencida' || assinatura.status === 'cancelada'}
+              />
+              <Dado rotulo="Ciclo" valor={assinatura.ciclo === 'anual' ? 'Anual' : 'Mensal'} />
+              <Dado
+                rotulo="Valor"
+                valor={
+                  (assinatura.ciclo === 'anual' ? assinatura.preco_anual : assinatura.preco_mensal) === null
+                    ? 'A definir'
+                    : formatarMoeda(Number(assinatura.ciclo === 'anual' ? assinatura.preco_anual : assinatura.preco_mensal))
+                }
+              />
+              {assinatura.teste_ate && <Dado rotulo="Teste até" valor={formatarData(assinatura.teste_ate)} />}
+              <Dado rotulo="Próxima renovação" valor={assinatura.renovacao_em ? formatarData(assinatura.renovacao_em) : '—'} />
+            </dl>
+          </Secao>
 
-          <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-            <h2 className="font-semibold">Limites e consumo</h2>
-            <Consumo rotulo="Usuários ativos" uso={Number(assinatura.usuarios_ativos)} limite={assinatura.limite_usuarios} />
-            <Consumo rotulo="Integrações" uso={assinatura.integracoes_em_uso} limite={assinatura.limite_integracoes} />
-            <div>
-              <p className="text-sm font-medium">Recursos do plano</p>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                {(assinatura.recursos ?? [])
-                  .filter((r) => !RECURSOS_OCULTOS.includes(r as Recurso))
-                  .map((r) => ROTULO_RECURSO[r as Recurso] ?? r)
-                  .join(', ') || '—'}
-              </p>
+          <Secao titulo="Limites e consumo" descricao="Uso atual em relação ao que o plano permite.">
+            <div className="space-y-4">
+              <Consumo rotulo="Usuários ativos" uso={Number(assinatura.usuarios_ativos)} limite={assinatura.limite_usuarios} />
+              <Consumo rotulo="Integrações" uso={assinatura.integracoes_em_uso} limite={assinatura.limite_integracoes} />
+              <div className="border-t border-premium-borda-suave pt-4">
+                <p className="text-sm font-medium text-premium-texto">Recursos do plano</p>
+                <p className="mt-0.5 text-sm text-premium-secundario">
+                  {(assinatura.recursos ?? [])
+                    .filter((r) => !RECURSOS_OCULTOS.includes(r as Recurso))
+                    .map((r) => ROTULO_RECURSO[r as Recurso] ?? r)
+                    .join(', ') || '—'}
+                </p>
+              </div>
             </div>
-          </section>
+          </Secao>
 
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-premium-mudo">
             Para mudar de plano, ciclo ou situação, fale com a Rio X7. Alterações de assinatura não são feitas por aqui.
           </p>
         </>
@@ -82,9 +100,9 @@ export default async function MinhaAssinaturaPage() {
 
 function Dado({ rotulo, valor, destaque }: { rotulo: string; valor: string; destaque?: boolean }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <p className="text-xs text-zinc-500">{rotulo}</p>
-      <p className={`mt-1 font-medium ${destaque ? 'text-red-600 dark:text-red-400' : ''}`}>{valor}</p>
+    <div>
+      <dt className="text-xs text-premium-mudo">{rotulo}</dt>
+      <dd className={`mt-0.5 text-sm font-medium ${destaque ? 'text-red-600 dark:text-red-400' : 'text-premium-texto'}`}>{valor}</dd>
     </div>
   )
 }
@@ -94,15 +112,15 @@ function Consumo({ rotulo, uso, limite }: { rotulo: string; uso: number; limite:
   return (
     <div>
       <div className="flex justify-between text-sm">
-        <span>{rotulo}</span>
-        <span>
+        <span className="text-premium-texto">{rotulo}</span>
+        <span className="tabular-nums text-premium-secundario">
           {uso} {limite === null ? '(sem limite)' : `de ${limite}`}
         </span>
       </div>
       {limite !== null && (
-        <div className="mt-1 h-2 overflow-hidden rounded bg-zinc-200 dark:bg-zinc-800" aria-hidden>
+        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-premium-acento-suave" aria-hidden>
           <div
-            className={`h-full ${fracao >= 1 ? 'bg-red-500' : 'bg-zinc-900 dark:bg-zinc-100'}`}
+            className={`h-full rounded-full ${fracao >= 1 ? 'bg-red-500' : 'bg-premium-acento'}`}
             style={{ width: `${Math.round(fracao * 100)}%` }}
           />
         </div>

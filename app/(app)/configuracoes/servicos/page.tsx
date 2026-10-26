@@ -1,15 +1,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
-import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
+import {
+  botaoPrimarioClass,
+  botaoSecundarioClass,
+  botaoPerigoClass,
+  caixaErroClass,
+  tabelaCaixaClass,
+  theadClass,
+  tbodyClass,
+} from '@/components/ui/estilos'
 import { definirAtivoServicoAction, excluirServicoAction } from '@/lib/actions/servicos'
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import {
-  listarServicosAtivos,
-  listarServicosComUso,
-  type Servico,
-  type ServicoComUso,
-} from '@/lib/dal/servicos'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
+import { listarServicosAtivos, listarServicosComUso, type Servico, type ServicoComUso } from '@/lib/dal/servicos'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
 export const metadata: Metadata = {
   title: 'Serviços',
@@ -22,24 +27,24 @@ export default async function ServicosPage({ searchParams }: PageProps<'/configu
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link href="/configuracoes" className="text-sm text-zinc-500 hover:underline">
-            ← Configurações
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold">Serviços</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <PageHeaderPremium
+        titulo="Serviços"
+        subtitulo={
+          <>
             {gerente
               ? 'Catálogo usado nas negociações. Serviço já usado não é excluído: desative-o.'
               : 'Serviços disponíveis para as negociações.'}
-          </p>
-        </div>
-        {gerente && (
-          <Link href="/configuracoes/servicos/novo" className={botaoPrimarioClass}>
-            Novo serviço
-          </Link>
-        )}
-      </div>
+          </>
+        }
+        voltar={{ href: '/configuracoes', rotulo: 'Configurações' }}
+        acoes={
+          gerente && (
+            <Link href="/configuracoes/servicos/novo" className={botaoPrimarioClass}>
+              Novo serviço
+            </Link>
+          )
+        }
+      />
 
       {gerente ? <VisaoGerente erro={(await searchParams).erro} /> : <VisaoCloser />}
     </div>
@@ -48,7 +53,8 @@ export default async function ServicosPage({ searchParams }: PageProps<'/configu
 
 async function VisaoCloser() {
   const servicos = await listarServicosAtivos()
-  if (servicos.length === 0) return <Vazio>Nenhum serviço cadastrado.</Vazio>
+  if (servicos.length === 0)
+    return <Vazio descricao="Quando o gerente cadastrar serviços, eles aparecem aqui e nas negociações.">Nenhum serviço cadastrado</Vazio>
 
   return (
     <Tabela colunas={['Serviço', 'Categoria']}>
@@ -70,20 +76,25 @@ async function VisaoGerente({ erro }: { erro: string | string[] | undefined }) {
   return (
     <>
       {typeof erro === 'string' && (
-        <p
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-        >
+        <p role="alert" className={caixaErroClass}>
           {erro}
         </p>
       )}
 
-      {ativos.length === 0 ? <Vazio>Nenhum serviço ativo.</Vazio> : <TabelaGerente servicos={ativos} />}
+      {ativos.length === 0 ? (
+        <Vazio
+          descricao="Os serviços aparecem nas negociações e propostas. Use “Novo serviço”, acima, para cadastrar o primeiro."
+        >
+          Nenhum serviço ativo
+        </Vazio>
+      ) : (
+        <TabelaGerente servicos={ativos} />
+      )}
 
       {inativos.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Desativados</h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-premium-secundario">
             Fora da escolha em negociações novas, mas mantidos nas negociações que já os usam.
           </p>
           <TabelaGerente servicos={inativos} />
@@ -97,7 +108,7 @@ function TabelaGerente({ servicos }: { servicos: ServicoComUso[] }) {
   return (
     <Tabela colunas={['Serviço', 'Categoria', 'Negociações', '']}>
       {servicos.map((s) => (
-        <tr key={s.id} className={s.ativo ? undefined : 'text-zinc-400'}>
+        <tr key={s.id} className={s.ativo ? undefined : 'text-premium-mudo'}>
           <CelulaNome servico={s} />
           <CelulaCategoria servico={s} />
           <td className="px-4 py-3 text-right tabular-nums">{s.negociacoes}</td>
@@ -113,7 +124,7 @@ function TabelaGerente({ servicos }: { servicos: ServicoComUso[] }) {
               </form>
               {s.negociacoes === 0 ? (
                 <form action={excluirServicoAction.bind(null, s.id)}>
-                  <button type="submit" className={`${botaoSecundarioClass} text-red-700 dark:text-red-400`}>
+                  <button type="submit" className={botaoPerigoClass}>
                     Excluir
                   </button>
                 </form>
@@ -137,9 +148,9 @@ function TabelaGerente({ servicos }: { servicos: ServicoComUso[] }) {
 
 function Tabela({ colunas, children }: { colunas: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <div className={tabelaCaixaClass}>
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+        <thead className={theadClass}>
           <tr>
             {colunas.map((c, i) => (
               <th key={i} className={`px-4 py-3 font-medium ${c === 'Negociações' ? 'text-right' : ''}`}>
@@ -148,7 +159,7 @@ function Tabela({ colunas, children }: { colunas: string[]; children: React.Reac
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">{children}</tbody>
+        <tbody className={tbodyClass}>{children}</tbody>
       </table>
     </div>
   )
@@ -159,13 +170,10 @@ function CelulaNome({ servico }: { servico: Servico }) {
 }
 
 function CelulaCategoria({ servico }: { servico: Servico }) {
-  return <td className="px-4 py-3">{servico.categoria ?? <span className="text-zinc-400">—</span>}</td>
+  return <td className="px-4 py-3">{servico.categoria ?? <span className="text-premium-mudo">—</span>}</td>
 }
 
-function Vazio({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-      {children}
-    </p>
-  )
+/** Estado vazio das listas: mensagem e, quando houver, o próximo passo. */
+function Vazio({ children, acao, descricao }: { children: string; acao?: { href: string; rotulo: string }; descricao?: string }) {
+  return <EstadoVazio titulo={children} descricao={descricao} acao={acao} />
 }

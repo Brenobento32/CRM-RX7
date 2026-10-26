@@ -4,6 +4,8 @@ import { Fragment } from 'react'
 
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { CardsMetaFunil } from '@/components/metas/cards-meta-funil'
+import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
+import { botaoSecundarioClass, caixaErroClass, tabelaCaixaClass, theadClass, tbodyClass, botaoPerigoClass } from '@/components/ui/estilos'
 import { PremiumPanel } from '@/components/ui/premium'
 import { removerMetaAction } from '@/lib/actions/metas'
 import { exigirCargo } from '@/lib/dal/auth'
@@ -31,8 +33,7 @@ export const metadata: Metadata = {
   title: 'Metas',
 }
 
-/** Botão/link discreto, visual próprio desta tela (não o `botaoSecundarioClass` claro compartilhado). */
-const botaoPremiumClass = 'rounded-md border border-premium-borda px-3 py-1.5 text-sm text-premium-secundario transition hover:border-premium-mudo/50 hover:text-premium-texto'
+const botaoPremiumClass = botaoSecundarioClass
 
 export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
   const eu = await exigirCargo(CARGOS_POR_AREA.metas)
@@ -60,7 +61,7 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
       </p>
 
       {typeof erro === 'string' && (
-        <p role="alert" className="rounded-md border border-red-900 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+        <p role="alert" className={caixaErroClass}>
           {erro}
         </p>
       )}
@@ -190,9 +191,9 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold text-premium-secundario">Desempenho da equipe</h2>
-      <div className="overflow-x-auto rounded-lg border border-premium-borda bg-premium-card">
+      <div className={tabelaCaixaClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-premium-borda bg-premium-bg/40 text-xs uppercase tracking-wide text-premium-mudo">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-3 font-medium" rowSpan={2}>
                 Pessoa
@@ -214,7 +215,7 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-premium-borda">
+          <tbody className={tbodyClass}>
             {pessoas.map((p) => (
               <tr key={p.usuarioId}>
                 <td className="px-4 py-3">
@@ -307,9 +308,9 @@ function AcoesMeta({
         Editar {ROTULO_TIPO_META[tipo]}
       </Link>
       <form action={removerMetaAction.bind(null, metaId, mes)}>
-        <button type="submit" className={`${botaoPremiumClass} text-red-400 hover:border-red-900 hover:text-red-300`}>
+        <BotaoConfirmar pergunta={`Remover a meta ${ROTULO_TIPO_META[tipo]} deste mês?`} className={botaoPerigoClass}>
           Remover
-        </button>
+        </BotaoConfirmar>
       </form>
     </span>
   )

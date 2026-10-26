@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 
+import { caixaErroClass } from '@/components/ui/estilos'
 import { EsqueciSenhaForm } from './_components/esqueci-senha-form'
 
 export const metadata: Metadata = {
@@ -10,11 +11,10 @@ export default async function EsqueciSenhaPage({ searchParams }: PageProps<'/esq
   const { erro } = await searchParams
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div>
       <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-widest text-zinc-500">AVANTE</p>
-        <h1 className="mt-1 text-2xl font-semibold">Esqueci minha senha</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-2xl font-semibold tracking-tight text-premium-texto">Esqueci minha senha</h1>
+        <p className="mt-2 text-sm text-premium-secundario">
           Informe o e-mail cadastrado. Se ele existir no CRM, você recebe um link para redefinir a senha.
         </p>
       </div>
@@ -22,7 +22,7 @@ export default async function EsqueciSenhaPage({ searchParams }: PageProps<'/esq
       {typeof erro === 'string' && (
         <p
           role="alert"
-          className="mb-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={`${caixaErroClass} mb-5`}
         >
           {erro}
         </p>

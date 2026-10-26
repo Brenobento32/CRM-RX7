@@ -3,7 +3,7 @@
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass, caixaSucessoClass } from '@/components/ui/estilos'
 import { SeletorCor } from '@/components/ui/seletor-cor'
 import { atualizarMeuPerfilAction } from '@/lib/actions/perfil'
 
@@ -13,12 +13,12 @@ export function PerfilForm({ nome, telefone, cor }: { nome: string; telefone: st
   return (
     <form action={acao} noValidate className="space-y-5">
       {estado?.ok && (
-        <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
+        <p role="status" className={caixaSucessoClass}>
           Perfil atualizado.
         </p>
       )}
       {estado?.erro && (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <p role="alert" className={caixaErroClass}>
           {estado.erro}
         </p>
       )}
@@ -48,7 +48,7 @@ export function PerfilForm({ nome, telefone, cor }: { nome: string; telefone: st
         erro={estado?.campos?.cor_agenda?.[0]}
       />
 
-      <div className="flex justify-end border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <div className="flex justify-end border-t border-premium-borda pt-4">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Salvando…' : 'Salvar perfil'}
         </button>

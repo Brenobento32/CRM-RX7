@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState, useRef, useState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, botaoSecundarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import { SeletorCor } from '@/components/ui/seletor-cor'
 import { criarFunilAction } from '@/lib/actions/funis'
 import { CORES_ETAPA, PALETA_ETAPAS } from '@/lib/utils/etapas'
@@ -35,7 +35,7 @@ export function FunilForm() {
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -56,12 +56,12 @@ export function FunilForm() {
         <ErroCampo mensagem={erro('nome')} />
       </div>
 
-      <section className="space-y-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <section className="space-y-3 border-t border-premium-borda pt-6">
         <div>
           <h2 className="text-base font-semibold">
-            Etapas abertas <span className="font-normal text-zinc-500">(opcional)</span>
+            Etapas abertas <span className="font-normal text-premium-mudo">(opcional)</span>
           </h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-premium-secundario">
             Na ordem em que aparecem aqui. Ficam sempre antes do fechamento — dá pra adicionar mais depois.
           </p>
         </div>
@@ -99,7 +99,7 @@ export function FunilForm() {
         </button>
       </section>
 
-      <section className="grid gap-6 border-t border-zinc-200 pt-6 sm:grid-cols-2 dark:border-zinc-800">
+      <section className="grid gap-6 border-t border-premium-borda pt-6 sm:grid-cols-2">
         <div className="space-y-3">
           <h2 className="text-base font-semibold">Etapa ganha</h2>
           <div>
@@ -144,13 +144,13 @@ export function FunilForm() {
         </div>
       </section>
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Criando…' : 'Criar funil'}
         </button>
         <Link
           href="/configuracoes/funis"
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>

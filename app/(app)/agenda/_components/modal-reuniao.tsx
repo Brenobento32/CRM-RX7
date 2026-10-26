@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 
 import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
-import { botaoSecundarioClass } from '@/components/ui/estilos'
+import { botaoSecundarioClass, botaoPerigoClass, caixaErroClass } from '@/components/ui/estilos'
 import { atualizarEventoAction, cancelarEventoAction, criarEventoAction, excluirEventoAction } from '@/lib/actions/eventos'
 import type { ResponsavelAgenda } from '@/lib/dal/eventos'
 import type { Ocupado } from '@/lib/utils/agenda'
@@ -79,7 +79,7 @@ export function ModalReuniao({
       onClick={(e) => {
         if (e.target === ref.current) fechar()
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-xl rounded-xl border border-premium-borda bg-premium-card p-0 text-premium-texto shadow-xl backdrop:bg-black/50"
+      className={'m-auto w-[calc(100%-2rem)] max-w-xl rounded-xl border border-premium-borda bg-premium-card p-0 text-premium-texto shadow-premium-alta backdrop:bg-black/50 backdrop:backdrop-blur-[2px]'}
     >
       <div className="max-h-[90vh] overflow-y-auto p-5 sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -99,7 +99,7 @@ export function ModalReuniao({
         {erro && (
           <div
             role="alert"
-            className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+            className={`${caixaErroClass} mb-4`}
           >
             {erro}
           </div>
@@ -185,7 +185,7 @@ function OutrasAcoes({
         <form action={excluirEventoAction.bind(null, eventoId, clienteId, dia)}>
           <BotaoConfirmar
             pergunta="Excluir esta reunião? Isso não pode ser desfeito."
-            className={`${botaoSecundarioClass} text-red-700 dark:text-red-400`}
+            className={botaoPerigoClass}
           >
             Excluir
           </BotaoConfirmar>

@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { logout } from '@/lib/actions/auth'
 import { exigirSuperAdmin } from '@/lib/dal/super-admin'
 
+import { NavAdmin } from './_components/nav-admin'
+
 export const metadata: Metadata = {
   title: { default: 'Super Admin', template: '%s · Super Admin' },
 }
@@ -17,25 +19,33 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await exigirSuperAdmin()
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <span className="font-semibold">AVANTE · Super Admin</span>
-          <nav className="flex gap-4 text-sm">
-            <Link href="/admin" className="hover:underline">Empresas</Link>
-            <Link href="/admin/planos" className="hover:underline">Planos</Link>
-            <Link href="/admin/auditoria" className="hover:underline">Auditoria</Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-4 text-sm">
+    <div className="min-h-screen bg-premium-bg">
+      <header className="sticky top-0 z-20 border-b border-premium-borda bg-premium-topo/95 shadow-[0_1px_2px_rgb(0_0_0/0.04)] backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-x-6 px-4">
+          <Link href="/admin" className="flex items-center gap-2.5">
+            <span aria-hidden className="flex size-8 items-center justify-center rounded-lg bg-premium-acento text-sm font-bold text-premium-acento-texto">
+              A
+            </span>
+            <span className="font-semibold tracking-tight text-premium-texto">AVANTE</span>
+            <span className="rounded-md bg-premium-texto px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-premium-bg uppercase">
+              Super Admin
+            </span>
+          </Link>
+          <NavAdmin />
+          <div className="ml-auto flex items-center gap-1 text-sm">
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- sair do painel recarrega tudo */}
-            <a href="/empresas" className="hover:underline">Minhas empresas</a>
+            <a href="/empresas" className="rounded-lg px-3 py-1.5 text-premium-secundario transition hover:bg-premium-bg hover:text-premium-texto">
+              Minhas empresas
+            </a>
             <form action={logout}>
-              <button type="submit" className="hover:underline">Sair</button>
+              <button type="submit" className="rounded-lg px-3 py-1.5 text-premium-secundario transition hover:bg-premium-bg hover:text-premium-texto">
+                Sair
+              </button>
             </form>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
   )
 }

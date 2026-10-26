@@ -58,14 +58,18 @@ export function GradeHoras({
             <Link
               key={d}
               href={link({ visao: 'dia', dia: d })}
-              className={`px-1 py-2 text-center text-xs transition ${i > 0 ? 'border-l border-premium-borda' : ''} ${
+              className={`min-w-0 px-1 py-2 text-center text-xs transition ${i > 0 ? 'border-l border-premium-borda' : ''} ${
                 d === hoje
                   ? 'bg-premium-acento-suave font-semibold text-premium-acento'
                   : 'text-premium-secundario hover:bg-premium-bg'
               }`}
             >
               <p className="uppercase tracking-wide">{nomeCurtoDia(d)}</p>
-              <p className={`text-sm ${d === hoje ? '' : 'text-premium-texto'}`}>{formatarDia(d, false)}</p>
+              <p className={`text-sm tabular-nums ${d === hoje ? '' : 'text-premium-texto'}`}>
+                {/* No celular só o número do dia cabe na coluna. */}
+                <span className="sm:hidden">{Number(d.slice(8, 10))}</span>
+                <span className="hidden sm:inline">{formatarDia(d, false)}</span>
+              </p>
             </Link>
           ))}
         </div>

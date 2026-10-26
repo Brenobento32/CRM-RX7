@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { botaoFantasmaClass, botaoPrimarioClass, caixaErroClass } from '@/components/ui/estilos'
 
 /**
  * Modal sobre `<dialog>` nativo: `showModal()` já entrega foco preso, Esc e
@@ -42,7 +43,7 @@ export function Modal({
       onClick={(e) => {
         if (e.target === ref.current) onCancelar()
       }}
-      className="m-auto w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+      className="m-auto w-full max-w-lg rounded-2xl border border-premium-borda bg-premium-card p-0 text-premium-texto shadow-premium-alta backdrop:bg-black/50 backdrop:backdrop-blur-[2px]"
     >
       <div className="max-h-[85vh] overflow-y-auto p-6">
         <div className="flex items-start justify-between gap-3">
@@ -53,7 +54,7 @@ export function Modal({
             type="button"
             onClick={onCancelar}
             aria-label="Fechar"
-            className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg hover:text-premium-texto"
           >
             <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
               <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
@@ -61,7 +62,7 @@ export function Modal({
           </button>
         </div>
         {descricao && (
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{descricao}</p>
+          <p className="mt-1 text-sm text-premium-secundario">{descricao}</p>
         )}
         <div className="mt-5">{children}</div>
       </div>
@@ -77,7 +78,7 @@ export function ErroGeral({ mensagem }: { mensagem?: string }) {
   return (
     <div
       role="alert"
-      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      className={caixaErroClass}
     >
       {mensagem}
     </div>
@@ -94,19 +95,19 @@ export function BotoesModal({
   onCancelar: () => void
 }) {
   return (
-    <div className="flex justify-end gap-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+    <div className="flex justify-end gap-3 border-t border-premium-borda pt-5">
       <button
         type="button"
         onClick={onCancelar}
         disabled={pendente}
-        className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        className={botaoFantasmaClass}
       >
         Cancelar
       </button>
       <button
         type="submit"
         disabled={pendente}
-        className="inline-flex items-center justify-center gap-2 rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
+        className={botaoPrimarioClass}
       >
         {pendente ? 'Salvando…' : rotulo}
       </button>

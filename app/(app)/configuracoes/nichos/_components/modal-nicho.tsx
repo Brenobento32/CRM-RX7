@@ -64,7 +64,7 @@ export function ModalNicho({ nicho, onFechar }: { nicho: NichoComUso | null; onF
             type="checkbox"
             name="ativo"
             defaultChecked={nicho ? nicho.ativo : true}
-            className="size-4 rounded border-zinc-300 dark:border-zinc-700"
+            className="size-4 rounded border-premium-borda"
           />
           Ativo
         </label>

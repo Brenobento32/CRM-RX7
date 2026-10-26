@@ -24,20 +24,20 @@ export function MiniCalendario({
   const mesProximo = navegar('mes', dia, 1)
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-lg border border-premium-borda bg-premium-card p-3">
       <div className="mb-2 flex items-center justify-between">
-        <Link href={link({ dia: mesAnterior })} className="rounded p-1 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Mês anterior">
+        <Link href={link({ dia: mesAnterior })} className="rounded p-1 text-sm hover:bg-premium-bg" aria-label="Mês anterior">
           ←
         </Link>
         <p className="text-sm font-medium first-letter:uppercase">{tituloPeriodo('mes', dia, janela)}</p>
-        <Link href={link({ dia: mesProximo })} className="rounded p-1 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Próximo mês">
+        <Link href={link({ dia: mesProximo })} className="rounded p-1 text-sm hover:bg-premium-bg" aria-label="Próximo mês">
           →
         </Link>
       </div>
 
       <div className="grid grid-cols-7 gap-y-1 text-center text-xs">
         {DIAS_SEMANA.map((d) => (
-          <span key={d.valor} aria-hidden className="text-zinc-400">
+          <span key={d.valor} aria-hidden className="text-premium-mudo">
             {d.curto}
           </span>
         ))}
@@ -52,10 +52,10 @@ export function MiniCalendario({
               aria-current={selecionado ? 'date' : undefined}
               className={`relative mx-auto flex size-7 items-center justify-center rounded-full ${
                 selecionado
-                  ? 'bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  ? 'bg-premium-texto font-medium text-premium-bg'
                   : ehHoje
-                    ? 'font-semibold text-zinc-900 ring-1 ring-zinc-300 dark:text-zinc-100 dark:ring-zinc-700'
-                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    ? 'font-semibold text-premium-texto ring-1 ring-zinc-300 dark:ring-zinc-700'
+                    : 'hover:bg-premium-bg'
               } ${foraDoMes && !selecionado ? 'text-zinc-400 dark:text-zinc-600' : ''}`}
             >
               {Number(d.slice(8, 10))}

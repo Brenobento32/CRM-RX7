@@ -126,7 +126,7 @@ export function MenuMoverPara({
         onKeyDown={navegarComSetas}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-lg shadow-black/40"
+        className={'fixed m-0 rounded-xl border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-premium-alta'}
         style={{ width: LARGURA_MENU, inset: 'auto' }}
       >
         <p className="px-2 pt-1 pb-1.5 text-xs font-medium text-premium-mudo">Mover para</p>

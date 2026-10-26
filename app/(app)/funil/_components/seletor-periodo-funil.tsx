@@ -8,6 +8,7 @@ import { janelaDaVisao, navegar, tituloPeriodo } from '@/lib/utils/calendario'
 import { formatarData } from '@/lib/utils/formatacao'
 import { PERIODOS_FUNIL_DIAS, ROTULO_PERIODO_FUNIL, type PeriodoFunil } from '@/lib/utils/periodo'
 import { DIAS_SEMANA, somarMeses } from '@/lib/utils/recorrencia'
+import { botaoPrimarioClass, botaoSecundarioClass } from '@/components/ui/estilos'
 
 const LARGURA_CALENDARIO = 320
 const LARGURA_MENU_DIAS = 160
@@ -15,7 +16,7 @@ const LARGURA_MENU_DIAS = 160
 /** Classes do botão de atalho de período — ativo (preenchido, cor de destaque) ou não (texto neutro). */
 function classeAtalho(ativo: boolean): string {
   return ativo
-    ? 'rounded-md bg-premium-acento px-3 py-1.5 text-sm font-medium text-zinc-950'
+    ? 'rounded-md bg-premium-acento px-3 py-1.5 text-sm font-medium text-premium-acento-texto'
     : 'rounded-md px-3 py-1.5 text-sm text-premium-secundario transition hover:bg-premium-borda hover:text-premium-texto'
 }
 
@@ -229,7 +230,7 @@ export function SeletorPeriodoFunil({
         popover="auto"
         role="menu"
         aria-label="Escolher quantidade de dias"
-        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-lg shadow-black/40"
+        className={'fixed m-0 rounded-xl border border-premium-borda bg-premium-card p-1 text-sm text-premium-texto shadow-premium-alta'}
         style={{ width: LARGURA_MENU_DIAS, inset: 'auto' }}
       >
         {PERIODOS_FUNIL_DIAS.map((p) => (
@@ -253,7 +254,7 @@ export function SeletorPeriodoFunil({
         id={`${id}-calendario`}
         popover="auto"
         aria-label="Selecionar período personalizado"
-        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-3 text-premium-texto shadow-lg shadow-black/40"
+        className="fixed m-0 rounded-lg border border-premium-borda bg-premium-card p-3 text-premium-texto shadow-premium-alta"
         style={{ width: LARGURA_CALENDARIO, inset: 'auto' }}
       >
         <div className="mb-2 flex items-center justify-between gap-1">
@@ -336,7 +337,7 @@ export function SeletorPeriodoFunil({
                 aria-label={formatarData(dia)}
                 className={`relative mx-auto flex size-8 items-center justify-center text-xs ${
                   eInicio || eFim
-                    ? 'rounded-full bg-premium-acento font-medium text-zinc-950'
+                    ? 'rounded-full bg-premium-acento font-medium text-premium-acento-texto'
                     : noIntervalo
                       ? 'bg-premium-borda text-premium-texto'
                       : futuro
@@ -366,7 +367,7 @@ export function SeletorPeriodoFunil({
           <button
             type="button"
             onClick={fecharCancelando}
-            className="rounded-md border border-premium-borda px-3 py-1.5 text-sm text-premium-secundario transition hover:bg-premium-borda"
+            className={botaoSecundarioClass}
           >
             Cancelar
           </button>
@@ -374,7 +375,7 @@ export function SeletorPeriodoFunil({
             type="button"
             onClick={aplicar}
             disabled={!inicioSel}
-            className="rounded-md bg-premium-acento px-3 py-1.5 text-sm font-medium text-zinc-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className={botaoPrimarioClass}
           >
             Aplicar
           </button>

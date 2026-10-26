@@ -2,7 +2,7 @@ import { PremiumPanel, ProgressBarPremium, type CorProgresso } from '@/component
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 
 const CORES_BARRA: CorProgresso = { trilho: 'bg-premium-borda', fill: 'bg-premium-acento', texto: 'text-premium-acento' }
-const CORES_BARRA_ATINGIDA: CorProgresso = { trilho: 'bg-premium-borda', fill: 'bg-emerald-400', texto: 'text-emerald-400' }
+const CORES_BARRA_ATINGIDA: CorProgresso = { trilho: 'bg-premium-borda', fill: 'bg-emerald-400', texto: 'text-emerald-700 dark:text-emerald-400' }
 
 /**
  * Barra de progresso da meta. Enche até 100%; acima disso o número mostra o
@@ -15,7 +15,7 @@ export function BarraProgresso({ percentual, rotulo }: { percentual: number | nu
 
 export function TextoPercentual({ percentual }: { percentual: number | null }) {
   if (percentual === null) return <span className="text-premium-mudo">—</span>
-  return <span className={percentual >= 1 ? 'font-medium text-emerald-400' : undefined}>{formatarPercentual(percentual)}</span>
+  return <span className={percentual >= 1 ? 'font-medium text-emerald-700 dark:text-emerald-400' : undefined}>{formatarPercentual(percentual)}</span>
 }
 
 type CardProps = {

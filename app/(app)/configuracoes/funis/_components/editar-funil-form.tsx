@@ -3,7 +3,7 @@
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, caixaErroClass } from '@/components/ui/estilos'
 import { editarFunilAction } from '@/lib/actions/funis'
 
 export function EditarFunilForm({
@@ -31,7 +31,7 @@ export function EditarFunilForm({
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -54,7 +54,7 @@ export function EditarFunilForm({
         </div>
         <div>
           <label htmlFor="descricao" className="mb-1.5 block text-sm font-medium">
-            Descrição <span className="font-normal text-zinc-500">(opcional)</span>
+            Descrição <span className="font-normal text-premium-mudo">(opcional)</span>
           </label>
           <input
             id="descricao"

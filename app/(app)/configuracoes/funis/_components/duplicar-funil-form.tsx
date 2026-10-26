@@ -3,7 +3,7 @@
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoSecundarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoSecundarioClass, inputClass, caixaErroClass } from '@/components/ui/estilos'
 import { duplicarFunilAction } from '@/lib/actions/funis'
 
 export function DuplicarFunilForm({ funilId, nomeSugerido }: { funilId: string; nomeSugerido: string }) {
@@ -15,7 +15,7 @@ export function DuplicarFunilForm({ funilId, nomeSugerido }: { funilId: string; 
       {estado?.erro && (
         <div
           role="alert"
-          className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={`${caixaErroClass} w-full`}
         >
           {estado.erro}
         </div>

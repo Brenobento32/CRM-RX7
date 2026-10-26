@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import type { EstadoFormServico } from '@/lib/actions/servicos'
 import type { CampoServico } from '@/lib/validations/servico'
 
@@ -26,7 +26,7 @@ export function ServicoForm({ action, valoresIniciais, categorias, rotuloEnviar 
       {estado?.erro && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className={caixaErroClass}
         >
           {estado.erro}
         </div>
@@ -49,7 +49,7 @@ export function ServicoForm({ action, valoresIniciais, categorias, rotuloEnviar 
 
       <div className="max-w-sm">
         <label htmlFor="categoria" className="mb-1.5 block text-sm font-medium">
-          Categoria <span className="font-normal text-zinc-500">(opcional)</span>
+          Categoria <span className="font-normal text-premium-mudo">(opcional)</span>
         </label>
         <input
           id="categoria"
@@ -68,13 +68,13 @@ export function ServicoForm({ action, valoresIniciais, categorias, rotuloEnviar 
         <ErroCampo mensagem={erro('categoria')} />
       </div>
 
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
           {pendente ? 'Salvando…' : rotuloEnviar}
         </button>
         <Link
           href="/configuracoes/servicos"
-          className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          className={botaoFantasmaClass}
         >
           Cancelar
         </Link>

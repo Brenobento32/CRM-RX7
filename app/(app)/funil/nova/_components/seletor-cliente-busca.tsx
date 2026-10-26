@@ -60,7 +60,7 @@ export function SeletorClienteBusca({
       <input type="hidden" name="cliente_id" value={selecionado?.id ?? ''} />
 
       {selecionado ? (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-premium-acento/40 bg-premium-acento-suave px-3 py-2 text-sm text-premium-texto">
           <span className="truncate">
             <span className="font-medium">{selecionado.nome}</span>
             {selecionado.empresa ? ` · ${selecionado.empresa}` : ''}
@@ -72,7 +72,7 @@ export function SeletorClienteBusca({
               setTermo('')
               setResultados([])
             }}
-            className="shrink-0 text-xs text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300"
+            className="shrink-0 text-xs text-premium-mudo underline hover:text-premium-texto"
           >
             Trocar
           </button>
@@ -92,9 +92,9 @@ export function SeletorClienteBusca({
           />
 
           {termo.trim() !== '' && (
-            <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
+            <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-premium-borda bg-premium-card p-1 shadow-premium-alta">
               {buscando ? (
-                <p className="px-3 py-2 text-sm text-zinc-500">Buscando…</p>
+                <p className="px-3 py-2 text-sm text-premium-mudo">Buscando…</p>
               ) : resultados.length > 0 ? (
                 <ul>
                   {resultados.map((c) => (
@@ -106,7 +106,7 @@ export function SeletorClienteBusca({
                           setTermo('')
                           setResultados([])
                         }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm text-premium-texto transition hover:bg-premium-bg focus-visible:bg-premium-bg"
                       >
                         <span className="font-medium">{c.nome}</span>
                         {c.empresa ? ` · ${c.empresa}` : ''}
@@ -115,7 +115,7 @@ export function SeletorClienteBusca({
                   ))}
                 </ul>
               ) : jaBuscou ? (
-                <p className="px-3 py-2 text-sm text-zinc-500">Nenhum cliente encontrado.</p>
+                <p className="px-3 py-2 text-sm text-premium-mudo">Nenhum cliente com esse nome. Confira a grafia ou cadastre o cliente antes.</p>
               ) : null}
             </div>
           )}

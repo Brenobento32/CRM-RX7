@@ -4,6 +4,7 @@ import { startTransition, useActionState, useState } from 'react'
 
 import { excluirLeadAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import { ErroCampo, ErroGeral, inputClass, Modal } from '@/app/(app)/funil/_components/modal'
+import { botaoFantasmaClass } from '@/components/ui/estilos'
 
 type Props = {
   negociacaoId: string
@@ -75,12 +76,12 @@ export function ModalExcluirLead({ negociacaoId, clienteNome, onCancelar, onConc
           <ErroCampo id="motivo-excluir-lead-erro" mensagem={erro} />
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+        <div className="flex justify-end gap-3 border-t border-premium-borda pt-5">
           <button
             type="button"
             onClick={onCancelar}
             disabled={pendente}
-            className="rounded-md px-4 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-60 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            className={botaoFantasmaClass}
           >
             Cancelar
           </button>

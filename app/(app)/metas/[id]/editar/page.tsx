@@ -7,6 +7,8 @@ import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMeta } from '@/lib/dal/metas'
 import { rotuloMes } from '@/lib/utils/periodo'
 import { ROTULO_TIPO_META } from '@/lib/validations/meta'
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { Secao } from '@/components/ui/secao'
 
 import { MetaForm } from '../../_components/meta-form'
 
@@ -26,19 +28,20 @@ export default async function EditarMetaPage({ params }: PageProps<'/metas/[id]/
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Editar meta</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {meta.alvo} · {meta.tipoMeta ? ROTULO_TIPO_META[meta.tipoMeta] : 'Não classificada'} · {rotuloMes(meta.mes)}
-        </p>
-      </div>
-
-      <MetaForm
-        action={editarMetaAction.bind(null, meta.id, meta.mes)}
-        valoresIniciais={{ valor_meta: meta.valorMeta.toFixed(2).replace('.', ',') }}
-        cancelarHref={`/metas?mes=${meta.mes}`}
-        rotuloEnviar="Salvar"
+      <PageHeaderPremium
+        titulo="Editar meta"
+        subtitulo={`${meta.alvo} · ${meta.tipoMeta ? ROTULO_TIPO_META[meta.tipoMeta] : 'Não classificada'} · ${rotuloMes(meta.mes)}`}
+        voltar={{ href: `/metas?mes=${meta.mes}`, rotulo: 'Metas' }}
       />
+
+      <Secao>
+        <MetaForm
+          action={editarMetaAction.bind(null, meta.id, meta.mes)}
+          valoresIniciais={{ valor_meta: meta.valorMeta.toFixed(2).replace('.', ',') }}
+          cancelarHref={`/metas?mes=${meta.mes}`}
+          rotuloEnviar="Salvar"
+        />
+      </Secao>
     </div>
   )
 }

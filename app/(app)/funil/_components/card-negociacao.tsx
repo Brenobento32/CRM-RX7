@@ -29,8 +29,8 @@ const EMOJI_TEMPERATURA: Record<NonNullable<CardFunil['temperatura']>, string> =
 
 /** Pill da origem — nunca substitui a cor da borda (que é do nicho). */
 const PILL_ORIGEM: Record<CardFunil['origem'], string> = {
-  formulario: 'bg-orange-500/15 text-orange-400',
-  whatsapp: 'bg-emerald-500/15 text-emerald-400',
+  formulario: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
+  whatsapp: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
   manual: 'bg-premium-borda text-premium-secundario',
 }
 
@@ -195,7 +195,7 @@ export function CardConteudo({
       </div>
 
       {/* 5: tempo parado — sempre visível, calculado a partir de `data_entrada_etapa` (item 1.5). */}
-      <p className={`mt-2 flex items-center gap-1 text-xs ${card.parado ? 'font-medium text-amber-400' : 'text-premium-mudo'}`}>
+      <p className={`mt-2 flex items-center gap-1 text-xs ${card.parado ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-premium-mudo'}`}>
         <span aria-hidden>⏱</span> {formatarTempoParado(card.msNaEtapa)}
       </p>
 
@@ -264,7 +264,7 @@ function ProximaAcao({ titulo, data }: { titulo: string; data: string }) {
         {titulo}{' '}
         <span
           className={
-            atrasada ? 'font-medium text-red-400' : data === hoje ? 'font-medium text-amber-400' : undefined
+            atrasada ? 'font-medium text-red-600 dark:text-red-400' : data === hoje ? 'font-medium text-amber-700 dark:text-amber-400' : undefined
           }
         >
           {quando}

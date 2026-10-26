@@ -1,20 +1,15 @@
 import { notFound } from 'next/navigation'
 
+import { PageHeaderPremium } from '@/components/layout/page-header-premium'
+import { EstadoVazio } from '@/components/ui/estado-vazio'
 import { exigirCargo } from '@/lib/dal/auth'
 import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 
-/**
- * Placeholder das seções do menu que ainda não foram implementadas.
- *
- * Rotas específicas têm prioridade sobre este catch-all, então quando
- * `app/(app)/clientes/page.tsx` (etc.) for criada ela assume a URL e o item
- * correspondente pode sair daqui. Quando todas existirem, apague este arquivo.
- */
 const EM_BREVE: Record<string, string> = {
   relatorios: 'Relatórios',
-  'relatorios/vendas': 'Relatórios · Vendas',
-  'relatorios/conversao': 'Relatórios · Conversão',
-  'relatorios/exportacao': 'Relatórios · Exportação',
+  'relatorios/vendas': 'Vendas',
+  'relatorios/conversao': 'Conversão',
+  'relatorios/exportacao': 'Exportação',
 }
 
 export default async function EmBrevePage({
@@ -28,11 +23,14 @@ export default async function EmBrevePage({
   if (!titulo) notFound()
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">{titulo}</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Em construção.
-      </p>
+    <div className="space-y-6">
+      <PageHeaderPremium contexto="Relatórios" titulo={titulo} subtitulo="Relatórios consolidados da sua carteira e da equipe." />
+      <EstadoVazio
+        titulo="Este relatório está em construção"
+        descricao="Enquanto isso, as métricas do funil e as metas já mostram vendas, conversão e desempenho do período."
+        acao={{ href: '/funil/metricas', rotulo: 'Ver métricas do funil' }}
+        acaoSecundaria={{ href: '/metas', rotulo: 'Ver metas' }}
+      />
     </div>
   )
 }

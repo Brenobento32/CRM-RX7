@@ -1,11 +1,11 @@
 import Link from 'next/link'
 
-import { inputClass } from '@/components/ui/estilos'
+import { inputClass, botaoSecundarioClass } from '@/components/ui/estilos'
 import type { ResponsavelAgenda } from '@/lib/dal/eventos'
 import { ROTULO_VISAO, VISOES, type LinkAgenda, type Visao } from '@/lib/utils/calendario'
 
 const navClass =
-  'rounded-md border border-zinc-300 px-3 py-1.5 text-sm transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'
+  botaoSecundarioClass
 
 /** Hoje / anterior / próximo, o seletor de visão e o título do período. */
 export function CalendarioToolbar({
@@ -42,7 +42,7 @@ export function CalendarioToolbar({
 
       <nav
         aria-label="Visão da agenda"
-        className="inline-flex flex-wrap rounded-lg border border-zinc-200 bg-white p-0.5 dark:border-zinc-800 dark:bg-zinc-950"
+        className="inline-flex flex-wrap rounded-lg border border-premium-borda bg-premium-card p-0.5"
       >
         {VISOES.map((v) => (
           <Link
@@ -51,8 +51,8 @@ export function CalendarioToolbar({
             aria-current={v === visao ? 'page' : undefined}
             className={
               v === visao
-                ? 'rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'rounded-md px-3 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                ? 'rounded-md bg-premium-texto px-3 py-1.5 text-sm font-medium text-premium-bg'
+                : 'rounded-md px-3 py-1.5 text-sm text-premium-secundario transition hover:bg-premium-bg'
             }
           >
             {ROTULO_VISAO[v]}

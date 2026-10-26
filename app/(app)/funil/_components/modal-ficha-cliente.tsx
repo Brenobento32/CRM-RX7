@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from 'react'
 
 import { CamposCliente, inputClassCliente } from '@/app/(app)/clientes/_components/cliente-form'
+import { botaoPrimarioClass, caixaAlertaClass, cartaoClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { obterClienteParaFichaAction } from '@/lib/actions/clientes'
 import { listarNichosAtivosAction, obterRespostasLeadAction, salvarFichaAction } from '@/lib/actions/funil'
@@ -93,7 +94,7 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
         e.preventDefault()
         onFechar()
       }}
-      className="m-auto w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+      className={'m-auto w-full max-w-2xl rounded-xl border border-premium-borda bg-premium-card p-0 text-premium-texto shadow-premium-alta backdrop:bg-black/50 backdrop:backdrop-blur-[2px]'}
     >
       <div className="max-h-[85vh] overflow-y-auto p-6">
         <div className="flex items-center justify-between gap-3">
@@ -104,7 +105,7 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
             type="button"
             onClick={onFechar}
             aria-label="Fechar ficha"
-            className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="shrink-0 rounded-md p-1.5 text-premium-mudo transition hover:bg-premium-bg hover:text-premium-texto"
           >
             <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
               <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6Z" />
@@ -113,7 +114,7 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
         </div>
 
         {carregando && cliente === undefined ? (
-          <p className="mt-4 text-sm text-zinc-500">Carregando…</p>
+          <p className="mt-4 text-sm text-premium-mudo">Carregando…</p>
         ) : !cliente ? (
           <p className="mt-4 text-sm text-red-600 dark:text-red-400">Cliente não encontrado.</p>
         ) : (
@@ -128,17 +129,17 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
 
             <SecaoAtribuicao card={card} />
 
-            <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Qualificação</h3>
+            <section className={`${cartaoClass} space-y-3 p-5`}>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Qualificação</h3>
               {respostas === null ? (
-                <p className="text-sm text-zinc-500">Carregando…</p>
+                <p className="text-sm text-premium-mudo">Carregando…</p>
               ) : respostas.length === 0 ? (
-                <p className="text-sm text-zinc-500">Qualificação ainda não preenchida.</p>
+                <p className="text-sm text-premium-mudo">Qualificação ainda não preenchida.</p>
               ) : (
                 <dl className="space-y-3 text-sm">
                   {respostas.map((r) => (
                     <div key={r.pergunta}>
-                      <dt className="text-zinc-500">{r.pergunta}</dt>
+                      <dt className="text-premium-mudo">{r.pergunta}</dt>
                       <dd className="mt-0.5 font-medium">{r.resposta}</dd>
                     </div>
                   ))}
@@ -204,29 +205,29 @@ function SecaoEdicao({
         startTransition(() => action(formData))
       }}
     >
-      <section className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados comerciais</h3>
+      <section className={`${cartaoClass} space-y-4 p-5`}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Dados comerciais</h3>
 
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-zinc-500">Funil</dt>
+            <dt className="text-premium-mudo">Funil</dt>
             <dd className="mt-0.5 font-medium">{card.funilNome ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Etapa</dt>
+            <dt className="text-premium-mudo">Etapa</dt>
             <dd className="mt-0.5 flex items-center gap-2 font-medium">
               {etapa && <PontoEtapa cor={etapa.cor} />}
               {etapa?.nome ?? '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Responsável</dt>
+            <dt className="text-premium-mudo">Responsável</dt>
             <dd className="mt-0.5 font-medium">{card.responsavel ?? '—'}</dd>
           </div>
           <div>
             {/* Fato histórico de como o lead entrou — nunca editável por
                 ninguém, nem gerente (trigger negociacoes_origem_imutavel). */}
-            <dt className="text-zinc-500">Origem</dt>
+            <dt className="text-premium-mudo">Origem</dt>
             <dd className="mt-0.5 font-medium">{ROTULO_ORIGEM[card.origem]}</dd>
           </div>
         </dl>
@@ -325,44 +326,44 @@ function SecaoEdicao({
         {encerrada ? (
           <p
             role="note"
-            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+            className={`${caixaAlertaClass} text-xs`}
           >
             Negociação encerrada: nicho, temperatura e proposta não podem mais ser alterados.
           </p>
         ) : !podeTrabalharCard ? (
-          <p role="note" className="text-xs text-zinc-500">
+          <p role="note" className="text-xs text-premium-mudo">
             Você só pode visualizar este card — sem permissão para editar os dados operacionais.
           </p>
         ) : null}
       </section>
 
-      <section className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dados do cliente</h3>
+      <section className={`${cartaoClass} space-y-4 p-5`}>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Dados do cliente</h3>
 
         {podeTrabalharCard ? (
           <CamposCliente valores={valoresCliente} erro={erro} responsaveis={[]} mostrarObservacoes={false} />
         ) : (
           <>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-premium-mudo">
               Você só pode visualizar este card — sem permissão para editar os dados cadastrais dele.
             </p>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-zinc-500">Nome</dt>
+                <dt className="text-premium-mudo">Nome</dt>
                 <dd className="mt-0.5 font-medium">{cliente.nome}</dd>
               </div>
               {cliente.empresa && (
                 <div>
-                  <dt className="text-zinc-500">Empresa</dt>
+                  <dt className="text-premium-mudo">Empresa</dt>
                   <dd className="mt-0.5 font-medium">{cliente.empresa}</dd>
                 </div>
               )}
               <div>
-                <dt className="text-zinc-500">Telefone</dt>
+                <dt className="text-premium-mudo">Telefone</dt>
                 <dd className="mt-0.5 font-medium">{cliente.telefone ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500">E-mail</dt>
+                <dt className="text-premium-mudo">E-mail</dt>
                 <dd className="mt-0.5 font-medium">{cliente.email ?? '—'}</dd>
               </div>
             </dl>
@@ -375,7 +376,7 @@ function SecaoEdicao({
           <button
             type="submit"
             disabled={pendente}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-premium-acento px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-950"
+            className={botaoPrimarioClass}
           >
             {pendente ? 'Salvando…' : 'Salvar alterações'}
           </button>
@@ -422,15 +423,15 @@ function SecaoAtribuicao({ card }: { card: CardFunil }) {
   ].filter((c): c is { rotulo: string; valor: string } => Boolean(c.valor))
 
   return (
-    <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Atribuição / Campanha</h3>
+    <section className={`${cartaoClass} space-y-3 p-5`}>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-premium-mudo">Atribuição / Campanha</h3>
       {campos.length === 0 ? (
-        <p className="text-sm text-zinc-500">Sem dados de campanha.</p>
+        <p className="text-sm text-premium-mudo">Sem dados de campanha.</p>
       ) : (
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           {campos.map((c) => (
             <div key={c.rotulo}>
-              <dt className="text-zinc-500">{c.rotulo}</dt>
+              <dt className="text-premium-mudo">{c.rotulo}</dt>
               <dd className="mt-0.5 font-medium break-all">{c.valor}</dd>
             </div>
           ))}

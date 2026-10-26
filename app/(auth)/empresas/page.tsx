@@ -45,11 +45,11 @@ export default async function EmpresasPage({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <h1 className="text-xl font-semibold">Escolha a empresa</h1>
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight text-premium-texto">Escolha a empresa</h1>
 
       {empresas.length === 0 ? (
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-2 text-sm text-premium-secundario">
           Seu usuário ainda não foi vinculado a nenhuma empresa. Fale com o
           administrador responsável.
         </p>
@@ -59,10 +59,10 @@ export default async function EmpresasPage({
             <li key={empresa.slug}>
               <a
                 href={caminhoDaEmpresa(empresa.slug, destino)}
-                className="block rounded-md border border-zinc-300 px-4 py-3 transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="block rounded-md border border-premium-borda px-4 py-3 transition hover:bg-premium-bg"
               >
                 <span className="block text-sm font-medium">{empresa.nome}</span>
-                <span className="block text-xs text-zinc-500">
+                <span className="block text-xs text-premium-mudo">
                   {ROTULO_CARGO[papelComercial(empresa.papel)]}
                   {empresa.somenteLeitura ? ' · somente leitura' : ''}
                 </span>
@@ -74,7 +74,7 @@ export default async function EmpresasPage({
 
       {superAdmin && (
         // eslint-disable-next-line @next/next/no-html-link-for-pages -- painel fora das empresas, navegação completa
-        <a href="/admin" className="mt-6 block rounded-md border border-zinc-300 px-4 py-2.5 text-center text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
+        <a href="/admin" className="mt-6 block rounded-md border border-premium-borda px-4 py-2.5 text-center text-sm font-medium transition hover:bg-premium-bg">
           Painel Super Admin
         </a>
       )}
@@ -82,7 +82,7 @@ export default async function EmpresasPage({
       <form action={logout} className="mt-6">
         <button
           type="submit"
-          className="w-full rounded-md border border-zinc-300 px-4 py-2.5 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          className="w-full rounded-md border border-premium-borda px-4 py-2.5 text-sm font-medium transition hover:bg-premium-bg"
         >
           Sair
         </button>
