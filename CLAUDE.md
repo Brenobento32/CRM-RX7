@@ -20,15 +20,30 @@ Postgres**, nunca um filtro no código da aplicação — o app usa a chave
 
 ## Regras de negócio
 
+- **Hierarquia de acessos** (dois portais, um só Supabase Auth):
+  - **Super Admin** — só os proprietários da Rio X7 (tabela `super_admins`,
+    gravada apenas por `service_role`; nenhum usuário de empresa concede esse
+    privilégio). Entra por `/admin`. Abre o CRM de qualquer empresa pelo
+    painel ("Acessar CRM"), sem vínculo: `admin_acessar_empresa` abre uma
+    janela de 8 h, auditada em `admin_auditoria`, e só com ela
+    `tenant_atual()` resolve a empresa (papel de Administrador). Digitar a URL
+    de uma empresa não dá acesso.
+  - **Administrador da empresa** — o antigo "Gerente" (identificador técnico
+    continua `gerente`/`admin_empresa`, sem cargo duplicado). Entra por
+    `/login`; só a própria empresa (vínculo + RLS); cadastra Vendedor,
+    Atendente, SDR e Closer; não troca plano, endereço nem identidade da
+    empresa.
+  - **Vendedor, Atendente, SDR, Closer** — `/login`, só a empresa vinculada e
+    as permissões do cargo.
 - **SDR × CLOSER (handoff)**: um SDR trabalha o lead de "Lead Novo" até
-  "Reunião realizada"; dali em diante só CLOSER ou GERENTE movimentam. É um
+  "Reunião realizada"; dali em diante só CLOSER ou ADMINISTRADOR (`gerente`) movimentam. É um
   teto absoluto, reforçado por trigger no banco
   (`negociacoes_valida_handoff_sdr`) — nunca relaxado por nenhuma permissão
   configurada, mesmo "por engano".
 - **Permissões comerciais** (`permissoes_colaborador`): modelo configurável
   por colaborador/funil/etapa (ver/mover), **não aditivo** — `owner_id`
   **nunca** concede visualização ou movimentação para SDR/CLOSER, só a
-  tabela de permissões decide. GERENTE sempre tem acesso total, sem precisar
+  tabela de permissões decide. ADMINISTRADOR (`gerente`) sempre tem acesso total, sem precisar
   de nenhuma linha configurada. Detalhe completo em `SCORPION-MASTER.md`.
 - **TCV/MRR**: classificação de venda/meta, nullable, sem backfill — nunca
   reclassifica histórico sozinho.

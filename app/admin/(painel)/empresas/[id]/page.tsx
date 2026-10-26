@@ -6,6 +6,7 @@ import { Aviso as AvisoTom } from '@/components/ui/aviso'
 import { BotaoConfirmar } from '@/components/ui/botao-confirmar'
 import { botaoPrimarioClass, botaoSecundarioClass, inputClass, botaoPerigoClass, cartaoClass, labelClass, legendaClass } from '@/components/ui/estilos'
 import {
+  acessarEmpresaAction,
   alterarSituacaoEmpresaAction,
   alterarSlugEmpresaAction,
   definirAssinaturaAction,
@@ -24,7 +25,7 @@ import { formatarData, formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 import { CICLOS, ROTULO_STATUS_ASSINATURA, STATUS_ASSINATURA } from '@/lib/validations/super-admin'
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
-import { Aviso, ROTULO_STATUS_EMPRESA, ROTULO_TIPO_EMPRESA } from '../../_components/aviso'
+import { Aviso, ROTULO_STATUS_EMPRESA, ROTULO_TIPO_EMPRESA } from '@/app/admin/_components/aviso'
 
 export const metadata: Metadata = {
   title: 'Empresa',
@@ -72,6 +73,24 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
       />
 
       <Aviso ok={busca.ok} erro={busca.erro} />
+
+      {/* Entrar no CRM operacional da empresa: janela de acesso de 8 h, auditada. */}
+      <form action={acessarEmpresaAction} className={`${cartaoClass} flex flex-wrap items-end gap-3 p-5`}>
+        <input type="hidden" name="tenant_id" value={empresa.id} />
+        <div className="min-w-0 flex-1 basis-64">
+          <h2 className={legendaClass}>CRM da empresa</h2>
+          <p className="mt-0.5 mb-3 text-xs text-premium-mudo">
+            Você entra como Administrador desta empresa por até 8 horas. O acesso e o motivo ficam registrados na auditoria.
+          </p>
+          <label className="block text-sm">
+            <span className={labelClass}>Motivo (opcional)</span>
+            <input name="motivo" maxLength={300} placeholder="Ex.: suporte ao cliente, configuração inicial" className={inputClass} />
+          </label>
+        </div>
+        <button type="submit" className={botaoPrimarioClass}>
+          Acessar CRM
+        </button>
+      </form>
 
       {cadastro && <FormCadastro cadastro={cadastro} />}
 

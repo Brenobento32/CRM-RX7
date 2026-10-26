@@ -27,7 +27,7 @@ export default async function PerfilPage() {
           <PerfilForm nome={data?.nome ?? usuario.nome} telefone={data?.telefone ?? ''} cor={data?.cor_agenda ?? ''} />
         </Secao>
 
-        <Secao titulo="Acesso" descricao="Alterados pelo gerente da empresa." className="lg:self-start">
+        <Secao titulo="Acesso" descricao="Alterados pelo administrador da empresa." className="lg:self-start">
           <dl className="space-y-3 text-sm">
             <div>
               <dt className="text-xs text-premium-mudo">E-mail de acesso</dt>

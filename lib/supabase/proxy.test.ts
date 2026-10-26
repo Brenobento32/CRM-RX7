@@ -138,3 +138,51 @@ describe('proxy: URL /<slug>/ e links antigos /e/<slug>/', () => {
     expect(destino.searchParams.get('next')).toBe('/teste-avante-a/agenda')
   })
 })
+
+describe('proxy: portal da administração em /admin', () => {
+  beforeEach(() => {
+    renovar = false
+  })
+
+  const semSessao = (caminho: string) => proxy(new NextRequest(`https://avante.exemplo.test${caminho}`))
+  const destino = (r: Response) => new URL(r.headers.get('location')!)
+
+  it('sem sessão, /admin abre a tela de login administrativo (sem redirecionar, sem laço)', async () => {
+    const resposta = await semSessao('/admin')
+    expect(resposta.headers.get('location')).toBeNull()
+    expect(resposta.status).toBe(200)
+  })
+
+  it('sem sessão, rota interna do painel volta para /admin guardando o destino', async () => {
+    const url = destino(await semSessao('/admin/planos?aba=1'))
+    expect(url.pathname).toBe('/admin')
+    expect(url.searchParams.get('next')).toBe('/admin/planos?aba=1')
+  })
+
+  it('link antigo /login?next=/admin... vai para o login administrativo', async () => {
+    const url = destino(await semSessao('/login?next=%2Fadmin%2Fauditoria'))
+    expect(url.pathname).toBe('/admin')
+    expect(url.searchParams.get('next')).toBe('/admin/auditoria')
+  })
+
+  it('login de clientes sem next (ou com next de empresa) continua em /login', async () => {
+    expect((await semSessao('/login')).headers.get('location')).toBeNull()
+    expect((await semSessao('/login?next=%2Fteste-avante-a%2Ffunil')).headers.get('location')).toBeNull()
+  })
+
+  it('next externo no /login não vira destino administrativo nem sai do site', async () => {
+    const resposta = await semSessao('/login?next=https%3A%2F%2Fsite-falso.com%2Fadmin')
+    expect(resposta.headers.get('location')).toBeNull()
+  })
+
+  it('empresa na URL + /admin: vai para /admin sem empresa (o painel é global)', async () => {
+    const url = destino(await semSessao('/teste-avante-a/admin'))
+    expect(url.pathname).toBe('/admin')
+  })
+
+  it('com sessão, /admin segue para a página (quem decide o acesso é o banco)', async () => {
+    renovar = true
+    const resposta = await proxy(pedido('/admin'))
+    expect(resposta.headers.get('location')).toBeNull()
+  })
+})

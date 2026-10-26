@@ -80,7 +80,7 @@ function paraFonte(l: Linha): Fonte {
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes veem as integrações.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores veem as integrações.')
 }
 
 export async function podeGerirFontes(): Promise<boolean> {

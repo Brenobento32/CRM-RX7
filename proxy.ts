@@ -9,6 +9,7 @@ import {
   slugValido,
 } from '@/lib/empresa/rota'
 import { updateSession } from '@/lib/supabase/proxy'
+import { destinoAdminSeguro, ehRotaAdmin } from '@/lib/auth/portal'
 
 /** Rotas acessíveis sem sessão — redirecionam para a área interna se já houver uma. */
 const ROTAS_PUBLICAS = ['/login']
@@ -76,6 +77,24 @@ export async function proxy(request: NextRequest) {
   }
 
   const publica = corresponde(rota, ROTAS_PUBLICAS)
+
+  // Portal da administração: `/admin` sem sessão É a tela de login
+  // administrativo; as rotas internas do painel voltam para ela guardando o
+  // destino. Logado, segue: quem decide o acesso é o banco (`is_super_admin`).
+  if (!claims && ehRotaAdmin(rota)) {
+    if (rota === '/admin') return response
+    const entrada = urlCom(request, '/admin', '')
+    entrada.searchParams.set('next', destinoAdminSeguro(`${rota}${search}`))
+    return redirecionar(entrada, response)
+  }
+
+  // Link antigo `/login?next=/admin...` (de antes da separação dos portais).
+  const nextLogin = request.nextUrl.searchParams.get('next')
+  if (!claims && rota === '/login' && nextLogin && ehRotaAdmin(nextLogin)) {
+    const entrada = urlCom(request, '/admin', '')
+    entrada.searchParams.set('next', destinoAdminSeguro(nextLogin))
+    return redirecionar(entrada, response)
+  }
 
   if (!claims && !publica) {
     const url = urlCom(request, '/login', '')

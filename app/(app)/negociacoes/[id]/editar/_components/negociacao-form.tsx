@@ -144,7 +144,7 @@ export function NegociacaoForm({ action, valoresIniciais, servicos, cancelarHref
         <legend className={legendaClass}>Serviços</legend>
 
         {servicos.length === 0 ? (
-          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O gerente cadastra em Configurações → Serviços.</p>
+          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O administrador cadastra em Configurações → Serviços.</p>
         ) : (
           agrupar(servicos).map(([categoria, lista]) => (
             <div key={categoria ?? ''} className="space-y-2">

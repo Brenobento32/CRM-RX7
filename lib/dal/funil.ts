@@ -263,8 +263,8 @@ const NAO_ENCONTRADA: ResultadoFunil = {
 const MSG_HANDOFF_SDR = 'SDR e Atendente não podem movimentar o lead após Reunião realizada. O CLOSER deve assumir este lead.'
 
 const MSG_ATENDENTE_ETAPA =
-  'Etapa não liberada para Atendentes. Peça ao gerente para liberar em Configurações do funil → Etapas.'
-const MSG_ATENDENTE_FECHAR = 'Atendente não fecha negociações (Ganha/Perdida é com o Closer, Vendedor ou Gerente).'
+  'Etapa não liberada para Atendentes. Peça ao administrador para liberar em Configurações do funil → Etapas.'
+const MSG_ATENDENTE_FECHAR = 'Atendente não fecha negociações (Ganha/Perdida é com o Closer, Vendedor ou Administrador).'
 
 const MSG_ATENDENTE_CARTEIRA = 'Atendente só movimenta negociações atribuídas a ele ou da sua carteira.'
 

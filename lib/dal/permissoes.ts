@@ -62,7 +62,7 @@ export async function obterPermissoesFunil(funilId: string, etapaIds: string[]):
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram permissões comerciais.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores configuram permissões comerciais.')
   return usuario
 }
 
@@ -137,7 +137,7 @@ function traduzirErroPermissoes(error: PostgrestError): Extract<ResultadoPermiss
       // Mensagens dos triggers/constraints de permissoes_colaborador já são para o usuário.
       return { ok: false, mensagem: error.message }
     case '42501':
-      return { ok: false, mensagem: 'Somente gerentes configuram permissões comerciais.' }
+      return { ok: false, mensagem: 'Somente administradores configuram permissões comerciais.' }
     default:
       console.error('Erro ao salvar permissões comerciais', error)
       return { ok: false, mensagem: 'Não foi possível salvar as permissões. Tente novamente.' }

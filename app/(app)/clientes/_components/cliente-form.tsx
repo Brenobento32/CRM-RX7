@@ -163,9 +163,10 @@ export function CamposCliente({
             defaultValue={valores.owner_id}
             className={inputClassCliente}
           >
+            {!valores.owner_id && <option value="">Selecione o responsável…</option>}
             {responsaveis.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.nome} {r.role === 'gerente' ? '(gerente)' : ''}
+                {r.nome} {r.role === 'gerente' ? '(administrador)' : ''}
               </option>
             ))}
           </select>

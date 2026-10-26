@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { caixaErroClass } from '@/components/ui/estilos'
+import { portalValido } from '@/lib/auth/portal'
 import { EsqueciSenhaForm } from './_components/esqueci-senha-form'
 
 export const metadata: Metadata = {
@@ -8,12 +9,15 @@ export const metadata: Metadata = {
 }
 
 export default async function EsqueciSenhaPage({ searchParams }: PageProps<'/esqueci-senha'>) {
-  const { erro } = await searchParams
+  const { erro, portal: portalBruto } = await searchParams
+  const portal = portalValido(portalBruto)
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-premium-texto">Esqueci minha senha</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-premium-texto">
+          {portal === 'admin' ? 'Recuperar acesso da administração' : 'Esqueci minha senha'}
+        </h1>
         <p className="mt-2 text-sm text-premium-secundario">
           Informe o e-mail cadastrado. Se ele existir no CRM, você recebe um link para redefinir a senha.
         </p>
@@ -28,7 +32,7 @@ export default async function EsqueciSenhaPage({ searchParams }: PageProps<'/esq
         </p>
       )}
 
-      <EsqueciSenhaForm />
+      <EsqueciSenhaForm portal={portal} />
     </div>
   )
 }

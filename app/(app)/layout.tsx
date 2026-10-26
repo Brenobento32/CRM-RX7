@@ -5,6 +5,7 @@ import {
   SIDEBAR_RECOLHIDA,
 } from '@/components/layout/preferencia-sidebar'
 import { EmpresaAtualProvider } from '@/components/layout/empresa-contexto'
+import { FaixaAcessoGlobal } from '@/components/layout/faixa-acesso-global'
 import { COOKIE_TEMA, TEMA_CLARO } from '@/components/layout/preferencia-tema'
 import { ShellApp } from '@/components/layout/shell-app'
 import { Sidebar } from '@/components/layout/sidebar'
@@ -44,6 +45,7 @@ export default async function AppLayout({
       topo={<Topbar usuario={usuario} />}
     >
       <SincronizaUrlEmpresa slug={empresa.slug} />
+      {empresa.acessoGlobal && <FaixaAcessoGlobal empresa={empresa.nome} />}
       <EmpresaAtualProvider empresa={{ id: empresa.id, slug: empresa.slug }}>{children}</EmpresaAtualProvider>
     </ShellApp>
   )

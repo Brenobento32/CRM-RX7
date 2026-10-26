@@ -51,7 +51,7 @@ export async function listarServicosAtivos(): Promise<Servico[]> {
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram serviços.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores configuram serviços.')
 }
 
 /**
@@ -147,7 +147,7 @@ function traduzirErro(error: PostgrestError): Extract<ResultadoServico, { ok: fa
     case '23514':
       return { ok: false, mensagem: 'Dados inválidos para o serviço.' }
     case '42501':
-      return { ok: false, mensagem: 'Somente gerentes configuram serviços.' }
+      return { ok: false, mensagem: 'Somente administradores configuram serviços.' }
   }
 
   console.error('Erro em servicos', error)

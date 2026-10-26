@@ -88,7 +88,7 @@ export const listarEtapas = cache(async (funilId: string): Promise<Etapa[]> => {
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram o funil.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores configuram o funil.')
 }
 
 /** Todas as etapas (ativas e desativadas) de um funil, com o uso de cada uma. */
@@ -375,7 +375,7 @@ function traduzirErro(error: PostgrestError): ResultadoEtapa {
   if (error.code === '23503') {
     return { ok: false, mensagem: 'A etapa já teve negociações. Desative-a em vez de excluir.' }
   }
-  if (error.code === '42501') return { ok: false, mensagem: 'Somente gerentes configuram o funil.' }
+  if (error.code === '42501') return { ok: false, mensagem: 'Somente administradores configuram o funil.' }
 
   console.error('Erro em etapas_funil', error)
   return { ok: false, mensagem: 'Não foi possível salvar a etapa. Tente novamente.' }

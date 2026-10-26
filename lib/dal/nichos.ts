@@ -43,7 +43,7 @@ export async function listarNichosAtivos(): Promise<Nicho[]> {
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram nichos.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores configuram nichos.')
 }
 
 export type NichoComUso = {
@@ -187,7 +187,7 @@ function traduzirErro(error: PostgrestError): Extract<ResultadoNicho, { ok: fals
     return { ok: false, mensagem: 'Conflito ao salvar o nicho. Tente novamente.' }
   }
   if (error.code === '23514') return { ok: false, mensagem: 'Dados inválidos para o nicho.' }
-  if (error.code === '42501') return { ok: false, mensagem: 'Somente gerentes configuram nichos.' }
+  if (error.code === '42501') return { ok: false, mensagem: 'Somente administradores configuram nichos.' }
 
   console.error('Erro em nichos', error)
   return { ok: false, mensagem: 'Não foi possível salvar o nicho. Tente novamente.' }

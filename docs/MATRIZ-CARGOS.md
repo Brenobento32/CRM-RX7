@@ -5,8 +5,15 @@ testadas **só no ambiente local** (`C:\Tools\avante-local`). Nada disto está
 no banco de produção: as migrations são propostas em `supabase/propostas/`
 (estrutura separada da ativação) e só sobem com autorização explícita.
 
-São **cinco cargos** por empresa — Gerente, Vendedor, Atendente, SDR e Closer.
+São **cinco cargos** por empresa — Administrador, Vendedor, Atendente, SDR e Closer.
 **Super Admin não é cargo**: é um privilégio global da Rio X7.
+
+> **Nome na interface:** o cargo "Gerente" passou a se chamar
+> **Administrador** nas telas. O identificador técnico continua `gerente`
+> (e `admin_empresa`), com as mesmas permissões — onde este documento diz
+> "Gerente", leia Administrador. O Super Admin entra no CRM de qualquer
+> empresa pelo painel global (janela de acesso auditada, papel de
+> Administrador naquela empresa); ver `docs/SAAS-MULTIEMPRESA.md`.
 
 ## Regras que valem para todos
 

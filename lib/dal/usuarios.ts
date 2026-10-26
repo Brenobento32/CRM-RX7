@@ -67,7 +67,7 @@ const BUCKET = 'avatares'
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
   if (usuario.role !== 'gerente') {
-    throw new Error('Somente gerentes administram usuários.')
+    throw new Error('Somente administradores gerenciam usuários.')
   }
   return usuario
 }
@@ -254,7 +254,7 @@ export async function editarUsuario(
   if (!atual) return { ok: false, mensagem: 'Usuário não encontrado.' }
 
   if (id === eu.id && input.role !== 'gerente') {
-    return { ok: false, campo: 'role', mensagem: 'Você não pode tirar o próprio perfil de gerente.' }
+    return { ok: false, campo: 'role', mensagem: 'Você não pode tirar o próprio perfil de administrador.' }
   }
   if (id === eu.id && !input.ativo) {
     return { ok: false, campo: 'ativo', mensagem: 'Você não pode desativar o próprio usuário.' }

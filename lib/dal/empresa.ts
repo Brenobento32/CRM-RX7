@@ -30,6 +30,12 @@ export type EmpresaAtual = {
   papel: PapelEmpresa
   /** Logo público do Storage (com versão para não ficar o antigo em cache), ou null. */
   logoUrl: string | null
+  /**
+   * Super Admin dentro do CRM pelo painel global ("Acessar empresa"), sem
+   * vínculo: atua como Administrador desta empresa enquanto a janela de acesso
+   * (auditada) estiver aberta. O banco confere a mesma coisa em cada consulta.
+   */
+  acessoGlobal: boolean
 }
 
 export type EmpresaDoUsuario = {
@@ -45,9 +51,11 @@ export function papelComercial(papel: PapelEmpresa): CargoApp {
 }
 
 /**
- * Empresa da requisição (`/<slug>`), conferida no banco: só existe se o
- * usuário tiver vínculo ativo nela. Sem empresa ou sem vínculo → /empresas.
- * O banco revalida a mesma coisa em cada consulta (`tenant_atual()`).
+ * Empresa da requisição (`/<slug>`), conferida no banco: existe se o usuário
+ * tiver vínculo ativo nela — ou, para o Super Admin, se houver uma janela de
+ * acesso aberta pelo painel global (`tenant_atual()` decide; digitar a URL
+ * não basta). Sem empresa ou sem acesso → /empresas. O banco revalida a mesma
+ * coisa em cada consulta.
  */
 export const getEmpresaAtual = cache(async (): Promise<EmpresaAtual> => {
   const { userId } = await verifySession()
@@ -68,6 +76,8 @@ export const getEmpresaAtual = cache(async (): Promise<EmpresaAtual> => {
     throw new Error('Não foi possível carregar a empresa.', { cause: error })
   }
   if (!data) {
+    const global = await empresaPorAcessoGlobal(supabase, slug)
+    if (global) return global
     // Endereço antigo de uma empresa que trocou de slug: o banco só responde a
     // quem é membro dela (para os outros, nada — nem que a empresa existe).
     // Sempre passa pela escolha de empresa (`/empresas`), que resolve o endereço
@@ -83,11 +93,42 @@ export const getEmpresaAtual = cache(async (): Promise<EmpresaAtual> => {
     slug: data.tenants.slug,
     somenteLeitura: data.tenants.somente_leitura,
     papel: data.papel,
-    logoUrl: data.tenants.logo_path
-      ? `${supabase.storage.from('empresa-logos').getPublicUrl(data.tenants.logo_path).data.publicUrl}?v=${encodeURIComponent(data.tenants.updated_at)}`
-      : null,
+    logoUrl: urlDoLogo(supabase, data.tenants.logo_path, data.tenants.updated_at),
+    acessoGlobal: false,
   }
 })
+
+type ClienteSupabase = Awaited<ReturnType<typeof createClient>>
+
+function urlDoLogo(supabase: ClienteSupabase, logoPath: string | null, versao: string): string | null {
+  return logoPath ? `${supabase.storage.from('empresa-logos').getPublicUrl(logoPath).data.publicUrl}?v=${encodeURIComponent(versao)}` : null
+}
+
+/**
+ * Super Admin sem vínculo: a empresa só vale se `tenant_atual()` a resolver
+ * para esta requisição — o que exige `is_super_admin()` E uma janela de
+ * acesso vigente, aberta (e auditada) por `admin_acessar_empresa`.
+ */
+async function empresaPorAcessoGlobal(supabase: ClienteSupabase, slug: string): Promise<EmpresaAtual | null> {
+  const { data: tenantId, error } = await supabase.rpc('tenant_atual')
+  if (error || !tenantId) return null
+  const { data: t } = await supabase
+    .from('tenants')
+    .select('id, nome, slug, somente_leitura, logo_path, updated_at')
+    .eq('id', tenantId)
+    .eq('slug', slug)
+    .maybeSingle()
+  if (!t) return null
+  return {
+    id: t.id,
+    nome: t.nome,
+    slug: t.slug,
+    somenteLeitura: t.somente_leitura,
+    papel: 'gerente',
+    logoUrl: urlDoLogo(supabase, t.logo_path, t.updated_at),
+    acessoGlobal: true,
+  }
+}
 
 export type MembroEmpresa = { papel: PapelEmpresa; role: UserRole; ativo: boolean }
 

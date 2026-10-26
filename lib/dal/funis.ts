@@ -116,7 +116,7 @@ export async function resolverFunilSelecionado(
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram funis.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores configuram funis.')
 }
 
 /** Todos os funis com quantas negociações cada um tem — pra tela decidir se pode excluir. */
@@ -222,7 +222,7 @@ function traduzirErro(error: PostgrestError): Extract<ResultadoFunil, { ok: fals
   if (error.code === '23505') {
     return { ok: false, campo: 'nome', mensagem: 'Já existe um funil ativo com esse nome.' }
   }
-  if (error.code === '42501') return { ok: false, mensagem: 'Somente gerentes configuram funis.' }
+  if (error.code === '42501') return { ok: false, mensagem: 'Somente administradores configuram funis.' }
   if (error.code === 'P0002') return { ok: false, mensagem: 'Funil não encontrado.' }
 
   console.error('Erro em funis', error)

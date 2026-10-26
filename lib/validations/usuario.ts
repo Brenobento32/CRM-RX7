@@ -14,7 +14,7 @@ export const PAPEIS = Constants.public.Enums.user_role
  * as telas só refletem. Super Admin não é cargo: é privilégio global da Rio X7.
  */
 export const ROTULO_PAPEL: Record<Papel, string> = {
-  gerente: 'Gerente',
+  gerente: 'Administrador',
   vendedor: 'Vendedor',
   atendente: 'Atendente',
   sdr: 'SDR',

@@ -219,7 +219,7 @@ export function EditarFechamentoForm({
       <fieldset aria-describedby={erro('servico_ids') ? 'servicos-erro' : undefined}>
         <legend className="mb-1.5 block text-sm font-medium">Serviços contratados</legend>
         {servicos.length === 0 ? (
-          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O gerente cadastra em Configurações → Serviços.</p>
+          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O administrador cadastra em Configurações → Serviços.</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {servicos.map((s) => (

@@ -277,7 +277,7 @@ export async function obterRealizadoGeral(
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes definem metas.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores definem metas.')
 }
 
 export type Meta = {

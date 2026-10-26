@@ -4,8 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
+import { caminhoDaEmpresa } from '@/lib/empresa/rota'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
 import {
+  acessarEmpresa,
   alterarSlugEmpresa,
+  encerrarAcessoEmpresa,
   criarEmpresa,
   salvarCadastroEmpresa,
   slugEmUso,
@@ -78,7 +82,7 @@ export async function criarEmpresaAction(formData: FormData): Promise<void> {
     const c = await salvarCadastroEmpresa(r.id, { nome: onboarding.nome, telefone, email, responsavel_nome }, logo, false)
     if (!c.ok) redirect(comMensagem(paginaEmpresa, 'erro', `Empresa criada, mas o cadastro não foi salvo: ${c.mensagem}`))
   }
-  redirect(comMensagem(paginaEmpresa, 'ok', 'Empresa criada com gerente inicial, funil e assinatura de teste.'))
+  redirect(comMensagem(paginaEmpresa, 'ok', 'Empresa criada com administrador inicial, funil e assinatura de teste.'))
 }
 
 export async function salvarCadastroEmpresaAction(formData: FormData): Promise<void> {
@@ -178,4 +182,27 @@ export async function alterarSlugEmpresaAction(formData: FormData): Promise<void
   const r = await alterarSlugEmpresa(id.data, slug.data, motivo.data)
   revalidatePath('/admin', 'layout')
   redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? `Endereço alterado para /${slug.data}. O antigo redireciona para o novo.` : r.mensagem))
+}
+
+/**
+ * Painel global → CRM da empresa. A RPC exige o Super Admin, abre a janela de
+ * acesso e audita; só então a navegação entra na empresa (`/<slug>/`).
+ */
+export async function acessarEmpresaAction(formData: FormData) {
+  const id = uuid.safeParse(formData.get('tenant_id'))
+  if (!id.success) redirect('/admin')
+  const motivo = texto(formData, 'motivo').trim().slice(0, 300) || null
+  const r = await acessarEmpresa(id.data, motivo)
+  if (!r.ok) redirect(comMensagem(`/admin/empresas/${id.data}`, 'erro', r.mensagem))
+  redirect(caminhoDaEmpresa(r.slug, '/'))
+}
+
+/**
+ * Dentro do CRM: encerra a janela de acesso global da empresa ATUAL (a da
+ * URL, conferida no banco — nunca um id vindo do formulário) e volta ao painel.
+ */
+export async function encerrarAcessoEmpresaAction() {
+  const empresa = await getEmpresaAtual()
+  if (empresa.acessoGlobal) await encerrarAcessoEmpresa(empresa.id)
+  redirect('/admin')
 }

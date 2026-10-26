@@ -2689,6 +2689,10 @@ export type Database = {
         Returns: undefined
       }
       admin_alterar_slug: { Args: { p_tenant: string; p_slug: string; p_motivo: string }; Returns: undefined }
+      admin_acessar_empresa: { Args: { p_tenant: string; p_motivo?: string | null }; Returns: string }
+      admin_encerrar_acesso_empresa: { Args: { p_tenant: string }; Returns: undefined }
+      acesso_global_ativo: { Args: { p_tenant: string }; Returns: boolean }
+      encerrar_meus_acessos_globais: { Args: { p_motivo?: string | null }; Returns: number }
       resolver_slug_antigo: { Args: { p_slug: string }; Returns: string | null }
       slug_reservado: { Args: { p_slug: string }; Returns: boolean }
       admin_reativar_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }

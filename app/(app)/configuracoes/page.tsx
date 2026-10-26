@@ -28,7 +28,7 @@ const GRUPOS_GERENTE: Grupo[] = [
     descricao: 'Identidade, equipe e plano',
     itens: [
       { href: '/configuracoes/empresa', titulo: 'Dados da empresa', descricao: 'Logotipo, telefone, e-mail e responsável.', Icone: IconeEmpresa },
-      { href: '/configuracoes/usuarios', titulo: 'Usuários', descricao: 'Equipe por cargo: Gerente, Vendedor, Atendente, SDR e Closer.', Icone: IconeClientes },
+      { href: '/configuracoes/usuarios', titulo: 'Usuários', descricao: 'Equipe por cargo: Administrador, Vendedor, Atendente, SDR e Closer.', Icone: IconeClientes },
       { href: '/configuracoes/assinatura', titulo: 'Minha assinatura', descricao: 'Plano, situação, limites e consumo.', Icone: IconeAssinatura },
     ],
   },
@@ -71,7 +71,7 @@ export default async function ConfiguracoesPage() {
     <div className="max-w-5xl space-y-8">
       <PageHeaderPremium
         titulo="Configurações"
-        subtitulo={gerente ? 'Tudo o que define como a sua empresa usa o AVANTE.' : 'Itens de consulta. Para mudar seus dados de acesso, fale com o gerente.'}
+        subtitulo={gerente ? 'Tudo o que define como a sua empresa usa o AVANTE.' : 'Itens de consulta. Para mudar seus dados de acesso, fale com o administrador.'}
       />
 
       {grupos.map((g) => (

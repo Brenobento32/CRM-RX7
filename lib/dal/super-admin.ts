@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { FunctionsHttpError } from '@supabase/supabase-js'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
 
 import { verifySession } from '@/lib/dal/auth'
@@ -33,9 +33,33 @@ export const isSuperAdmin = cache(async (): Promise<boolean> => {
   return !error && data === true
 })
 
-/** Rotas /admin: quem não é Super Admin recebe 404 (nem descobre que existe). */
+/**
+ * Situação de quem abre o portal da administração (`/admin`), sem redirecionar:
+ * - `anonimo`: sem sessão → tela de login administrativo;
+ * - `negado`: logado, mas sem o privilégio global (Gerente e demais cargos);
+ * - `admin`: Super Admin confirmado pelo banco (`is_super_admin`).
+ *
+ * O privilégio vem sempre do banco, nunca de e-mail, slug, cargo na empresa
+ * ou parâmetro da URL.
+ */
+export type AcessoAdmin = 'anonimo' | 'negado' | 'admin'
+
+export const acessoAdmin = cache(async (): Promise<AcessoAdmin> => {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getClaims()
+  if (error || !data?.claims?.sub) return 'anonimo'
+  const { data: superAdmin, error: erroPrivilegio } = await supabase.rpc('is_super_admin')
+  return !erroPrivilegio && superAdmin === true ? 'admin' : 'negado'
+})
+
+/**
+ * Rotas internas do painel (`/admin/...`): sem sessão volta ao login
+ * administrativo; sem privilégio recebe 404 (nem descobre a tela).
+ */
 export async function exigirSuperAdmin() {
-  if (!(await isSuperAdmin())) notFound()
+  const acesso = await acessoAdmin()
+  if (acesso === 'anonimo') redirect('/admin')
+  if (acesso !== 'admin') notFound()
 }
 
 function falha(error: { code?: string; message?: string } | null, padrao: string): Resultado {
@@ -273,4 +297,28 @@ export async function alterarSlugEmpresa(tenantId: string, slug: string, motivo:
   const { error } = await supabase.rpc('admin_alterar_slug', { p_tenant: tenantId, p_slug: slug, p_motivo: motivo })
   if (error?.code === '23505') return { ok: false, mensagem: 'Esse endereço já pertence (ou pertenceu) a outra empresa.' }
   return error ? falha(error, 'Não foi possível trocar o endereço.') : { ok: true, id: tenantId }
+}
+
+/**
+ * "Acessar empresa": abre a janela de acesso do Super Admin ao CRM da empresa
+ * (8 h) e grava na auditoria — tudo na RPC, que exige o Super Admin. Devolve o
+ * endereço (slug) para entrar no CRM.
+ */
+export async function acessarEmpresa(tenantId: string, motivo: string | null): Promise<{ ok: true; slug: string } | { ok: false; mensagem: string }> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('admin_acessar_empresa', { p_tenant: tenantId, p_motivo: motivo })
+  if (error || !data) {
+    const r = falha(error, 'Não foi possível abrir o CRM da empresa.')
+    return { ok: false, mensagem: r.ok ? 'Não foi possível abrir o CRM da empresa.' : r.mensagem }
+  }
+  return { ok: true, slug: data }
+}
+
+/** Encerra a janela de acesso do Super Admin à empresa (auditado). */
+export async function encerrarAcessoEmpresa(tenantId: string): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_encerrar_acesso_empresa', { p_tenant: tenantId })
+  return error ? falha(error, 'Não foi possível encerrar o acesso.') : { ok: true, id: tenantId }
 }

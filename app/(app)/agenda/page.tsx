@@ -7,6 +7,7 @@ import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
 import { botaoPrimarioClass, caixaErroClass } from '@/components/ui/estilos'
 import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
 import {
   DIAS_AGUARDANDO_STATUS,
   contarEventosPorDia,
@@ -51,9 +52,10 @@ const uuid = z.uuid()
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>) {
-  const usuario = await getUsuarioAtual()
+  const [usuario, empresa] = await Promise.all([getUsuarioAtual(), getEmpresaAtual()])
   const params = await searchParams
   const gerente = usuario.role === 'gerente'
+  const acessoGlobal = empresa.acessoGlobal
 
   const hoje = hojeSaoPaulo()
   const userAgent = (await headers()).get('user-agent') ?? ''
@@ -165,7 +167,15 @@ export default async function AgendaPage({ searchParams }: PageProps<'/agenda'>)
       vinculo: cliente ? { clienteNome: cliente.nome, ownerId: cliente.ownerId } : null,
       valores: {
         cliente_id: cliente?.id ?? '',
-        usuario_id: (pedido && responsaveis.some((r) => r.id === pedido) ? pedido : cliente && gerente ? cliente.ownerId : usuario.id) ?? usuario.id,
+        // Acesso global (Super Admin): nunca ele mesmo — escolhe um usuário da empresa.
+        usuario_id:
+          (pedido && responsaveis.some((r) => r.id === pedido)
+            ? pedido
+            : cliente && gerente
+              ? cliente.ownerId
+              : acessoGlobal
+                ? ''
+                : usuario.id) ?? (acessoGlobal ? '' : usuario.id),
         tipo: 'reuniao',
         status: 'agendado',
         data: dia,

@@ -40,7 +40,7 @@ export default async function NovoClientePage() {
         <PageHeaderPremium titulo="Novo cliente" voltar={{ href: '/clientes', rotulo: 'Clientes' }} />
         <EstadoVazio
           titulo="Nenhum funil liberado para você"
-          descricao="Todo cliente novo entra num funil. Peça ao gerente para liberar ao menos um funil nas suas permissões."
+          descricao="Todo cliente novo entra num funil. Peça ao administrador para liberar ao menos um funil nas suas permissões."
           acao={{ href: '/clientes', rotulo: 'Voltar para clientes' }}
         />
       </div>
@@ -60,7 +60,8 @@ export default async function NovoClientePage() {
           action={criarClienteAction}
           valoresIniciais={{
             tipo_cliente: 'pessoa_fisica',
-            owner_id: usuario.id,
+            // Acesso global (Super Admin): sem carteira própria — escolhe um usuário da empresa.
+            owner_id: empresa.acessoGlobal ? '' : usuario.id,
           }}
           responsaveis={responsaveis}
           funis={funisAtivos}

@@ -4,7 +4,7 @@ import { botaoPrimarioClass, inputClass, arquivoClass, cartaoClass, labelClass, 
 import { criarEmpresaAction } from '@/lib/actions/super-admin'
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
-import { Aviso } from '../../_components/aviso'
+import { Aviso } from '@/app/admin/_components/aviso'
 
 export const metadata: Metadata = {
   title: 'Nova empresa',
@@ -78,8 +78,8 @@ export default async function NovaEmpresaPage({ searchParams }: { searchParams: 
         </fieldset>
 
         <fieldset className={secaoClass}>
-          <legend className="sr-only">Gerente inicial</legend>
-          <h2 className={legendaClass}>Gerente inicial</h2>
+          <legend className="sr-only">Administrador inicial</legend>
+          <h2 className={legendaClass}>Administrador inicial</h2>
           <p className="text-xs text-premium-mudo">
             Administra só esta empresa: cadastra os usuários dela e configura integrações. Nunca vê outras empresas.
           </p>
@@ -95,7 +95,7 @@ export default async function NovaEmpresaPage({ searchParams }: { searchParams: 
           <label className="block text-sm">
             <span className={labelClass}>Senha inicial (opcional)</span>
             <input name="admin_senha" type="password" minLength={8} autoComplete="new-password" className={inputClass} />
-            <span className={ajudaClass}>Vazio: o gerente recebe convite por e-mail para criar a senha.</span>
+            <span className={ajudaClass}>Vazio: o administrador recebe convite por e-mail para criar a senha.</span>
           </label>
         </fieldset>
 

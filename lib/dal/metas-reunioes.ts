@@ -52,7 +52,7 @@ export async function salvarMetasReunioes(
   itens: ItemMetaReunioes[],
 ): Promise<{ ok: true } | { ok: false; mensagem: string }> {
   const eu = await getUsuarioAtual()
-  if (eu.role !== 'gerente') return { ok: false, mensagem: 'Somente gerentes definem metas.' }
+  if (eu.role !== 'gerente') return { ok: false, mensagem: 'Somente administradores definem metas.' }
   if (itens.length === 0) return { ok: true }
 
   const empresa = await getEmpresaAtual()

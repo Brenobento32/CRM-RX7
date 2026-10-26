@@ -4,7 +4,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { membrosDaEmpresa } from '@/lib/dal/empresa'
+import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
@@ -343,9 +343,14 @@ export async function criarCliente(
   input: ClienteInput,
   funilId?: string | null,
 ): Promise<ResultadoEscrita> {
-  const usuario = await getUsuarioAtual()
+  const [usuario, empresa] = await Promise.all([getUsuarioAtual(), getEmpresaAtual()])
   const supabase = await createClient()
 
+  // Super Admin em acesso global é autor, nunca carteira: o responsável tem
+  // de ser um usuário ativo da empresa (o banco recusa o id dele como owner).
+  if (empresa.acessoGlobal && !input.owner_id) {
+    return { ok: false, campo: 'owner_id', mensagem: 'Escolha o responsável pela carteira (um usuário ativo da empresa).' }
+  }
   const ownerId =
     usuario.role === 'gerente' && input.owner_id ? input.owner_id : usuario.id
 
@@ -561,7 +566,7 @@ function traduzirErro(error: PostgrestError): ResultadoEscrita {
     return {
       ok: false,
       mensagem:
-        'Encontramos mais de um cadastro compatível. Solicite ao gerente ou use Clientes para selecionar o cadastro correto.',
+        'Encontramos mais de um cadastro compatível. Solicite ao administrador ou use Clientes para selecionar o cadastro correto.',
     }
   }
 

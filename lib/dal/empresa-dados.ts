@@ -25,7 +25,7 @@ export type DadosEmpresaGerente = {
 
 async function exigirGerente() {
   const eu = await getUsuarioAtual()
-  if (eu.role !== 'gerente') throw new Error('Somente o gerente altera os dados da empresa.')
+  if (eu.role !== 'gerente') throw new Error('Somente o administrador altera os dados da empresa.')
 }
 
 export async function obterDadosEmpresa(): Promise<DadosEmpresaGerente> {

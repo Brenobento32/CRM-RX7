@@ -49,7 +49,9 @@ export const verifySession = cache(async () => {
  * quando o token expirar.
  *
  * Usuário sem profile ou desativado não entra na área interna; sem vínculo
- * na empresa da URL, vai para a escolha de empresa.
+ * na empresa da URL, vai para a escolha de empresa. O Super Admin só chega
+ * aqui depois de "Acessar empresa" no painel (janela auditada), como
+ * Administrador daquela empresa — ver `getEmpresaAtual`.
  */
 export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual> => {
   const { userId } = await verifySession()
@@ -80,31 +82,99 @@ export const getUsuarioAtual = cache(async (): Promise<UsuarioAtual> => {
   }
 })
 
-export type ResultadoLogin =
-  | { ok: true }
-  | { ok: false; mensagem: string }
+export type ResultadoLogin = { ok: true } | { ok: false; mensagem: string }
+
+/** Super Admin tentando o portal dos clientes (só aparece com a senha certa). */
+export const MSG_CONTA_SO_ADMINISTRACAO =
+  'Esta conta não tem acesso ao portal dos clientes. Entre pelo endereço da administração da plataforma.'
 
 /**
- * Autentica com e-mail e senha. Os cookies de sessão são gravados pelo
- * cliente de servidor, por isso deve ser chamada de uma Server Action.
+ * Autentica com e-mail e senha (portal dos clientes). Os cookies de sessão
+ * são gravados pelo cliente de servidor, por isso deve ser chamada de uma
+ * Server Action.
+ *
+ * Com a sessão recém-criada, o banco diz se a conta é Super Admin. Super
+ * Admin não entra por aqui — nem quando também é membro de uma empresa: o
+ * privilégio global prevalece, a sessão é encerrada (com o mesmo cliente) e a
+ * pessoa é orientada a usar a administração.
  */
-export async function entrarComSenha(
-  email: string,
-  senha: string,
-): Promise<ResultadoLogin> {
+export async function entrarComSenha(email: string, senha: string): Promise<ResultadoLogin> {
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password: senha,
   })
 
-  if (!error) return { ok: true }
+  if (error || !data.user) return { ok: false, mensagem: mensagemDeErroDeLogin(error?.code, error?.status) }
 
-  return { ok: false, mensagem: mensagemDeErroDeLogin(error.code, error.status) }
+  const situacao = await situacaoDaConta(supabase)
+  if (situacao.superAdmin) {
+    await supabase.auth.signOut()
+    return { ok: false, mensagem: MSG_CONTA_SO_ADMINISTRACAO }
+  }
+  return { ok: true }
 }
 
+type ClienteSupabase = Awaited<ReturnType<typeof createClient>>
+
+/** Privilégio global (`is_super_admin`), lido do banco com a sessão do cliente informado. */
+async function situacaoDaConta(supabase: ClienteSupabase) {
+  const { data, error } = await supabase.rpc('is_super_admin')
+  return { superAdmin: !error && data === true }
+}
+
+/**
+ * Situação da conta da sessão atual (ex.: a sessão de recuperação de senha),
+ * para decidir a qual portal devolver a pessoa. Sem sessão: nada.
+ */
+export async function situacaoDaSessaoAtual(): Promise<{ superAdmin: boolean } | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.auth.getClaims()
+  if (!data?.claims?.sub) return null
+  return situacaoDaConta(supabase)
+}
+
+/** Mesma mensagem para senha errada e para conta sem privilégio: não revela se existe conta administrativa. */
+export const MSG_LOGIN_ADMIN_INVALIDO = 'E-mail ou senha incorretos.'
+
+export type ResultadoLoginAdmin = { ok: true } | { ok: false; mensagem: string }
+
+/**
+ * Portal da administração (`/admin`): autentica e confere o privilégio
+ * GLOBAL de Super Admin no banco, com a mesma sessão. Sem o privilégio — um
+ * Gerente, por exemplo — a sessão é encerrada na hora e a resposta é igual à
+ * de senha errada. Só "muitas tentativas" tem mensagem própria (não diz nada
+ * sobre a conta).
+ */
+export async function entrarComoSuperAdmin(email: string, senha: string): Promise<ResultadoLoginAdmin> {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
+
+  if (error) {
+    const limite = error.status === 429 || error.code === 'over_request_rate_limit' || error.code === 'over_email_send_rate_limit'
+    return { ok: false, mensagem: limite ? mensagemDeErroDeLogin(error.code, 429) : MSG_LOGIN_ADMIN_INVALIDO }
+  }
+
+  const { data: superAdmin, error: erroPrivilegio } = await supabase.rpc('is_super_admin')
+  if (erroPrivilegio || superAdmin !== true) {
+    await supabase.auth.signOut()
+    return { ok: false, mensagem: MSG_LOGIN_ADMIN_INVALIDO }
+  }
+  // Novo login: nenhuma janela de acesso a empresa sobrevive (é preciso
+  // clicar de novo em "Acessar CRM"). Auditado na RPC.
+  await supabase.rpc('encerrar_meus_acessos_globais', { p_motivo: 'novo login' })
+  return { ok: true }
+}
+
+/**
+ * Encerra a sessão. Antes, revoga no banco as janelas de acesso global do
+ * Super Admin (auditado); para os demais usuários a RPC não faz nada. Mesmo
+ * se esta chamada falhar, a janela fica presa à sessão (session_id) e morre
+ * com ela.
+ */
 export async function sair() {
   const supabase = await createClient()
+  await supabase.rpc('encerrar_meus_acessos_globais', { p_motivo: 'logout' })
   await supabase.auth.signOut()
 }
 
@@ -174,7 +244,7 @@ function mensagemDeErroDeLogin(code?: string, status?: number): string {
     case 'email_not_confirmed':
       return 'Este e-mail ainda não foi confirmado.'
     case 'user_banned':
-      return 'Este usuário está bloqueado. Fale com o gerente.'
+      return 'Este usuário está bloqueado. Fale com o administrador.'
     case 'over_request_rate_limit':
     case 'over_email_send_rate_limit':
       return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'

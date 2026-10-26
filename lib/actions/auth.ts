@@ -3,8 +3,15 @@
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
-import { entrarComSenha, redefinirSenha, sair, solicitarRecuperacaoSenha } from '@/lib/dal/auth'
-import { caminhoInternoSeguro } from '@/lib/utils/redirect'
+import { destinoAdminSeguro, destinoClienteSeguro, entradaDoPortal } from '@/lib/auth/portal'
+import {
+  entrarComSenha,
+  entrarComoSuperAdmin,
+  redefinirSenha,
+  sair,
+  situacaoDaSessaoAtual,
+  solicitarRecuperacaoSenha,
+} from '@/lib/dal/auth'
 import { esqueciSenhaSchema, loginSchema, redefinirSenhaSchema } from '@/lib/validations/auth'
 
 export type EstadoLogin = {
@@ -13,15 +20,18 @@ export type EstadoLogin = {
   email?: string
 }
 
-export async function login(
-  _estadoAnterior: EstadoLogin | undefined,
-  formData: FormData,
-): Promise<EstadoLogin> {
-  const parsed = loginSchema.safeParse({
-    email: formData.get('email'),
-    senha: formData.get('senha'),
-  })
+function lerLogin(formData: FormData) {
+  return loginSchema.safeParse({ email: formData.get('email'), senha: formData.get('senha') })
+}
 
+/**
+ * Portal dos clientes (`/login`), só para os cargos das empresas. Destino: o
+ * `next` interno validado ou a empresa do usuário (o proxy completa `/` com a
+ * empresa); nunca o painel administrativo. Super Admin é recusado em
+ * `entrarComSenha` (privilégio lido do banco) e entra só por `/admin`.
+ */
+export async function login(_estadoAnterior: EstadoLogin | undefined, formData: FormData): Promise<EstadoLogin> {
+  const parsed = lerLogin(formData)
   const emailDigitado = String(formData.get('email') ?? '')
 
   if (!parsed.success) {
@@ -30,18 +40,50 @@ export async function login(
   }
 
   const resultado = await entrarComSenha(parsed.data.email, parsed.data.senha)
-
   if (!resultado.ok) {
     return { erro: resultado.mensagem, email: emailDigitado }
   }
 
   // `redirect` lança internamente, então fica fora de qualquer try/catch.
-  redirect(caminhoInternoSeguro(formData.get('next')))
+  redirect(destinoClienteSeguro(formData.get('next')))
 }
 
+/**
+ * Portal da administração (`/admin`). Só segue quem o banco confirma como
+ * Super Admin; os demais recebem a mesma resposta de senha errada.
+ */
+export async function loginAdmin(_estadoAnterior: EstadoLogin | undefined, formData: FormData): Promise<EstadoLogin> {
+  const parsed = lerLogin(formData)
+  const emailDigitado = String(formData.get('email') ?? '')
+
+  if (!parsed.success) {
+    const { fieldErrors } = z.flattenError(parsed.error)
+    return { campos: fieldErrors, email: emailDigitado }
+  }
+
+  const resultado = await entrarComoSuperAdmin(parsed.data.email, parsed.data.senha)
+  if (!resultado.ok) {
+    return { erro: resultado.mensagem, email: emailDigitado }
+  }
+
+  redirect(destinoAdminSeguro(formData.get('next')))
+}
+
+/**
+ * Sair (menu do usuário, inclusive dentro do CRM): cada um volta à entrada do
+ * seu portal — Super Admin (conferido no banco) para `/admin`, os demais para
+ * `/login`.
+ */
 export async function logout() {
+  const situacao = await situacaoDaSessaoAtual()
   await sair()
-  redirect('/login')
+  redirect(entradaDoPortal(situacao?.superAdmin ? 'admin' : 'clientes'))
+}
+
+/** Sair da administração: volta para o login administrativo em `/admin`. */
+export async function logoutAdmin() {
+  await sair()
+  redirect('/admin')
 }
 
 export type EstadoEsqueciSenha = {
@@ -79,7 +121,10 @@ export type EstadoRedefinirSenha = {
  * Exige a sessão de recuperação já trocada pelo Route Handler de callback
  * (`app/auth/callback/route.ts`) — `redefinirSenha` falha sem ela. Depois de
  * trocar a senha com sucesso, a sessão de recuperação é encerrada e a pessoa
- * volta para `/login` pra entrar normalmente com a senha nova.
+ * volta à entrada do seu portal para entrar com a senha nova. O portal vem
+ * do banco, com a própria sessão de recuperação: Super Admin → `/admin`; os
+ * demais → `/login`. Funciona igual com o link aberto em outro navegador
+ * (não depende de cookie, nem de por qual tela a recuperação foi pedida).
  */
 export async function redefinirSenhaAction(
   _estadoAnterior: EstadoRedefinirSenha | undefined,
@@ -97,6 +142,7 @@ export async function redefinirSenhaAction(
   const resultado = await redefinirSenha(parsed.data.senha)
   if (!resultado.ok) return { erro: resultado.mensagem }
 
+  const situacao = await situacaoDaSessaoAtual()
   await sair()
-  redirect('/login?senha_redefinida=1')
+  redirect(`${entradaDoPortal(situacao?.superAdmin ? 'admin' : 'clientes')}?senha_redefinida=1`)
 }

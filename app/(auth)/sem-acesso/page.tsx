@@ -17,7 +17,7 @@ export default function SemAcessoPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-premium-texto">Acesso indisponível</h1>
       <p className="mt-2 text-sm text-premium-secundario">
         Seu usuário está desativado ou ainda não foi configurado no CRM. Fale
-        com o gerente responsável.
+        com o administrador responsável.
       </p>
 
       <form action={logout} className="mt-6">

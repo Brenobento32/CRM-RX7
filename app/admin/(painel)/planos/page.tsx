@@ -6,7 +6,7 @@ import { listarPlanos, type PlanoAdmin } from '@/lib/dal/super-admin'
 import { RECURSOS_OCULTOS, RECURSOS_VISIVEIS, ROTULO_RECURSO, STATUS_PLANO } from '@/lib/validations/super-admin'
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
-import { Aviso } from '../_components/aviso'
+import { Aviso } from '@/app/admin/_components/aviso'
 
 export const metadata: Metadata = {
   title: 'Planos',

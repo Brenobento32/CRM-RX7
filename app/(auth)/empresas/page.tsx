@@ -38,6 +38,9 @@ export default async function EmpresasPage({
   const novoEndereco = await resolverEnderecoAntigo(Array.isArray(de) ? de[0] : de)
   if (novoEndereco) redirect(caminhoDaEmpresa(novoEndereco, destino))
 
+  // Privilégio global prevalece: Super Admin (com ou sem empresa) vai para o painel.
+  if (superAdmin) redirect('/admin')
+
   const ativas = empresas.filter((e) => !e.somenteLeitura)
   // Super Admin sempre vê a lista (e o link do painel), mesmo com uma empresa só.
   if (!superAdmin && (empresas.length === 1 || (ativas.length === 1 && destino !== '/'))) {

@@ -48,7 +48,7 @@ export type Resultado<T> = ({ ok: true } & T) | Falha
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes gerenciam a agenda Google.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores gerenciam a agenda Google.')
 }
 
 async function chamarFuncao<T>(corpo: Record<string, unknown>): Promise<Resultado<T>> {

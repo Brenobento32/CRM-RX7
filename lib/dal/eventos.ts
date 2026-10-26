@@ -5,7 +5,7 @@ import { subDays } from 'date-fns'
 import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { membrosDaEmpresa } from '@/lib/dal/empresa'
+import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
 import type { CorEtapa, EtapaVisual } from '@/lib/utils/etapas'
@@ -418,10 +418,20 @@ type ArgsAlterar = Database['public']['Functions']['alterar_eventos']['Args']
  * Série: `criar_serie_eventos` grava a regra e todas as ocorrências numa
  * transação. Devolve o id do (primeiro) evento e quantos foram criados.
  */
+/** Super Admin em acesso global não é responsável de reunião: tem de escolher um usuário da empresa. */
+async function exigeResponsavelDaEmpresa(pedido: string | null): Promise<ResultadoEvento | null> {
+  const empresa = await getEmpresaAtual()
+  return empresa.acessoGlobal && !pedido
+    ? { ok: false, campo: 'usuario_id', mensagem: 'Escolha o responsável da reunião (um usuário ativo da empresa).' }
+    : null
+}
+
 export async function criarEvento(form: EventoForm): Promise<ResultadoEvento> {
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
   const e = form.evento
+  const semResponsavel = await exigeResponsavelDaEmpresa(e.usuario_id)
+  if (semResponsavel) return semResponsavel
   const usuarioId = responsavel(usuario, e.usuario_id)
 
   if (!form.serie) {
@@ -487,6 +497,8 @@ export async function alterarEventos(id: string, form: EventoForm): Promise<Resu
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
   const e = form.evento
+  const semResponsavel = await exigeResponsavelDaEmpresa(e.usuario_id)
+  if (semResponsavel) return semResponsavel
 
   const args: { [K in keyof ArgsAlterar]: ArgsAlterar[K] | null } = {
     p_evento_id: id,

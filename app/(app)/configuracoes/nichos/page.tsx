@@ -40,7 +40,7 @@ export default async function NichosPage() {
 async function VisaoCloser() {
   const nichos = await listarNichosAtivos()
   if (nichos.length === 0) {
-    return <EstadoVazio titulo="Nenhum nicho cadastrado" descricao="O gerente cadastra os nichos em Configurações. Eles classificam os leads no funil." />
+    return <EstadoVazio titulo="Nenhum nicho cadastrado" descricao="O administrador cadastra os nichos em Configurações. Eles classificam os leads no funil." />
   }
 
   return (

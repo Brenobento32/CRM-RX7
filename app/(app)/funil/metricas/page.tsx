@@ -43,7 +43,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
       <div className="@container w-full space-y-6">
         <PageHeaderPremium titulo="Métricas do funil" usuario={usuario} />
         <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
-          Você ainda não tem acesso a nenhum funil. Peça ao gerente para configurar suas permissões.
+          Você ainda não tem acesso a nenhum funil. Peça ao administrador para configurar suas permissões.
         </p>
       </div>
     )

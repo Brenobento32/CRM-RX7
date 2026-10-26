@@ -32,7 +32,7 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
       <div className="@container w-full space-y-6">
         <PageHeaderPremium titulo="Funil" usuario={usuario} />
         <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
-          Você ainda não tem acesso a nenhum funil. Peça ao gerente para configurar suas permissões.
+          Você ainda não tem acesso a nenhum funil. Peça ao administrador para configurar suas permissões.
         </p>
       </div>
     )
@@ -70,7 +70,7 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
       <PageHeaderPremium
         titulo={funilSelecionado.nome}
         subtitulo={`${
-          usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Negociações das etapas liberadas pelo gerente.'
+          usuario.role === 'gerente' ? 'Negociações de toda a equipe.' : 'Negociações das etapas liberadas pelo administrador.'
         } Fechadas e perdidas aparecem por ${DIAS_VISIVEIS_ENCERRADOS} dias.`}
         acoes={
           (CARGOS_POR_AREA.relatorios as readonly string[]).includes(usuario.role) ? (

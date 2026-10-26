@@ -54,7 +54,7 @@ export default async function ServicosPage({ searchParams }: PageProps<'/configu
 async function VisaoCloser() {
   const servicos = await listarServicosAtivos()
   if (servicos.length === 0)
-    return <Vazio descricao="Quando o gerente cadastrar serviços, eles aparecem aqui e nas negociações.">Nenhum serviço cadastrado</Vazio>
+    return <Vazio descricao="Quando o administrador cadastrar serviços, eles aparecem aqui e nas negociações.">Nenhum serviço cadastrado</Vazio>
 
   return (
     <Tabela colunas={['Serviço', 'Categoria']}>

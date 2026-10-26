@@ -78,6 +78,7 @@ export function CampoResponsavel({
           aria-invalid={erro ? true : undefined}
           className={inputClass}
         >
+          {!escolhido && <option value="">Selecione o responsável…</option>}
           {elegiveis.map((r) => (
             <option key={r.id} value={r.id}>
               {r.id === eu.id ? `${r.nome} (você)` : r.nome} · {ROTULO_PAPEL[r.role]}
@@ -89,7 +90,7 @@ export function CampoResponsavel({
         {agendaParaCloser
           ? 'Você ou um Closer ativo da sua empresa. O aviso de conflito usa a agenda dele (só horários).'
           : ownerId
-            ? 'Reunião ligada a um cliente: só o dono da carteira ou um gerente.'
+            ? 'Reunião ligada a um cliente: só o dono da carteira ou um administrador.'
             : 'Qualquer usuário ativo da sua empresa. A cor da reunião é a do responsável.'}
       </p>
       <ErroCampo mensagem={erro} />

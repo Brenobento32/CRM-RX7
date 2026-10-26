@@ -24,7 +24,7 @@ export type ConfiguracaoWhatsapp = {
 
 async function exigirGerente() {
   const usuario = await getUsuarioAtual()
-  if (usuario.role !== 'gerente') throw new Error('Somente gerentes configuram o WhatsApp.')
+  if (usuario.role !== 'gerente') throw new Error('Somente administradores configuram o WhatsApp.')
 }
 
 /**
@@ -91,7 +91,7 @@ export async function salvarConfiguracaoWhatsapp(
 }
 
 function traduzirErro(error: PostgrestError): Extract<ResultadoConfiguracaoWhatsapp, { ok: false }> {
-  if (error.code === '42501') return { ok: false, mensagem: 'Somente gerentes configuram o WhatsApp.' }
+  if (error.code === '42501') return { ok: false, mensagem: 'Somente administradores configuram o WhatsApp.' }
   if (error.code === '23503') return { ok: false, mensagem: 'Funil ou responsável inválido.' }
 
   console.error('Erro em whatsapp_conexoes', error)

@@ -237,3 +237,22 @@ Edge Functions: `ingestao-lead-empresa` (token da fonte; formato interno ou
 Respondi) e `meta-webhooks` (Lead Ads + WhatsApp Cloud; assinatura
 `X-Hub-Signature-256`, verificação GET, `/validar` com o token da empresa).
 App: `/configuracoes/integracoes` (catálogo + fontes) e `/f/<id>` (formulário público).
+
+## Acesso do Super Admin aos CRMs (`20261028100000_super_admin_acesso_empresas.sql`)
+
+- **Quem:** só quem está em `super_admins` (proprietários da Rio X7). A tabela
+  só é gravada por `service_role`; Administradores das empresas não concedem
+  esse privilégio (testado em `supabase/tests/super_admin_acesso_empresas_test.sql`).
+- **Como entra:** `/admin` → empresa → **Acessar CRM**.
+  `admin_acessar_empresa(tenant, motivo)` exige Super Admin, abre uma janela
+  de 8 h em `super_admin_acessos` e grava `acesso_empresa_iniciado` em
+  `admin_auditoria` (quem, empresa, motivo, prazo). **Encerrar acesso** (faixa
+  no topo do CRM) grava `acesso_empresa_encerrado`.
+- **O que muda no banco:** `tenant_atual()`, `papel_no_tenant()` e
+  `papel_comercial()` aceitam, além do vínculo, a janela vigente do próprio
+  Super Admin — com o papel de Administrador **só naquela empresa** e só
+  enquanto a janela estiver aberta. `tenant_validar_usuarios` aceita o id do
+  próprio Super Admin como autor durante a janela. Para os demais usuários nada
+  muda.
+- **Sem janela, sem acesso:** digitar `/<empresa>/...` não abre nada, nem para
+  o Super Admin; uma janela forjada para quem não é Super Admin não vale.

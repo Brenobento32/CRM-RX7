@@ -3,11 +3,15 @@
 import Link from 'next/link'
 import { useActionState } from 'react'
 
+import { entradaDoPortal, type Portal } from '@/lib/auth/portal'
+
 import { esqueciSenha } from '@/lib/actions/auth'
 import { inputClass, botaoPrimarioClass, caixaErroClass, caixaSucessoClass } from '@/components/ui/estilos'
 
 
-export function EsqueciSenhaForm() {
+/** `portal`: de onde veio o pedido — depois de redefinir, a pessoa volta para a mesma entrada (clientes ou administração). */
+export function EsqueciSenhaForm({ portal = 'clientes' }: { portal?: Portal }) {
+  const entrada = entradaDoPortal(portal)
   const [estado, action, pendente] = useActionState(esqueciSenha, undefined)
   const erroEmail = estado?.campos?.email?.[0]
 
@@ -22,7 +26,7 @@ export function EsqueciSenhaForm() {
         >
           {estado.sucesso}
         </div>
-        <Link href="/login" className="block text-sm text-premium-secundario hover:underline">
+        <Link href={entrada} className="block text-sm text-premium-secundario hover:underline">
           Voltar para o login
         </Link>
       </div>
@@ -31,6 +35,7 @@ export function EsqueciSenhaForm() {
 
   return (
     <form action={action} className="space-y-5" noValidate>
+      <input type="hidden" name="portal" value={portal} />
       {estado?.erro && (
         <div
           role="alert"
@@ -71,7 +76,7 @@ export function EsqueciSenhaForm() {
         {pendente ? 'Enviando…' : 'Enviar instruções'}
       </button>
 
-      <Link href="/login" className="block text-center text-sm text-premium-secundario hover:underline">
+      <Link href={entrada} className="block text-center text-sm text-premium-secundario hover:underline">
         Voltar para o login
       </Link>
     </form>
