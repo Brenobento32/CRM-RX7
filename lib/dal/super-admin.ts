@@ -7,7 +7,15 @@ import { cache } from 'react'
 import { verifySession } from '@/lib/dal/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { LOGO_TIPOS, type AssinaturaInput, type DadosEmpresaInput, type NovaEmpresaInput, type PlanoInput } from '@/lib/validations/super-admin'
+import { BUCKET_MARCA, type VarianteLogo } from '@/lib/dal/identidade'
+import {
+  LOGO_TIPOS,
+  type AssinaturaInput,
+  type CadastroEmpresaAdminInput,
+  type DadosEmpresaInput,
+  type NovaEmpresaInput,
+  type PlanoInput,
+} from '@/lib/validations/super-admin'
 
 /**
  * Painel do Super Admin (dono da plataforma).
@@ -173,7 +181,14 @@ export type OnboardingEmpresa = Omit<NovaEmpresaInput, 'telefone' | 'email' | 'r
 
 export async function criarEmpresa(input: OnboardingEmpresa): Promise<Resultado> {
   await exigirSuperAdmin()
+  const { userId } = await verifySession()
   const supabase = await createClient()
+  // O Super Admin nunca é o administrador (nem membro) de empresa nova. O banco
+  // recusa qualquer Super Admin (`provisionar_empresa`); aqui só a mensagem clara.
+  const { data: eu } = await supabase.from('profiles').select('email').eq('id', userId).maybeSingle()
+  if (eu?.email && eu.email.toLowerCase() === input.admin_email.trim().toLowerCase()) {
+    return { ok: false, mensagem: 'O administrador inicial precisa ser um usuário da empresa (outro e-mail), não o Super Admin.' }
+  }
   const { data, error } = await supabase.functions.invoke<{ ok: boolean; tenant_id?: string; mensagem?: string }>(
     'admin-usuarios',
     { body: { acao: 'provisionar_empresa', ...input } },
@@ -199,6 +214,9 @@ export const BUCKET_LOGOS = 'empresa-logos'
 export type CadastroEmpresa = {
   id: string
   nome: string
+  nomeComercial: string | null
+  /** Observações internas da plataforma (só o Super Admin lê). */
+  observacoes: string | null
   slug: string
   telefone: string | null
   email: string | null
@@ -220,14 +238,18 @@ export async function obterCadastroEmpresa(tenantId: string): Promise<CadastroEm
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('tenants')
-    .select('id, nome, slug, telefone, email, responsavel_nome, logo_path, updated_at')
+    .select('id, nome, nome_comercial, slug, telefone, email, responsavel_nome, logo_path, updated_at')
     .eq('id', tenantId)
     .maybeSingle()
   if (error) throw new Error('Não foi possível carregar o cadastro da empresa.', { cause: error })
   if (!data) return null
+  const obs = await supabase.rpc('admin_observacoes_empresa', { p_tenant: tenantId })
+  if (obs.error) throw new Error('Não foi possível carregar as observações da empresa.', { cause: obs.error })
   return {
     id: data.id,
     nome: data.nome,
+    nomeComercial: data.nome_comercial,
+    observacoes: obs.data ?? null,
     slug: data.slug,
     telefone: data.telefone,
     email: data.email,
@@ -245,7 +267,7 @@ export async function obterCadastroEmpresa(tenantId: string): Promise<CadastroEm
  */
 export async function salvarCadastroEmpresa(
   tenantId: string,
-  dados: DadosEmpresaInput,
+  dados: DadosEmpresaInput & Partial<Pick<CadastroEmpresaAdminInput, 'nome_comercial' | 'observacoes'>>,
   logo: File | null,
   removerLogo: boolean,
 ): Promise<Resultado> {
@@ -265,9 +287,12 @@ export async function salvarCadastroEmpresa(
     }
   }
 
+  // Campos que o formulário não trouxe continuam como estão.
   const { error } = await supabase.rpc('admin_atualizar_empresa', {
     p_tenant: tenantId,
     p_nome: dados.nome,
+    p_nome_comercial: dados.nome_comercial === undefined ? atual.nomeComercial : dados.nome_comercial,
+    p_observacoes: dados.observacoes === undefined ? atual.observacoes : dados.observacoes,
     p_telefone: dados.telefone,
     p_email: dados.email,
     p_responsavel_nome: dados.responsavel_nome,
@@ -321,4 +346,44 @@ export async function encerrarAcessoEmpresa(tenantId: string): Promise<Resultado
   const supabase = await createClient()
   const { error } = await supabase.rpc('admin_encerrar_acesso_empresa', { p_tenant: tenantId })
   return error ? falha(error, 'Não foi possível encerrar o acesso.') : { ok: true, id: tenantId }
+}
+
+/**
+ * Logo do AVANTE CRM (identidade GLOBAL da plataforma — não confundir com o
+ * logotipo de cada empresa). Sobe `logo-<variante>.<ext>` no bucket
+ * `plataforma-marca`, grava o caminho (auditado) e só então apaga o arquivo
+ * de outra extensão. O banco e o storage conferem o Super Admin.
+ */
+export async function salvarLogoPlataforma(variante: VarianteLogo, logo: File): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const anterior = await caminhoLogoPlataforma(variante)
+  const caminho = `logo-${variante}.${LOGO_TIPOS[logo.type as keyof typeof LOGO_TIPOS]}`
+  const envio = await supabase.storage.from(BUCKET_MARCA).upload(caminho, logo, { contentType: logo.type, upsert: true })
+  if (envio.error) {
+    console.error('upload logo plataforma', envio.error)
+    return { ok: false, mensagem: 'Não foi possível enviar a logo.' }
+  }
+  const { error } = await supabase.rpc('admin_definir_logo_plataforma', { p_variante: variante, p_path: caminho })
+  if (error) return falha(error, 'Não foi possível salvar a logo.')
+  if (anterior && anterior !== caminho) await supabase.storage.from(BUCKET_MARCA).remove([anterior])
+  return { ok: true }
+}
+
+/** Remove a logo personalizada da variante: volta a valer a logo oficial embutida. */
+export async function removerLogoPlataforma(variante: VarianteLogo): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const anterior = await caminhoLogoPlataforma(variante)
+  const { error } = await supabase.rpc('admin_definir_logo_plataforma', { p_variante: variante, p_path: null })
+  if (error) return falha(error, 'Não foi possível remover a logo.')
+  if (anterior) await supabase.storage.from(BUCKET_MARCA).remove([anterior])
+  return { ok: true }
+}
+
+async function caminhoLogoPlataforma(variante: VarianteLogo): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('identidade_plataforma')
+  const linha = data?.[0]
+  return (variante === 'claro' ? linha?.logo_claro_path : linha?.logo_escuro_path) ?? null
 }

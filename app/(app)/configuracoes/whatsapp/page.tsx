@@ -28,7 +28,8 @@ export default async function WhatsappPage({ searchParams }: { searchParams: Pro
   const params = await searchParams
   const salvo = params.salvo === '1'
 
-  const [configuracao, funis, responsaveis] = await Promise.all([obterConfiguracaoWhatsapp(), listarFunis(), listarResponsaveis()])
+  const [configuracao, funis] = await Promise.all([obterConfiguracaoWhatsapp(), listarFunis()])
+  const responsaveis = await listarResponsaveis(configuracao?.responsavelPadraoId)
   const funisHabilitados = funis.filter((f) => f.whatsappHabilitado && f.ativo)
 
   return (

@@ -4,7 +4,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
+import { getEmpresaAtual, membrosDaEmpresa, MSG_SUPER_ADMIN_RESPONSAVEL, responsavelProibido } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
@@ -292,24 +292,30 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
 
 /**
  * Pessoas que podem receber uma carteira. Só faz sentido para gerente — para
- * um closer a RLS devolveria apenas o próprio perfil.
+ * um closer a RLS devolveria apenas o próprio perfil. Nenhum Super Admin é
+ * oferecido (nem com vínculo antigo). `manter`: responsável atual de um
+ * registro em edição — continua na lista para não ser trocado sem querer.
  */
-export async function listarResponsaveis(): Promise<OpcaoResponsavel[]> {
+export async function listarResponsaveis(manter?: string | null): Promise<OpcaoResponsavel[]> {
   const usuario = await getUsuarioAtual()
   if (usuario.role !== 'gerente') return []
 
   const supabase = await createClient()
-  const [{ data, error }, membros] = await Promise.all([
+  const [{ data, error }, membros, empresa] = await Promise.all([
     supabase.from('profiles').select('id, nome').eq('ativo', true).order('nome'),
     membrosDaEmpresa(),
+    getEmpresaAtual(),
   ])
 
   if (error) {
     throw new Error('Não foi possível carregar os usuários.', { cause: error })
   }
-  // Papel e vínculo na empresa da requisição (o perfil é global).
+  // Papel e vínculo na empresa da requisição (o perfil é global). Super Admin
+  // (com vínculo ou em acesso global) não assume carteira.
   return data.flatMap((p) => {
     const membro = membros.get(p.id)
+    if (p.id === manter && membro?.superAdmin) return [{ id: p.id, nome: `${p.nome} (atual)`, role: membro.role }]
+    if (membro?.superAdmin || (empresa.acessoGlobal && p.id === usuario.id)) return []
     return membro?.ativo ? [{ id: p.id, nome: p.nome, role: membro.role }] : []
   })
 }
@@ -353,6 +359,9 @@ export async function criarCliente(
   }
   const ownerId =
     usuario.role === 'gerente' && input.owner_id ? input.owner_id : usuario.id
+  if (await responsavelProibido(ownerId)) {
+    return { ok: false, campo: 'owner_id', mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
+  }
 
   // Deduplicação global e segura (telefone/WhatsApp/e-mail, sem vazar PII
   // de cliente que o chamador não enxergaria) + criação/reaproveitamento
@@ -399,6 +408,12 @@ export async function atualizarCliente(
   const { owner_id, ...cadastro } = input
   const alteracoes =
     usuario.role === 'gerente' && owner_id ? { ...cadastro, owner_id } : cadastro
+  if ('owner_id' in alteracoes) {
+    const { data: atual } = await supabase.from('clientes').select('owner_id').eq('id', id).maybeSingle()
+    if (await responsavelProibido(alteracoes.owner_id, atual?.owner_id)) {
+      return { ok: false, campo: 'owner_id', mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
+    }
+  }
 
   const { data, error } = await supabase
     .from('clientes')
@@ -572,6 +587,10 @@ function traduzirErro(error: PostgrestError): ResultadoEscrita {
 
   if (error.code === '42501') {
     return { ok: false, mensagem: 'Você não tem permissão para esta operação.' }
+  }
+
+  if (error.code === '23514' && error.message.includes('não assume carteira')) {
+    return { ok: false, campo: 'owner_id', mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
   }
 
   console.error('Erro ao gravar cliente', error)

@@ -1813,6 +1813,7 @@ export type Database = {
           id: string
           logo_path: string | null
           nome: string
+          nome_comercial: string | null
           responsavel_nome: string | null
           slug: string
           somente_leitura: boolean
@@ -2677,21 +2678,42 @@ export type Database = {
         Returns: undefined
       }
       admin_suspender_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }
-      admin_atualizar_empresa: {
-        Args: {
-          p_tenant: string
-          p_nome: string
-          p_telefone: string | null
-          p_email: string | null
-          p_responsavel_nome: string | null
-          p_logo_path: string | null
-        }
-        Returns: undefined
+      admin_atualizar_empresa:
+        | {
+            Args: {
+              p_tenant: string
+              p_nome: string
+              p_telefone: string | null
+              p_email: string | null
+              p_responsavel_nome: string | null
+              p_logo_path: string | null
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_tenant: string
+              p_nome: string
+              p_nome_comercial: string | null
+              p_telefone: string | null
+              p_email: string | null
+              p_responsavel_nome: string | null
+              p_logo_path: string | null
+              p_observacoes: string | null
+            }
+            Returns: undefined
+          }
+      admin_observacoes_empresa: { Args: { p_tenant: string }; Returns: string | null }
+      admin_definir_logo_plataforma: { Args: { p_variante: string; p_path: string | null }; Returns: undefined }
+      identidade_plataforma: {
+        Args: never
+        Returns: { logo_claro_path: string | null; logo_escuro_path: string | null; atualizado_em: string }[]
       }
       admin_alterar_slug: { Args: { p_tenant: string; p_slug: string; p_motivo: string }; Returns: undefined }
       admin_acessar_empresa: { Args: { p_tenant: string; p_motivo?: string | null }; Returns: string }
       admin_encerrar_acesso_empresa: { Args: { p_tenant: string }; Returns: undefined }
       acesso_global_ativo: { Args: { p_tenant: string }; Returns: boolean }
+      super_admins_na_empresa_atual: { Args: never; Returns: string[] }
       encerrar_meus_acessos_globais: { Args: { p_motivo?: string | null }; Returns: number }
       resolver_slug_antigo: { Args: { p_slug: string }; Returns: string | null }
       slug_reservado: { Args: { p_slug: string }; Returns: boolean }

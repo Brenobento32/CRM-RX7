@@ -64,18 +64,23 @@ export const getEmpresaAtual = cache(async (): Promise<EmpresaAtual> => {
   if (!slugValido(slug)) redirect('/empresas')
 
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('tenant_memberships')
-    .select('papel, tenants!inner(id, nome, slug, somente_leitura, logo_path, updated_at)')
-    .eq('user_id', userId)
-    .eq('ativo', true)
-    .eq('tenants.slug', slug)
-    .maybeSingle()
+  const [privilegio, { data, error }] = await Promise.all([
+    supabase.rpc('is_super_admin'),
+    supabase
+      .from('tenant_memberships')
+      .select('papel, tenants!inner(id, nome, slug, somente_leitura, logo_path, updated_at)')
+      .eq('user_id', userId)
+      .eq('ativo', true)
+      .eq('tenants.slug', slug)
+      .maybeSingle(),
+  ])
 
-  if (error) {
-    throw new Error('Não foi possível carregar a empresa.', { cause: error })
+  if (error || privilegio.error) {
+    throw new Error('Não foi possível carregar a empresa.', { cause: error ?? privilegio.error })
   }
-  if (!data) {
+  // Super Admin: vínculo antigo na empresa não dá acesso — só a janela do
+  // "Acessar CRM" (o banco aplica a mesma regra em `tenant_atual()`).
+  if (privilegio.data === true || !data) {
     const global = await empresaPorAcessoGlobal(supabase, slug)
     if (global) return global
     // Endereço antigo de uma empresa que trocou de slug: o banco só responde a
@@ -105,7 +110,7 @@ function urlDoLogo(supabase: ClienteSupabase, logoPath: string | null, versao: s
 }
 
 /**
- * Super Admin sem vínculo: a empresa só vale se `tenant_atual()` a resolver
+ * Super Admin (com ou sem vínculo): a empresa só vale se `tenant_atual()` a resolver
  * para esta requisição — o que exige `is_super_admin()` E uma janela de
  * acesso vigente, aberta (e auditada) por `admin_acessar_empresa`.
  */
@@ -130,21 +135,38 @@ async function empresaPorAcessoGlobal(supabase: ClienteSupabase, slug: string): 
   }
 }
 
-export type MembroEmpresa = { papel: PapelEmpresa; role: UserRole; ativo: boolean }
+export type MembroEmpresa = { papel: PapelEmpresa; role: UserRole; ativo: boolean; superAdmin: boolean }
 
 /**
  * Papel de cada membro na empresa da requisição (substitui `profiles.role`,
- * que é global). Quem não está no mapa não é da empresa.
+ * que é global). Quem não está no mapa não é da empresa. `superAdmin`: vínculo
+ * antigo de um Super Admin — continua no histórico, mas nunca é responsável.
  */
 export const membrosDaEmpresa = cache(async (): Promise<Map<string, MembroEmpresa>> => {
   await getEmpresaAtual()
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('membros_empresa_atual')
-  if (error) {
-    throw new Error('Não foi possível carregar os membros da empresa.', { cause: error })
+  const [{ data, error }, supers] = await Promise.all([supabase.rpc('membros_empresa_atual'), supabase.rpc('super_admins_na_empresa_atual')])
+  if (error || supers.error) {
+    throw new Error('Não foi possível carregar os membros da empresa.', { cause: error ?? supers.error })
   }
-  return new Map((data ?? []).map((m) => [m.usuario_id, { papel: m.papel, role: m.role, ativo: m.ativo }]))
+  const idsSuper = new Set(supers.data ?? [])
+  return new Map(
+    (data ?? []).map((m) => [m.usuario_id, { papel: m.papel, role: m.role, ativo: m.ativo, superAdmin: idsSuper.has(m.usuario_id) }]),
+  )
 })
+
+export const MSG_SUPER_ADMIN_RESPONSAVEL = 'O Super Admin não pode ser responsável. Escolha um usuário ativo da empresa.'
+
+/**
+ * Responsável comercial (carteira, reunião, meta, padrão de leads/WhatsApp):
+ * nunca um Super Admin, nem com vínculo antigo. Quem não muda (`atual`) passa:
+ * nada é reatribuído automaticamente. O banco confere de novo
+ * (`tenant_validar_usuarios`).
+ */
+export async function responsavelProibido(id: string | null | undefined, atual?: string | null): Promise<boolean> {
+  if (!id || id === atual) return false
+  return (await membrosDaEmpresa()).get(id)?.superAdmin === true
+}
 
 /** Empresas em que o usuário tem vínculo ativo (tela de escolha). */
 export async function listarMinhasEmpresas(): Promise<EmpresaDoUsuario[]> {

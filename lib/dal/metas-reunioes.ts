@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { getEmpresaAtual } from '@/lib/dal/empresa'
+import { getEmpresaAtual, MSG_SUPER_ADMIN_RESPONSAVEL, responsavelProibido } from '@/lib/dal/empresa'
 import { percentualMeta } from '@/lib/dal/metas'
 import { createClient } from '@/lib/supabase/server'
 import { primeiroDiaDoMes } from '@/lib/utils/periodo'
@@ -54,6 +54,7 @@ export async function salvarMetasReunioes(
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') return { ok: false, mensagem: 'Somente administradores definem metas.' }
   if (itens.length === 0) return { ok: true }
+  for (const i of itens) if (await responsavelProibido(i.usuarioId)) return { ok: false, mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
 
   const empresa = await getEmpresaAtual()
   const supabase = await createClient()

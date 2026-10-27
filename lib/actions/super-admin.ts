@@ -11,7 +11,9 @@ import {
   alterarSlugEmpresa,
   encerrarAcessoEmpresa,
   criarEmpresa,
+  removerLogoPlataforma,
   salvarCadastroEmpresa,
+  salvarLogoPlataforma,
   slugEmUso,
   definirAssinatura,
   reativarEmpresa,
@@ -20,11 +22,12 @@ import {
 } from '@/lib/dal/super-admin'
 import {
   assinaturaSchema,
-  dadosEmpresaSchema,
+  cadastroEmpresaAdminSchema,
   motivoSchema,
   novaEmpresaSchema,
   planoSchema,
   validarLogo,
+  VARIANTES_LOGO,
 } from '@/lib/validations/super-admin'
 
 /**
@@ -90,11 +93,13 @@ export async function salvarCadastroEmpresaAction(formData: FormData): Promise<v
   if (!id.success) redirect('/admin')
   const destino = `/admin/empresas/${id.data}`
 
-  const parsed = dadosEmpresaSchema.safeParse({
+  const parsed = cadastroEmpresaAdminSchema.safeParse({
     nome: texto(formData, 'nome'),
+    nome_comercial: texto(formData, 'nome_comercial'),
     telefone: texto(formData, 'telefone'),
     email: texto(formData, 'email'),
     responsavel_nome: texto(formData, 'responsavel_nome'),
+    observacoes: texto(formData, 'observacoes'),
   })
   if (!parsed.success) redirect(comMensagem(destino, 'erro', parsed.error.issues[0]?.message ?? 'Dados inválidos.'))
   const logo = validarLogo(formData.get('logo'))
@@ -205,4 +210,27 @@ export async function encerrarAcessoEmpresaAction() {
   const empresa = await getEmpresaAtual()
   if (empresa.acessoGlobal) await encerrarAcessoEmpresa(empresa.id)
   redirect('/admin')
+}
+
+/** Logo do AVANTE CRM (identidade global): enviar uma nova para a variante. */
+export async function salvarLogoPlataformaAction(formData: FormData): Promise<void> {
+  const destino = '/admin/identidade'
+  const variante = z.enum(VARIANTES_LOGO).safeParse(texto(formData, 'variante'))
+  if (!variante.success) redirect(comMensagem(destino, 'erro', 'Variante de logo inválida.'))
+  const logo = validarLogo(formData.get('logo'))
+  if (typeof logo === 'string') redirect(comMensagem(destino, 'erro', logo))
+  if (!logo) redirect(comMensagem(destino, 'erro', 'Escolha a imagem da logo.'))
+  const r = await salvarLogoPlataforma(variante.data, logo)
+  revalidatePath('/', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? `Logo do modo ${variante.data} salva.` : r.mensagem))
+}
+
+/** Remove a logo personalizada da variante (volta a logo oficial do AVANTE CRM). */
+export async function removerLogoPlataformaAction(formData: FormData): Promise<void> {
+  const destino = '/admin/identidade'
+  const variante = z.enum(VARIANTES_LOGO).safeParse(texto(formData, 'variante'))
+  if (!variante.success) redirect(comMensagem(destino, 'erro', 'Variante de logo inválida.'))
+  const r = await removerLogoPlataforma(variante.data)
+  revalidatePath('/', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? `Logo do modo ${variante.data} removida: voltou a logo oficial.` : r.mensagem))
 }

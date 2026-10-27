@@ -1,6 +1,8 @@
 import type { UsuarioAtual } from '@/lib/dal/auth'
 import type { EmpresaAtual } from '@/lib/dal/empresa'
 
+import { IconeAvante, MarcaAvante } from '@/components/marca/logo-avante'
+
 import { BotaoRecolherSidebar } from './shell-app'
 import { SidebarNav } from './sidebar-nav'
 
@@ -28,9 +30,12 @@ export function Sidebar({
     <>
       {/* Mesma altura do cabeçalho (h-14): as duas bordas inferiores formam uma linha só. */}
       <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-premium-borda bg-premium-topo px-4 group-data-[sidebar=recolhida]/shell:justify-center group-data-[sidebar=recolhida]/shell:px-0">
-        <LogoMarca />
-        <span className="truncate text-base font-semibold tracking-tight text-premium-texto group-data-[sidebar=recolhida]/shell:hidden">
-          AVANTE
+        {/* Identidade global do AVANTE CRM; recolhido, só o emblema oficial. */}
+        <span className="flex min-w-0 items-center group-data-[sidebar=recolhida]/shell:hidden">
+          <MarcaAvante className="h-7 w-auto max-w-full" />
+        </span>
+        <span className="hidden group-data-[sidebar=recolhida]/shell:flex">
+          <IconeAvante className="size-7" />
         </span>
       </div>
 
@@ -70,21 +75,3 @@ export function Sidebar({
   )
 }
 
-/**
- * Marca simples — quadrado com a cor de destaque + "A" de AVANTE (nenhum logo-arquivo
- * existe no repositório hoje). Decorativo. Usa `bg-premium-acento`
- * (nunca uma cor literal) de propósito: é a mesma variável usada em todo o
- * resto do design system — no dia em que a cor de destaque virar configurável
- * por RGB da marca/logo (ver `app/globals.css`), a logo já muda junto, sem
- * precisar editar este arquivo.
- */
-function LogoMarca() {
-  return (
-    <span
-      aria-hidden
-      className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-premium-acento text-sm font-bold text-premium-acento-texto"
-    >
-      A
-    </span>
-  )
-}

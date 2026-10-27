@@ -61,7 +61,7 @@ export default async function FontePage({ params, searchParams }: Props) {
     listarEventos(id),
     podeGerirFontes(),
     opcoesDeDestino(),
-    listarResponsaveis(),
+    listarResponsaveis(fonte.responsavelId),
   ])
   const item = itemDoTipo(fonte.tipo)
   const situacao = situacaoDaFonte(fonte)

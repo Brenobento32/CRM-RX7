@@ -3,7 +3,7 @@ import 'server-only'
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual, type UserRole } from '@/lib/dal/auth'
-import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
+import { getEmpresaAtual, membrosDaEmpresa, MSG_SUPER_ADMIN_RESPONSAVEL, responsavelProibido } from '@/lib/dal/empresa'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import { metaProporcionalPeriodo, type MetaPeriodo } from '@/lib/utils/financeiro-periodo'
@@ -332,7 +332,7 @@ export async function listarAlvosDeMeta(): Promise<OpcaoAlvo[]> {
   // Closer na empresa da requisição (o papel não é mais o global do perfil).
   const closers = data.filter((p) => {
     const membro = membros.get(p.id)
-    return membro?.ativo && (membro.role === 'closer' || membro.role === 'vendedor')
+    return membro?.ativo && !membro.superAdmin && (membro.role === 'closer' || membro.role === 'vendedor')
   })
   return [
     { valor: ALVO_EMPRESA, rotulo: 'Empresa (meta geral)' },
@@ -345,6 +345,7 @@ export type ResultadoMeta = { ok: true } | { ok: false; mensagem: string; campo?
 export async function criarMeta(input: CriarMetaInput): Promise<ResultadoMeta> {
   await exigirGerente()
   const [supabase, empresa] = await Promise.all([createClient(), getEmpresaAtual()])
+  if (input.alvo !== ALVO_EMPRESA && (await responsavelProibido(input.alvo))) return { ok: false, mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
 
   const { error } = await supabase.from('metas').insert({
     tenant_id: empresa.id,

@@ -1,15 +1,14 @@
-/** "AVANTE — Administração": a identificação do portal da plataforma, em todas as telas dele. */
+import { MarcaAvante } from '@/components/marca/logo-avante'
+
+/** "AVANTE CRM — Administração": a identificação do portal da plataforma, em todas as telas dele. */
 export function MarcaAdmin({ grande = false }: { grande?: boolean }) {
   return (
-    <span className="flex items-center gap-2.5">
+    <span className="flex items-center gap-3">
+      <MarcaAvante className={grande ? 'h-10 w-auto' : 'h-7 w-auto'} />
       <span
-        aria-hidden
-        className={`flex items-center justify-center rounded-lg bg-premium-acento font-bold text-premium-acento-texto ${grande ? 'size-10 text-base' : 'size-8 text-sm'}`}
+        className={`border-l border-premium-borda pl-3 font-medium tracking-tight text-premium-mudo ${grande ? 'text-base' : 'text-sm'}`}
       >
-        A
-      </span>
-      <span className={`font-semibold tracking-tight text-premium-texto ${grande ? 'text-lg' : ''}`}>
-        AVANTE <span className="font-normal text-premium-mudo">—</span> Administração
+        Administração
       </span>
     </span>
   )

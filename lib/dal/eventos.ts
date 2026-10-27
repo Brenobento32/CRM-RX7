@@ -5,7 +5,7 @@ import { subDays } from 'date-fns'
 import { cache } from 'react'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { getEmpresaAtual, membrosDaEmpresa } from '@/lib/dal/empresa'
+import { getEmpresaAtual, membrosDaEmpresa, MSG_SUPER_ADMIN_RESPONSAVEL, responsavelProibido } from '@/lib/dal/empresa'
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
 import type { CorEtapa, EtapaVisual } from '@/lib/utils/etapas'
@@ -319,7 +319,7 @@ export async function listarResponsaveisAgenda(): Promise<ResponsavelAgenda[]> {
     // vêm de `nomes_de_usuarios` e o vínculo de `membros_empresa_atual`.
     const membros = await membrosDaEmpresa()
     const ids = [...membros]
-      .filter(([id, m]) => m.ativo && (id === usuario.id || m.role === 'closer'))
+      .filter(([id, m]) => m.ativo && !m.superAdmin && (id === usuario.id || m.role === 'closer'))
       .map(([id]) => id)
     const [nomes, meu] = await Promise.all([
       nomesDeUsuarios(ids),
@@ -338,11 +338,13 @@ export async function listarResponsaveisAgenda(): Promise<ResponsavelAgenda[]> {
   let query = supabase.from('profiles').select('id, nome, cor_agenda').eq('ativo', true).order('nome')
   if (usuario.role !== 'gerente') query = query.eq('id', usuario.id)
 
-  const [{ data, error }, membros] = await Promise.all([query, membrosDaEmpresa()])
+  const [{ data, error }, membros, empresa] = await Promise.all([query, membrosDaEmpresa(), getEmpresaAtual()])
   if (error) throw new Error('Não foi possível carregar os responsáveis.', { cause: error })
   // Papel e vínculo na empresa da requisição (o perfil é global).
   return data.flatMap((p) => {
     const membro = membros.get(p.id)
+    // Super Admin (com vínculo antigo ou em acesso global) não é responsável.
+    if (membro?.superAdmin || (empresa.acessoGlobal && p.id === usuario.id)) return []
     return membro?.ativo ? [{ id: p.id, nome: p.nome, role: membro.role, cor: p.cor_agenda }] : []
   })
 }
@@ -426,6 +428,11 @@ async function exigeResponsavelDaEmpresa(pedido: string | null): Promise<Resulta
     : null
 }
 
+/** Responsável da reunião nunca é Super Admin; o atual de uma reunião em edição passa (nada é trocado sozinho). */
+async function recusaSuperAdmin(usuarioId: string | null, atual?: string | null): Promise<ResultadoEvento | null> {
+  return (await responsavelProibido(usuarioId, atual)) ? { ok: false, campo: 'usuario_id', mensagem: MSG_SUPER_ADMIN_RESPONSAVEL } : null
+}
+
 export async function criarEvento(form: EventoForm): Promise<ResultadoEvento> {
   const usuario = await getUsuarioAtual()
   const supabase = await createClient()
@@ -433,6 +440,8 @@ export async function criarEvento(form: EventoForm): Promise<ResultadoEvento> {
   const semResponsavel = await exigeResponsavelDaEmpresa(e.usuario_id)
   if (semResponsavel) return semResponsavel
   const usuarioId = responsavel(usuario, e.usuario_id)
+  const superAdmin = await recusaSuperAdmin(usuarioId)
+  if (superAdmin) return superAdmin
 
   if (!form.serie) {
     const { data, error } = await supabase
@@ -499,6 +508,9 @@ export async function alterarEventos(id: string, form: EventoForm): Promise<Resu
   const e = form.evento
   const semResponsavel = await exigeResponsavelDaEmpresa(e.usuario_id)
   if (semResponsavel) return semResponsavel
+  const { data: atual } = await supabase.from('eventos').select('usuario_id').eq('id', id).maybeSingle()
+  const superAdmin = await recusaSuperAdmin(responsavel(usuario, e.usuario_id), atual?.usuario_id)
+  if (superAdmin) return superAdmin
 
   const args: { [K in keyof ArgsAlterar]: ArgsAlterar[K] | null } = {
     p_evento_id: id,

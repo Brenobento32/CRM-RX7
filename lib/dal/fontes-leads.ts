@@ -3,7 +3,7 @@ import 'server-only'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 
 import { getUsuarioAtual } from '@/lib/dal/auth'
-import { getEmpresaAtual } from '@/lib/dal/empresa'
+import { getEmpresaAtual, MSG_SUPER_ADMIN_RESPONSAVEL, responsavelProibido } from '@/lib/dal/empresa'
 import { publicEnv } from '@/lib/env/public'
 import type { StatusFonte, TipoFonte } from '@/lib/integracoes/catalogo'
 import { createClient } from '@/lib/supabase/server'
@@ -185,6 +185,7 @@ export type DadosFonte = {
 export async function criarFonte(tipo: TipoFonte, dados: DadosFonte): Promise<Resultado> {
   const recusa = await recusaSemPermissao()
   if (recusa) return recusa
+  if (await responsavelProibido(dados.responsavelId)) return { ok: false, mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('criar_fonte_lead', {
     p_tipo: tipo,
@@ -202,6 +203,8 @@ export async function atualizarFonte(id: string, dados: DadosFonte): Promise<Res
   const recusa = await recusaSemPermissao()
   if (recusa) return recusa
   const supabase = await createClient()
+  const { data: atual } = await supabase.from('fontes_leads').select('responsavel_id').eq('id', id).maybeSingle()
+  if (await responsavelProibido(dados.responsavelId, atual?.responsavel_id)) return { ok: false, mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
   const { error } = await supabase.rpc('atualizar_fonte_lead', {
     p_id: id,
     p_nome: dados.nome,

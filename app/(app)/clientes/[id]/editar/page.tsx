@@ -18,8 +18,10 @@ export default async function EditarClientePage({ params }: PageProps<'/clientes
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
 
-  const [cliente, responsaveis] = await Promise.all([obterCliente(id), listarResponsaveis()])
+  const cliente = await obterCliente(id)
   if (!cliente) notFound()
+  // O responsável atual continua na lista (mesmo um Super Admin histórico): editar não troca a carteira sem querer.
+  const responsaveis = await listarResponsaveis(cliente.owner_id)
 
   // O id vai amarrado no servidor, não num campo oculto do formulário.
   const action = atualizarClienteAction.bind(null, cliente.id)

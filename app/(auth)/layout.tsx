@@ -1,3 +1,5 @@
+import { MarcaAvante } from '@/components/marca/logo-avante'
+
 /**
  * Telas de acesso (login, recuperação, redefinição, escolha de empresa):
  * painel da marca à esquerda (só em telas largas) e o formulário à direita.
@@ -15,12 +17,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           backgroundSize: 'auto, auto, 48px 48px, 48px 48px',
         }}
       >
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="flex size-9 items-center justify-center rounded-xl bg-[#2dd4a7] text-base font-bold text-[#08110e]">
-            A
-          </span>
-          <span className="text-lg font-semibold tracking-tight">AVANTE</span>
-        </div>
+        {/* Capa sempre escura: logo da variante escura (identidade global do AVANTE CRM). */}
+        <MarcaAvante fundo="escuro" className="h-12 w-auto self-start" />
 
         <div className="max-w-md">
           <p className="text-sm font-medium tracking-wide text-[#5ee3c0] uppercase">Gestão comercial</p>
@@ -47,11 +45,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex items-center justify-center px-4 py-12 sm:px-8">
         <div className="w-full max-w-sm">
           {/* Marca compacta no celular/tablet (o painel some em telas estreitas). */}
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span aria-hidden className="flex size-8 items-center justify-center rounded-lg bg-premium-acento text-sm font-bold text-premium-acento-texto">
-              A
-            </span>
-            <span className="font-semibold tracking-tight text-premium-texto">AVANTE</span>
+          <div className="mb-8 lg:hidden">
+            <MarcaAvante className="h-9 w-auto" />
           </div>
           {children}
         </div>

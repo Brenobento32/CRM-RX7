@@ -80,7 +80,7 @@ const responsavelEmpresa = opcional
   .transform((v) => (v === '' ? null : v))
 
 const camposCadastroEmpresa = {
-  nome: z.string().trim().min(2, 'Informe o nome comercial da empresa.').max(120),
+  nome: z.string().trim().min(2, 'Informe o nome da empresa.').max(120),
   telefone: telefoneEmpresa,
   email: emailEmpresa,
   responsavel_nome: responsavelEmpresa,
@@ -89,6 +89,25 @@ const camposCadastroEmpresa = {
 /** Edição dos dados de cadastro (Super Admin, ou admin da própria empresa no banco). */
 export const dadosEmpresaSchema = z.object(camposCadastroEmpresa)
 export type DadosEmpresaInput = z.infer<typeof dadosEmpresaSchema>
+
+/**
+ * Cadastro completo, SÓ pelo Super Admin: além dos dados acima, o nome
+ * comercial (visível à empresa) e as observações internas da plataforma
+ * (nunca visíveis à empresa).
+ */
+export const cadastroEmpresaAdminSchema = z.object({
+  ...camposCadastroEmpresa,
+  nome_comercial: opcional
+    .refine((v) => v.length <= 120, 'Nome comercial: no máximo 120 caracteres.')
+    .transform((v) => (v === '' ? null : v)),
+  observacoes: opcional
+    .refine((v) => v.length <= 4000, 'Observações: no máximo 4.000 caracteres.')
+    .transform((v) => (v === '' ? null : v)),
+})
+export type CadastroEmpresaAdminInput = z.infer<typeof cadastroEmpresaAdminSchema>
+
+/** Logo do AVANTE CRM (identidade global): fundo claro ou escuro. */
+export const VARIANTES_LOGO = ['claro', 'escuro'] as const
 
 /** Logo: mesmas regras do bucket `empresa-logos` (sem SVG, que pode carregar script). */
 export const LOGO_TIPOS = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' } as const

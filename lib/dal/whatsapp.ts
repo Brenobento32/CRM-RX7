@@ -4,6 +4,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 
 import { nomesDeUsuarios } from '@/lib/dal/usuarios'
 import { getUsuarioAtual } from '@/lib/dal/auth'
+import { MSG_SUPER_ADMIN_RESPONSAVEL, responsavelProibido } from '@/lib/dal/empresa'
 import { obterFunil } from '@/lib/dal/funis'
 import { createClient } from '@/lib/supabase/server'
 import type { ConfiguracaoWhatsappInput } from '@/lib/validations/whatsapp'
@@ -71,6 +72,10 @@ export async function salvarConfiguracaoWhatsapp(
 ): Promise<ResultadoConfiguracaoWhatsapp> {
   await exigirGerente()
   const supabase = await createClient()
+  const { data: atual } = await supabase.from('whatsapp_conexoes').select('responsavel_padrao_id').eq('id', ID_CONEXAO).maybeSingle()
+  if (await responsavelProibido(input.responsavelPadraoId, atual?.responsavel_padrao_id)) {
+    return { ok: false, mensagem: MSG_SUPER_ADMIN_RESPONSAVEL }
+  }
 
   const { data, error } = await supabase
     .from('whatsapp_conexoes')

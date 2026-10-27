@@ -287,24 +287,34 @@ function Lista({ itens, vazio }: { itens: { quando: string; texto: string }[]; v
   )
 }
 
-/** Cadastro da empresa: nome comercial, contato, responsável e logotipo. */
+/**
+ * Cadastro da EMPRESA CLIENTE (dados desta empresa — a identidade do AVANTE CRM
+ * fica em /admin/identidade): nome, nome comercial, contato, responsável,
+ * logotipo da empresa e observações internas da plataforma.
+ */
 function FormCadastro({ cadastro }: { cadastro: CadastroEmpresa }) {
   return (
     <form action={salvarCadastroEmpresaAction} className={`${cartaoClass} space-y-4 p-5`}>
       <input type="hidden" name="tenant_id" value={cadastro.id} />
       <div>
         <div>
-          <h2 className={legendaClass}>Cadastro da empresa</h2>
+          <h2 className={legendaClass}>Dados da empresa</h2>
           <p className="text-xs text-premium-mudo">
             {cadastro.telefone ? formatarTelefone(cadastro.telefone) : 'Sem telefone'} · {cadastro.email ?? 'sem e-mail'} ·{' '}
             {cadastro.responsavelNome ?? 'sem responsável'}
           </p>
         </div>
       </div>
-      <label className="block text-sm">
-        <span className={labelClass}>Nome comercial</span>
-        <input name="nome" required maxLength={120} defaultValue={cadastro.nome} className={inputClass} />
-      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className={labelClass}>Nome da empresa (exibido no CRM)</span>
+          <input name="nome" required minLength={2} maxLength={120} defaultValue={cadastro.nome} className={inputClass} />
+        </label>
+        <label className="block text-sm">
+          <span className={labelClass}>Nome comercial (fantasia)</span>
+          <input name="nome_comercial" maxLength={120} defaultValue={cadastro.nomeComercial ?? ''} className={inputClass} />
+        </label>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={labelClass}>Telefone</span>
@@ -325,8 +335,20 @@ function FormCadastro({ cadastro }: { cadastro: CadastroEmpresa }) {
         <input name="responsavel_nome" maxLength={120} defaultValue={cadastro.responsavelNome ?? ''} className={inputClass} />
       </label>
       <CampoLogotipo logoUrl={cadastro.logoUrl} nome={cadastro.nome} />
+      <label className="block text-sm">
+        <span className={labelClass}>Observações e informações gerais</span>
+        <textarea
+          name="observacoes"
+          rows={4}
+          maxLength={4000}
+          defaultValue={cadastro.observacoes ?? ''}
+          className={inputClass}
+          placeholder="Contrato, contexto, contatos extras…"
+        />
+        <span className="mt-1 block text-xs text-premium-mudo">Interno da Rio X7: só o Super Admin vê. A empresa não tem acesso a este campo.</span>
+      </label>
       <button type="submit" className={botaoPrimarioClass}>
-        Salvar cadastro
+        Salvar dados da empresa
       </button>
     </form>
   )
