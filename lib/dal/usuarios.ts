@@ -104,6 +104,8 @@ export async function obterUsuario(id: string): Promise<Usuario | null> {
   return data && membro ? paraUsuario({ ...data, role: membro.role, ativo: membro.ativo }) : null
 }
 
+export const MSG_VINCULO_SUPER_ADMIN = 'Este usuário é o Super Admin da plataforma: o vínculo dele só é alterado pelo painel global.'
+
 /**
  * Papel e acesso NA EMPRESA (vínculo em `tenant_memberships`), via
  * `definir_membro_tenant` — o banco exige `admin_empresa` da empresa e mantém
@@ -112,6 +114,11 @@ export async function obterUsuario(id: string): Promise<Usuario | null> {
 async function definirVinculo(id: string, papel: Papel, ativo: boolean): Promise<ResultadoUsuario> {
   const [supabase, empresa, membros] = await Promise.all([createClient(), getEmpresaAtual(), membrosDaEmpresa()])
   const atual = membros.get(id)
+  // Vínculo de Super Admin: só o próprio Super Admin da plataforma (acesso
+  // global) mexe. O banco recusa de novo (tenant_memberships_protege_super_admin).
+  if (atual?.superAdmin && !empresa.acessoGlobal) {
+    return { ok: false, campo: 'role', mensagem: MSG_VINCULO_SUPER_ADMIN }
+  }
   // admin_empresa aparece como "gerente" na tela; mantê-lo gerente não o rebaixa.
   const papelEmpresa = atual?.papel === 'admin_empresa' && papel === 'gerente' ? 'admin_empresa' : papel
 
@@ -122,6 +129,9 @@ async function definirVinculo(id: string, papel: Papel, ativo: boolean): Promise
     p_ativo: ativo,
   })
   if (!error) return { ok: true, id }
+  if (error.code === '42501' && error.message.includes('Super Admin')) {
+    return { ok: false, campo: 'role', mensagem: MSG_VINCULO_SUPER_ADMIN }
+  }
   if (error.code === '42501') {
     return { ok: false, campo: 'role', mensagem: 'Somente o administrador da empresa altera papel e acesso.' }
   }
@@ -252,6 +262,10 @@ export async function editarUsuario(
   const eu = await exigirGerente()
   const atual = await obterUsuario(id)
   if (!atual) return { ok: false, mensagem: 'Usuário não encontrado.' }
+  const [membro, empresa] = await Promise.all([membrosDaEmpresa().then((m) => m.get(id)), getEmpresaAtual()])
+  if (membro?.superAdmin && !empresa.acessoGlobal) {
+    return { ok: false, campo: 'role', mensagem: MSG_VINCULO_SUPER_ADMIN }
+  }
 
   if (id === eu.id && input.role !== 'gerente') {
     return { ok: false, campo: 'role', mensagem: 'Você não pode tirar o próprio perfil de administrador.' }
