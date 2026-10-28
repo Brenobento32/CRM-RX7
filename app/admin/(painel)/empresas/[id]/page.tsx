@@ -20,6 +20,7 @@ import {
   obterEmpresa,
   type CadastroEmpresa,
 } from '@/lib/dal/super-admin'
+import { integracoesDaEmpresaNoPainel } from '@/lib/dal/integracoes-oficiais'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { formatarData, formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 import { CICLOS, ROTULO_STATUS_ASSINATURA, STATUS_ASSINATURA } from '@/lib/validations/super-admin'
@@ -51,11 +52,12 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
   if (!empresa) notFound()
 
   const assinante = empresa.tipo === 'assinante'
-  const [planos, historico, auditoria, cadastro] = await Promise.all([
+  const [planos, historico, auditoria, cadastro, integracoes] = await Promise.all([
     listarPlanos(),
     assinante ? historicoAssinatura(id) : Promise.resolve([]),
     listarAuditoria(id, 50),
     obterCadastroEmpresa(id),
+    integracoesDaEmpresaNoPainel(id),
   ])
   const suspensa = empresa.status === 'suspenso'
 
@@ -122,6 +124,31 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
         <Dado rotulo="Usuários ativos" valor={String(empresa.usuarios_ativos)} />
         <Dado rotulo="Integrações em uso" valor={String(empresa.integracoes_em_uso)} />
         <Dado rotulo="Administradores" valor={empresa.administradores.join(', ') || '—'} />
+      </section>
+
+      {/* Conexões oficiais (Google Sheets / WhatsApp): só situação, nunca credenciais. Para mexer, "Acessar CRM" (auditado). */}
+      <section className={`${cartaoClass} space-y-3 p-5`}>
+        <h2 className={legendaClass}>Conexões oficiais (Google Sheets e WhatsApp)</h2>
+        {integracoes.length === 0 ? (
+          <p className="text-sm text-premium-mudo">Nenhuma conexão oficial nesta empresa.</p>
+        ) : (
+          <ul className="divide-y divide-premium-borda-suave text-sm">
+            {integracoes.map((i, n) => (
+              <li key={n} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <span>
+                  <span className="font-medium">{i.nome}</span>{' '}
+                  <span className="text-xs text-premium-mudo">{i.tipo === 'google_sheets' ? 'Google Sheets' : 'WhatsApp oficial'}</span>
+                </span>
+                <span className="text-xs text-premium-secundario">
+                  {i.situacao}
+                  {i.ultimaAtividade ? ` · ${formatarDataHoraCompleta(i.ultimaAtividade)}` : ''}
+                  {i.ultimoErro ? ` · erro: ${i.ultimoErro}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-premium-mudo">Para conectar, pausar ou alterar, use &quot;Acessar CRM&quot;: a ação fica na auditoria da empresa.</p>
       </section>
 
       {!assinante ? (

@@ -6,7 +6,7 @@ import { somenteDigitos } from '@/lib/utils/documentos'
 
 /** Validação dos formulários do Super Admin. O banco revalida tudo (permissão, arquivo, limites). */
 
-export const RECURSOS = ['funis_multiplos', 'metas', 'agenda_google', 'ingestao_leads', 'whatsapp', 'relatorios'] as const
+export const RECURSOS = ['funis_multiplos', 'metas', 'agenda_google', 'ingestao_leads', 'whatsapp', 'relatorios', 'meta_conversoes'] as const
 export type Recurso = (typeof RECURSOS)[number]
 
 export const ROTULO_RECURSO: Record<Recurso, string> = {
@@ -16,6 +16,7 @@ export const ROTULO_RECURSO: Record<Recurso, string> = {
   ingestao_leads: 'Webhook de leads',
   whatsapp: 'WhatsApp',
   relatorios: 'Relatórios',
+  meta_conversoes: 'Conversões Meta Ads (CRM)',
 }
 
 /**

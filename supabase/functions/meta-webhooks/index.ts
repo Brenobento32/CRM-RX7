@@ -108,8 +108,14 @@ async function processarLeadgen(corpo: unknown): Promise<boolean> {
   return falhou
 }
 
-/** WhatsApp: cada contato que escreveu vira (ou atualiza) um lead da empresa do número. */
+/**
+ * WhatsApp: DESATIVADO aqui. O WhatsApp oficial passou para a Edge Function
+ * `integracoes` (/whatsapp/webhook), que grava a conversa, a mensagem e o lead
+ * num passo só (idempotente pelo ID da Meta). Manter os dois ligados criaria o
+ * lead duas vezes. Esta função fica só para referência do formato antigo.
+ */
 async function processarWhatsapp(corpo: unknown) {
+  if (corpo) return
   for (const c of extrairContatosWhatsapp(corpo)) {
     const fonte = await fontePorProvedor('whatsapp_cloud', c.phoneNumberId)
     if (!fonte) continue

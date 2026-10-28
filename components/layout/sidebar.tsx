@@ -20,11 +20,14 @@ export function Sidebar({
   usuario,
   empresa,
   superAdmin = false,
+  ocultar = [],
 }: {
   usuario: UsuarioAtual
   empresa: EmpresaAtual
   /** Só o Super Admin da Rio X7 troca de empresa pelo menu; contratantes nem veem o link. */
   superAdmin?: boolean
+  /** Itens do menu escondidos (ex.: Conversas enquanto o WhatsApp oficial não foi liberado). */
+  ocultar?: string[]
 }) {
   return (
     <>
@@ -66,7 +69,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <SidebarNav papel={usuario.role} />
+      <SidebarNav papel={usuario.role} ocultar={ocultar} />
 
       <div className="border-t border-premium-borda p-3">
         <BotaoRecolherSidebar variant="linha" />

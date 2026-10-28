@@ -4,7 +4,7 @@ import { CARGOS_POR_AREA, type Cargo } from '@/lib/validations/usuario'
 export type NomeIcone =
   | 'inicio' | 'agenda' | 'crm' | 'kanban' | 'metricas' | 'leads' | 'configuracoes' | 'etapas' | 'nichos'
   | 'servicos' | 'clientes' | 'metas' | 'propostas' | 'abertas' | 'fechadas' | 'relatorios' | 'vendas'
-  | 'conversao' | 'exportacao' | 'empresa' | 'usuarios' | 'integracoes' | 'assinatura'
+  | 'conversao' | 'exportacao' | 'empresa' | 'usuarios' | 'integracoes' | 'assinatura' | 'conversas'
 
 /**
  * Item do menu lateral: link (`href`) ou grupo (`filhos`), em até três níveis
@@ -53,6 +53,8 @@ export const MENU: NoMenu[] = [
     ],
   },
   { chave: 'clientes', href: '/clientes', rotulo: 'Clientes', icone: 'clientes' },
+  // WhatsApp oficial: todos os cargos; o banco mostra só as conversas da carteira de cada um.
+  { chave: 'conversas', href: '/conversas', rotulo: 'Conversas', icone: 'conversas' },
   { chave: 'metas', href: '/metas', rotulo: 'Metas', icone: 'metas', cargos: CARGOS_POR_AREA.metas },
   {
     chave: 'propostas',

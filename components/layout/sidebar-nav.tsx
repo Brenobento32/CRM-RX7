@@ -14,6 +14,7 @@ import {
   IconeClientes,
   IconeConfiguracoes,
   IconeConversao,
+  IconeConversas,
   IconeCrm,
   IconeEmpresa,
   IconeEtapas,
@@ -41,7 +42,7 @@ const ICONES: Record<NomeIcone, Icone> = {
   servicos: IconeServicos, clientes: IconeClientes, metas: IconeMetas, propostas: IconePropostas,
   abertas: IconeAbertas, fechadas: IconeFechadas, relatorios: IconeRelatorios, vendas: IconeVendas,
   conversao: IconeConversao, exportacao: IconeExportacao, empresa: IconeEmpresa, usuarios: IconeClientes,
-  integracoes: IconeIntegracoes, assinatura: IconeAssinatura,
+  integracoes: IconeIntegracoes, assinatura: IconeAssinatura, conversas: IconeConversas,
 }
 
 type No = NoMenu
@@ -68,10 +69,10 @@ const subLinha = 'flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text
  * passar o mouse ou focar nele abre um painel flutuante com a árvore toda
  * (`group-hover` / `group-focus-within`, então o teclado também chega lá).
  */
-export function SidebarNav({ papel }: { papel: Cargo }) {
+export function SidebarNav({ papel, ocultar = [] }: { papel: Cargo; ocultar?: string[] }) {
   const pathname = useRotaInterna()
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
-  const itens = filtrarMenu(papel)
+  const itens = filtrarMenu(papel).filter((n) => !ocultar.includes(n.chave))
   const ativo = hrefAtivoMenu(pathname, itens)
 
   const estaAberto = (n: No) => abertos[n.chave] ?? contemMenu(n, ativo)

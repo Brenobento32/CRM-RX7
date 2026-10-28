@@ -43,9 +43,9 @@ export const CATALOGO: ItemCatalogo[] = [
   {
     tipo: 'google_sheets',
     nome: 'Google Sheets',
-    descricao: 'Um Apps Script na planilha da empresa envia cada nova linha para o CRM.',
-    situacao: 'pronto',
-    rotuloSituacao: 'Disponível (requer o Apps Script na planilha)',
+    descricao: 'Conecte a conta Google da empresa, escolha a planilha e a aba: as linhas novas entram no funil escolhido. Sem Apps Script.',
+    situacao: 'requer_configuracao',
+    rotuloSituacao: 'Conexão oficial do Google (OAuth)',
     usaToken: true,
     exigeValidacao: false,
   },
@@ -70,9 +70,9 @@ export const CATALOGO: ItemCatalogo[] = [
   {
     tipo: 'whatsapp_cloud',
     nome: 'WhatsApp oficial (Cloud API)',
-    descricao: 'Quem escreve para o número oficial da empresa vira lead.',
+    descricao: 'Conecte o número oficial pelo cadastro da Meta: quem escreve vira lead e a equipe responde pelo AVANTE, só dentro da janela gratuita de 24 h.',
     situacao: 'requer_configuracao',
-    rotuloSituacao: 'Requer app da Meta, número oficial, token e validação',
+    rotuloSituacao: 'Conexão oficial da Meta (Embedded Signup)',
     usaToken: false,
     exigeValidacao: true,
   },
@@ -88,6 +88,16 @@ export const CATALOGO: ItemCatalogo[] = [
 ]
 
 export const TIPOS_FONTE: TipoFonte[] = ['formulario_rx7', 'webhook', 'google_sheets', 'respondi', 'meta_lead_ads', 'whatsapp_cloud']
+
+/**
+ * Tipos criados pelo formulário de token/configuração manual. Google Sheets e
+ * WhatsApp oficial têm conexão própria (OAuth do Google / cadastro da Meta),
+ * com credenciais guardadas só no servidor — não entram aqui.
+ */
+export const TIPOS_FONTE_MANUAIS: TipoFonte[] = ['formulario_rx7', 'webhook', 'respondi', 'meta_lead_ads']
+
+/** Tipos com conexão oficial (telas próprias em Integrações). */
+export const TIPOS_CONEXAO_OFICIAL: TipoFonte[] = ['google_sheets', 'whatsapp_cloud']
 
 export function itemDoTipo(tipo: TipoFonte): ItemCatalogo {
   return CATALOGO.find((i) => i.tipo === tipo)!

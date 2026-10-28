@@ -11,9 +11,12 @@ import { Selo, type TomSelo } from '@/components/ui/selo'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarResponsaveis } from '@/lib/dal/clientes'
 import { listarFontes, opcoesDeDestino, podeGerirFontes } from '@/lib/dal/fontes-leads'
+import { consumoWhatsapp, integracoesHabilitadas, listarContasGoogle, listarIntegracoesOficiais, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
+import { conexaoMetaAds, franquiaWhatsapp } from '@/lib/dal/meta-conversoes'
 import { CATALOGO, itemDoTipo, situacaoDaFonte } from '@/lib/integracoes/catalogo'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
+import { ConexoesOficiais } from './_components/conexoes-oficiais'
 import { NovaFonte } from './_components/nova-fonte'
 
 export const metadata: Metadata = {
@@ -40,14 +43,25 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') notFound()
 
-  const [fontes, podeGerir, opcoes, responsaveis, params] = await Promise.all([
+  const [todasFontes, podeGerir, opcoes, responsaveis, params, oficiais, contas, consumo, podeConectar, franquia, metaAds, habilitadas] = await Promise.all([
     listarFontes(),
     podeGerirFontes(),
     opcoesDeDestino(),
     listarResponsaveis(),
     searchParams,
+    listarIntegracoesOficiais(),
+    listarContasGoogle(),
+    consumoWhatsapp(30),
+    podeAdministrarIntegracoes(),
+    franquiaWhatsapp(),
+    conexaoMetaAds(),
+    integracoesHabilitadas(),
   ])
   const erro = typeof params.erro === 'string' ? params.erro : null
+  const ok = typeof params.ok === 'string' ? params.ok : null
+  // Conexões oficiais (Google/Meta) têm painel próprio; aqui ficam as fontes por token/formulário.
+  const idsOficiais = new Set(oficiais.map((o) => o.fonteId))
+  const fontes = todasFontes.filter((f) => !idsOficiais.has(f.id))
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -64,6 +78,19 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
         }
       />
       {erro && <Aviso tom="erro">{erro}</Aviso>}
+      {ok && <Aviso tom="sucesso">{ok}</Aviso>}
+
+      <ConexoesOficiais
+        integracoes={oficiais}
+        contas={contas}
+        consumo={consumo}
+        opcoes={opcoes}
+        responsaveis={responsaveis.map((r) => ({ id: r.id, nome: r.nome }))}
+        podeGerir={podeConectar}
+        franquia={franquia}
+        metaAds={metaAds}
+        habilitadas={habilitadas}
+      />
 
       <section aria-labelledby="catalogo-titulo" className="space-y-3">
         <h2 id="catalogo-titulo" className="text-[15px] font-semibold tracking-tight text-premium-texto">

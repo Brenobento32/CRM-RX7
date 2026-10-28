@@ -11,6 +11,7 @@ import { ShellApp } from '@/components/layout/shell-app'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { SincronizaUrlEmpresa } from '@/components/layout/sincroniza-url-empresa'
+import { integracoesHabilitadas } from '@/lib/dal/integracoes-oficiais'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { getEmpresaAtual } from '@/lib/dal/empresa'
 import { isSuperAdmin } from '@/lib/dal/super-admin'
@@ -28,11 +29,12 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [usuario, empresa, cookieStore, superAdmin] = await Promise.all([
+  const [usuario, empresa, cookieStore, superAdmin, habilitadas] = await Promise.all([
     getUsuarioAtual(),
     getEmpresaAtual(),
     cookies(),
     isSuperAdmin(),
+    integracoesHabilitadas(),
   ])
   const recolhida = cookieStore.get(COOKIE_SIDEBAR)?.value === SIDEBAR_RECOLHIDA
   const temaClaro = cookieStore.get(COOKIE_TEMA)?.value === TEMA_CLARO
@@ -41,7 +43,7 @@ export default async function AppLayout({
     <ShellApp
       recolhidaInicial={recolhida}
       temaClaroInicial={temaClaro}
-      sidebar={<Sidebar usuario={usuario} empresa={empresa} superAdmin={superAdmin} />}
+      sidebar={<Sidebar usuario={usuario} empresa={empresa} superAdmin={superAdmin} ocultar={habilitadas.whatsappOficial ? [] : ['conversas']} />}
       topo={<Topbar usuario={usuario} />}
     >
       <SincronizaUrlEmpresa slug={empresa.slug} />

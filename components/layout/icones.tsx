@@ -54,6 +54,13 @@ export const IconeClientes = (p: Props) => (
   </Svg>
 )
 
+export const IconeConversas = (p: Props) => (
+  <Svg {...p}>
+    <path d="M4 5.5h16v10H9l-5 4v-14Z" />
+    <path d="M8 9.5h8M8 12.5h5" />
+  </Svg>
+)
+
 export const IconeRelatorios = (p: Props) => (
   <Svg {...p}>
     <path d="M3 3v18h18" />

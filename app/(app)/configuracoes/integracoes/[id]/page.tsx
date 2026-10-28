@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { Aviso, AvisoDaUrl } from '@/components/ui/aviso'
@@ -30,6 +30,7 @@ import {
 } from '@/lib/actions/fontes-leads'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarResponsaveis } from '@/lib/dal/clientes'
+import { listarIntegracoesOficiais } from '@/lib/dal/integracoes-oficiais'
 import { enderecosIntegracao, listarEventos, obterFonte, opcoesDeDestino, podeGerirFontes, type Fonte } from '@/lib/dal/fontes-leads'
 import { serverEnv } from '@/lib/env/server'
 import { itemDoTipo, situacaoDaFonte } from '@/lib/integracoes/catalogo'
@@ -57,6 +58,10 @@ export default async function FontePage({ params, searchParams }: Props) {
 
   const fonte = await obterFonte(id)
   if (!fonte) notFound()
+  // Conexão oficial (Google/Meta): gerenciada no painel próprio, nunca pelo formulário de token.
+  if ((await listarIntegracoesOficiais()).some((o) => o.fonteId === fonte.id)) {
+    redirect(fonte.tipo === 'whatsapp_cloud' ? '/configuracoes/integracoes#whatsapp-oficial' : '/configuracoes/integracoes#google-sheets')
+  }
   const [eventos, podeGerir, opcoes, responsaveis] = await Promise.all([
     listarEventos(id),
     podeGerirFontes(),

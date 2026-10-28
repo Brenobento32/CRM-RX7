@@ -14,7 +14,7 @@ import {
   validarComProvedor,
   type DadosFonte,
 } from '@/lib/dal/fontes-leads'
-import { TIPOS_FONTE, type TipoFonte } from '@/lib/integracoes/catalogo'
+import { TIPOS_FONTE, TIPOS_FONTE_MANUAIS, type TipoFonte } from '@/lib/integracoes/catalogo'
 
 /**
  * Ações das fontes de leads. O banco decide a permissão (admin_empresa da
@@ -67,7 +67,8 @@ export type EstadoToken = { erro?: string; token?: string | null; id?: string }
 
 export async function criarFonteAction(_anterior: EstadoToken, formData: FormData): Promise<EstadoToken> {
   const tipo = texto(formData, 'tipo') as TipoFonte
-  if (!TIPOS_FONTE.includes(tipo)) return { erro: 'Escolha o tipo de fonte.' }
+  // Google Sheets e WhatsApp oficial só pela conexão oficial (credencial no servidor).
+  if (!TIPOS_FONTE_MANUAIS.includes(tipo)) return { erro: 'Escolha o tipo de fonte.' }
   const dados = dadosDoFormulario(tipo, formData)
   if (typeof dados === 'string') return { erro: dados }
 

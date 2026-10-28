@@ -6,7 +6,7 @@ import { useActionState, useState } from 'react'
 import { botaoPrimarioClass, inputClass, caixaErroClass, caixaSucessoClass } from '@/components/ui/estilos'
 import { criarFonteAction, type EstadoToken } from '@/lib/actions/fontes-leads'
 import type { OpcoesFonte } from '@/lib/dal/fontes-leads'
-import { CATALOGO, TIPOS_FONTE, type TipoFonte } from '@/lib/integracoes/catalogo'
+import { CATALOGO, TIPOS_FONTE_MANUAIS, type TipoFonte } from '@/lib/integracoes/catalogo'
 
 import { CamposFonte } from './campos-fonte'
 import { TokenUmaVez } from './token-uma-vez'
@@ -32,7 +32,7 @@ export function NovaFonte({ opcoes, responsaveis }: { opcoes: OpcoesFonte; respo
       <label className="block text-sm sm:col-span-2">
         <span className="mb-1 block font-medium">Tipo</span>
         <select name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as TipoFonte)} className={inputClass}>
-          {TIPOS_FONTE.map((t) => (
+          {TIPOS_FONTE_MANUAIS.map((t) => (
             <option key={t} value={t}>
               {CATALOGO.find((i) => i.tipo === t)?.nome}
             </option>

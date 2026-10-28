@@ -42,7 +42,7 @@ describe('menu lateral por cargo', () => {
 
   it('Atendente: só Funil e Leads no CRM; sem Métricas, Metas, Propostas, Relatórios e Configurações', () => {
     const m = menuDoCargo('atendente')
-    expect(m).toEqual(['Início /', 'Agenda /agenda', 'CRM', '  Funil /funil', '  Leads /funil/leads', 'Clientes /clientes'])
+    expect(m).toEqual(['Início /', 'Agenda /agenda', 'CRM', '  Funil /funil', '  Leads /funil/leads', 'Clientes /clientes', 'Conversas /conversas'])
   })
 
   it('Propostas só para Gerente, Vendedor e Closer; Metas e Relatórios também para SDR', () => {
