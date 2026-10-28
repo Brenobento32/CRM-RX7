@@ -136,6 +136,9 @@ begin
   perform public._servico();
   n_a := public.whatsapp_salvar_numero(t_a, g_a, '510000000000001', '610000000000001', '+55 11 4100-0001', 'Alfa', 'token-meta-alfa-xxxx', 'WA A', fa2, ea2, c_a);
   n_b := public.whatsapp_salvar_numero(t_b, g_b, '510000000000002', '610000000000002', '+55 21 4100-0002', 'Beta', 'token-meta-beta-xxxx', 'WA B', fb1, eb1, g_b);
+  -- Número novo fica 'pendente_registro' até a Meta confirmar o registro (migration 20261103090000).
+  perform public.whatsapp_registro_resultado(n_a, true, null);
+  perform public.whatsapp_registro_resultado(n_b, true, null);
   select fonte_id into fw from public.whatsapp_numeros where id = n_a;
 
   -- ================================================================= F. franquia

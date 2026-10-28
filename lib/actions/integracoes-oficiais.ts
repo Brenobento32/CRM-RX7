@@ -145,24 +145,46 @@ export async function alterarDestinoAction(fd: FormData): Promise<void> {
 }
 
 // ------------------------------------------------------------------ WhatsApp
-export async function configWhatsappAction(): Promise<Resultado<{ disponivel: boolean; appId: string | null; configId: string | null; simulado?: boolean; urlCadastro?: string }>> {
+export async function configWhatsappAction(): Promise<
+  Resultado<{ disponivel: boolean; appId: string | null; configId: string | null; versaoGraph?: string | null; simulado?: boolean; urlCadastro?: string }>
+> {
   return chamarIntegracoes('/whatsapp/config')
 }
+
+/** PIN de 6 números do registro na Cloud API: só repassado à Meta pelo servidor; nunca gravado nem registrado em log. */
+const pin = z.string().regex(/^\d{6}$/, 'O PIN tem 6 números.')
 
 const esquemaNumero = z.object({
   code: z.string().min(4).max(2000),
   wabaId: z.string().regex(/^\d{5,30}$/),
   phoneNumberId: z.string().regex(/^\d{5,30}$/),
+  modo: z.enum(['cloud_api', 'coexistencia']).default('cloud_api'),
+  // Opcional: sem PIN o número fica "Falta registrar" e o Administrador registra pelo painel.
+  pin: pin.optional(),
   nome: z.string().trim().max(80).optional(),
   funil: z.uuid('Escolha o funil.'),
   etapa: z.uuid('Escolha a etapa inicial.'),
   responsavel: z.uuid('Escolha o responsável.'),
 })
 
-export async function concluirWhatsappAction(dados: z.input<typeof esquemaNumero>): Promise<Resultado<{ numero: string; numeroExibicao: string | null; nomeVerificado: string | null }>> {
+export type SituacaoConexao = { numero: string; situacao: 'conectado' | 'pendente_registro'; pendencia?: string; numeroExibicao?: string | null; nomeVerificado?: string | null; modo?: 'cloud_api' | 'coexistencia' }
+
+export async function concluirWhatsappAction(dados: z.input<typeof esquemaNumero>): Promise<Resultado<SituacaoConexao>> {
   const p = esquemaNumero.safeParse(dados)
   if (!p.success) return invalido(p.error.issues[0]?.message ?? 'Conclua a autorização da Meta.')
-  const r = await chamarIntegracoes<{ numero: string; numeroExibicao: string | null; nomeVerificado: string | null }>('/whatsapp/concluir', p.data)
+  // Coexistência não usa PIN: não repassa nada além do necessário.
+  const corpo = p.data.modo === 'coexistencia' ? { ...p.data, pin: undefined } : p.data
+  const r = await chamarIntegracoes<SituacaoConexao>('/whatsapp/concluir', corpo)
+  if (r.ok) revalidatePath(LISTA, 'layout')
+  return r
+}
+
+/** Nova tentativa de registro de um número pendente (assistente ou painel). */
+export async function registrarWhatsappAction(numero: string, pinInformado: string): Promise<Resultado<SituacaoConexao>> {
+  if (!uuid.safeParse(numero).success) return invalido('Número inválido.')
+  const p = pin.safeParse(pinInformado)
+  if (!p.success) return invalido('O PIN tem 6 números.')
+  const r = await chamarIntegracoes<SituacaoConexao>('/whatsapp/registrar', { numero, pin: p.data })
   if (r.ok) revalidatePath(LISTA, 'layout')
   return r
 }

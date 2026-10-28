@@ -18,6 +18,7 @@ import type { ConexaoMetaAds, FranquiaWhatsapp } from '@/lib/dal/meta-conversoes
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
 import { AutorizarArquivo } from './autorizar-arquivo'
+import { RegistrarNumero } from './registrar-numero'
 import { SeletorDestino, type OpcoesDestino } from './seletor-destino'
 
 const SITUACAO: Record<string, { rotulo: string; tom: TomSelo }> = {
@@ -27,6 +28,7 @@ const SITUACAO: Record<string, { rotulo: string; tom: TomSelo }> = {
   erro: { rotulo: 'Com erro (tentando de novo)', tom: 'vermelho' },
   erro_autorizacao: { rotulo: 'Reconectar conta Google', tom: 'vermelho' },
   desconectada: { rotulo: 'Desconectada', tom: 'neutro' },
+  pendente_registro: { rotulo: 'Falta registrar o número', tom: 'ambar' },
   conectado: { rotulo: 'Conectado', tom: 'verde' },
   pausado: { rotulo: 'Pausado', tom: 'neutro' },
   desconectado: { rotulo: 'Desconectado', tom: 'neutro' },
@@ -461,6 +463,7 @@ function LinhaNumero({
       </dl>
       {perto && <p className="text-xs text-amber-700 dark:text-amber-300">Perto do limite diário de respostas deste número: ao atingir, os envios param até amanhã.</p>}
       {n.ultimoErro && <p className="text-xs text-red-700 dark:text-red-300">{n.ultimoErro}</p>}
+      {podeGerir && n.numeroId && n.situacao === 'pendente_registro' && <RegistrarNumero numeroId={n.numeroId} />}
       {podeGerir && n.numeroId && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {n.bloqueadoPorCobranca && (
@@ -475,7 +478,7 @@ function LinhaNumero({
               </BotaoConfirmar>
             </form>
           )}
-          {n.situacao !== 'desconectado' && (
+          {n.situacao !== 'desconectado' && n.situacao !== 'pendente_registro' && (
             <form action={acaoWhatsappAction}>
               <input type="hidden" name="numero" value={n.numeroId} />
               <input type="hidden" name="acao" value={n.situacao === 'pausado' ? 'retomar' : 'pausar'} />

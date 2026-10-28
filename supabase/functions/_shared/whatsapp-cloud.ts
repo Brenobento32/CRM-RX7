@@ -180,6 +180,58 @@ export async function conferirNumero(
   return { numeroExibicao: texto(numero.display_phone_number), nomeVerificado: texto(numero.verified_name) }
 }
 
+/**
+ * Registro do número na Cloud API (passo obrigatório depois do Embedded Signup,
+ * exceto coexistência): POST /<PHONE_NUMBER_ID>/register com PIN de 6 dígitos,
+ * que vira a verificação em duas etapas do número.
+ *
+ * O PIN só passa por aqui: não vai para log, mensagem de erro nem banco. Os erros
+ * da Meta viram textos nossos (o texto da Meta não é repassado, por segurança).
+ */
+export const PIN_VALIDO = /^\d{6}$/
+
+const ERROS_REGISTRO: Record<string, string> = {
+  '133005': 'PIN incorreto. Se este número já tem verificação em duas etapas, use o PIN atual dele (ou desative e crie um novo no WhatsApp Manager).',
+  '133006': 'A Meta ainda precisa verificar este número (código por SMS ou ligação). Conclua a verificação na janela da Meta e tente de novo.',
+  '133008': 'Muitas tentativas de PIN para este número. Aguarde o tempo indicado pela Meta e tente de novo.',
+  '133009': 'PIN enviado rápido demais. Aguarde alguns instantes e tente de novo.',
+  '133015': 'Este número foi removido há pouco e a Meta ainda está concluindo a remoção. Aguarde 5 minutos e tente de novo.',
+  '133016': 'A Meta bloqueou novos pedidos de registro deste número por 72 horas (limite de 10 pedidos em 72 h, contando os que falharam). O AVANTE não tentará de novo antes disso.',
+}
+
+export function mensagemDeRegistro(codigo: string): string {
+  return ERROS_REGISTRO[codigo] ?? `A Meta recusou o registro do número (código ${codigo.replace(/[^0-9a-z_]/gi, '').slice(0, 12) || 'desconhecido'}). Tente de novo em instantes.`
+}
+
+export async function registrarNumero(
+  buscar: Busca,
+  cfg: Pick<ConfigMeta, 'graphUrl'>,
+  token: string,
+  phoneNumberId: string,
+  pin: string,
+): Promise<void> {
+  if (!PIN_VALIDO.test(pin)) throw new ErroMeta('pin_invalido', 'O PIN precisa ter exatamente 6 números.')
+  let r: Response
+  try {
+    r = await buscar(`${cfg.graphUrl}/${encodeURIComponent(phoneNumberId)}/register`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+    })
+  } catch {
+    throw new ErroMeta('rede', 'Não foi possível falar com a Meta.')
+  }
+  if (r.ok) return
+  let codigo = String(r.status)
+  try {
+    const e = obj(((await r.json()) as Obj)?.error)
+    if (e?.code !== undefined) codigo = String(e.code)
+  } catch {
+    /* corpo sem JSON */
+  }
+  throw new ErroMeta(codigo, mensagemDeRegistro(codigo))
+}
+
 /** Inscreve o app da plataforma nos eventos da conta (webhook de mensagens). */
 export async function inscreverApp(buscar: Busca, cfg: Pick<ConfigMeta, 'graphUrl'>, token: string, wabaId: string): Promise<void> {
   await chamarGraph(buscar, `${cfg.graphUrl}/${encodeURIComponent(wabaId)}/subscribed_apps`, {

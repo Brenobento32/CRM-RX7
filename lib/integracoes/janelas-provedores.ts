@@ -146,69 +146,156 @@ export async function escolherPlanilhaNoGoogle(acesso: AcessoSeletor, planilhaSu
   })
 }
 
-// ------------------------------------------------------------------ Embedded Signup (Meta)
-export type ConfigMeta = { appId: string | null; configId: string | null; simulado?: boolean; urlCadastro?: string }
-export type CadastroMeta = { code: string; wabaId: string; phoneNumberId: string }
+// ------------------------------------------------------------------ Embedded Signup v4 (Meta)
+export type ConfigMeta = { appId: string | null; configId: string | null; versaoGraph?: string | null; simulado?: boolean; urlCadastro?: string }
+/** 'cloud_api' = número novo (pede registro com PIN); 'coexistencia' = número que já usa o app WhatsApp Business. */
+export type ModoConexao = 'cloud_api' | 'coexistencia'
+export type CadastroMeta = { code: string; wabaId: string; phoneNumberId: string; modo: ModoConexao }
+export type ResultadoCadastroMeta =
+  | { tipo: 'concluido'; cadastro: CadastroMeta }
+  | { tipo: 'sem_numero' }
+  | { tipo: 'cancelado'; etapa: string | null }
+  | { tipo: 'erro'; mensagem: string }
+  | { tipo: 'nao_suportado' }
+type Final = Exclude<ResultadoCadastroMeta, { tipo: 'concluido' }>
 
-type Sessao = Partial<CadastroMeta>
-function lerEventoMeta(d: unknown): Sessao | 'fim' | null {
+export type EventoCadastro =
+  | { tipo: 'codigo'; code: string }
+  | { tipo: 'ids'; wabaId: string; phoneNumberId: string; modo: ModoConexao }
+  | { tipo: 'final'; resultado: Final }
+
+const ID_META = /^\d{5,30}$/
+
+/**
+ * Mensagem da janela da Meta → evento (v4: `type: 'WA_EMBEDDED_SIGNUP'`).
+ *  - FINISH: número novo escolhido (Cloud API, exige registro com PIN);
+ *  - FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING: número do app WhatsApp Business (coexistência);
+ *  - FINISH_ONLY_WABA: conta criada, mas nenhum número escolhido;
+ *  - outros FINISH_* (migração OBO, só acesso à API): fluxos que o AVANTE não usa;
+ *  - CANCEL: abandonado (`current_step`) ou erro relatado pela Meta (`error_message`);
+ *  - ERROR: falha na janela.
+ */
+export function lerEventoCadastro(d: unknown): EventoCadastro | null {
   if (!d || typeof d !== 'object') return null
-  const o = d as { type?: string; event?: string; data?: { phone_number_id?: string; waba_id?: string }; origem?: string; code?: string }
-  if (o.origem === 'cadastro-meta' && o.code) return { code: o.code }
-  if (o.type !== 'WA_EMBEDDED_SIGNUP') return null
-  if (o.event === 'CANCEL' || o.event === 'ERROR') return 'fim'
-  if (o.event?.startsWith('FINISH') && o.data?.waba_id) {
-    return { wabaId: String(o.data.waba_id), ...(o.data.phone_number_id ? { phoneNumberId: String(o.data.phone_number_id) } : {}) }
+  const o = d as {
+    type?: string
+    event?: string
+    origem?: string
+    code?: string
+    data?: { phone_number_id?: unknown; waba_id?: unknown; current_step?: unknown; error_message?: unknown }
   }
+  if (o.origem === 'cadastro-meta' && typeof o.code === 'string' && o.code) return { tipo: 'codigo', code: o.code }
+  if (o.type !== 'WA_EMBEDDED_SIGNUP' || typeof o.event !== 'string') return null
+  const dados = o.data ?? {}
+  if (o.event === 'CANCEL') {
+    if (typeof dados.error_message === 'string' && dados.error_message.trim()) {
+      return { tipo: 'final', resultado: { tipo: 'erro', mensagem: `A Meta interrompeu o cadastro: ${dados.error_message.trim().slice(0, 200)}` } }
+    }
+    return { tipo: 'final', resultado: { tipo: 'cancelado', etapa: typeof dados.current_step === 'string' ? dados.current_step.slice(0, 60) : null } }
+  }
+  if (o.event === 'ERROR') return { tipo: 'final', resultado: { tipo: 'erro', mensagem: 'A janela da Meta informou um erro. Tente de novo em instantes.' } }
+  if (o.event === 'FINISH_ONLY_WABA') return { tipo: 'final', resultado: { tipo: 'sem_numero' } }
+  if (o.event === 'FINISH' || o.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+    const waba = String(dados.waba_id ?? '')
+    const phone = String(dados.phone_number_id ?? '')
+    if (!ID_META.test(waba) || !ID_META.test(phone)) return { tipo: 'final', resultado: { tipo: 'sem_numero' } }
+    return { tipo: 'ids', wabaId: waba, phoneNumberId: phone, modo: o.event === 'FINISH' ? 'cloud_api' : 'coexistencia' }
+  }
+  if (o.event.startsWith('FINISH')) return { tipo: 'final', resultado: { tipo: 'nao_suportado' } }
   return null
 }
-const completo = (s: Sessao) => Boolean(s.code && s.wabaId && s.phoneNumberId)
 
-/** Abre o cadastro incorporado da Meta; devolve code + IDs (ou null se cancelado). */
-export async function cadastrarWhatsappNaMeta(cfg: ConfigMeta): Promise<CadastroMeta | null> {
+export type EstadoCadastro = { code?: string; ids?: Omit<CadastroMeta, 'code'>; final?: Final }
+
+export function aplicarEvento(e: EstadoCadastro, ev: EventoCadastro | null): EstadoCadastro {
+  if (!ev) return e
+  if (ev.tipo === 'codigo') return { ...e, code: ev.code }
+  if (ev.tipo === 'ids') return { ...e, ids: { wabaId: ev.wabaId, phoneNumberId: ev.phoneNumberId, modo: ev.modo } }
+  return e.final ? e : { ...e, final: ev.resultado }
+}
+
+/** Resultado do que chegou até agora; `encerrado` = janela fechada ou tempo esgotado. Null = ainda falta algo. */
+export function resultadoDoCadastro(e: EstadoCadastro, encerrado: boolean): ResultadoCadastroMeta | null {
+  if (e.final) return e.final
+  if (e.code && e.ids) return { tipo: 'concluido', cadastro: { code: e.code, ...e.ids } }
+  return encerrado ? { tipo: 'cancelado', etapa: null } : null
+}
+
+const VERSAO_SDK_PADRAO = 'v23.0'
+const ORIGENS_META = new Set(['https://www.facebook.com', 'https://web.facebook.com', 'https://business.facebook.com'])
+
+/**
+ * Abre o cadastro incorporado da Meta (v4: os produtos ficam na configuração do
+ * Login do Facebook para Empresas; `extras` vazio). Não lança por cancelamento:
+ * devolve o motivo, para a tela dizer o que falta.
+ */
+export async function cadastrarWhatsappNaMeta(cfg: ConfigMeta): Promise<ResultadoCadastroMeta> {
+  let estado: EstadoCadastro = {}
+  let janela: Window | null = null
+  let origemOk: (o: string) => boolean = (o) => ORIGENS_META.has(o)
+  let codigoDoLogin: Promise<string | null> | null = null
+
   if (cfg.simulado && cfg.urlCadastro) {
     const origem = new URL(cfg.urlCadastro).origin
-    const j = popup(cfg.urlCadastro, 'cadastro-meta')
-    return esperarMensagens<CadastroMeta>((o) => o === origem, j, lerEventoMeta, completo)
-  }
-  if (!cfg.appId || !cfg.configId) throw new Error('O app da Meta ainda não foi configurado na plataforma.')
-
-  const w = window as JanelaComSdks
-  await carregarScript('https://connect.facebook.net/pt_BR/sdk.js')
-  w.FB!.init({ appId: cfg.appId, autoLogAppEvents: true, xfbml: false, version: 'v23.0' })
-  // Os IDs da conta/número chegam por mensagem da janela da Meta; o code, pelo retorno do login.
-  let sessao: Sessao = {}
-  let cancelado = false
-  const ouvir = (ev: MessageEvent) => {
-    if (ev.origin !== 'https://www.facebook.com' && ev.origin !== 'https://web.facebook.com') return
-    let dados: unknown = ev.data
-    try {
-      dados = typeof dados === 'string' ? JSON.parse(dados) : dados
-    } catch {
-      return
-    }
-    const r = lerEventoMeta(dados)
-    if (r === 'fim') cancelado = true
-    else if (r) sessao = { ...sessao, ...r }
-  }
-  window.addEventListener('message', ouvir)
-  try {
-    const code = await new Promise<string | null>((ok) =>
+    origemOk = (o) => o === origem
+    janela = popup(cfg.urlCadastro, 'cadastro-meta')
+  } else {
+    if (!cfg.appId || !cfg.configId) throw new Error('O app da Meta ainda não foi configurado na plataforma.')
+    const w = window as JanelaComSdks
+    await carregarScript('https://connect.facebook.net/pt_BR/sdk.js')
+    const versao = cfg.versaoGraph && /^v\d+\.\d+$/.test(cfg.versaoGraph) ? cfg.versaoGraph : VERSAO_SDK_PADRAO
+    w.FB!.init({ appId: cfg.appId, autoLogAppEvents: true, xfbml: false, version: versao })
+    codigoDoLogin = new Promise<string | null>((ok) =>
       w.FB!.login((r) => ok(r.authResponse?.code ?? null), {
         config_id: cfg.configId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+        extras: {},
       }),
     )
-    if (!code) return null
-    sessao = { ...sessao, code }
-    const limite = Date.now() + 15000
-    while (!completo(sessao) && !cancelado && Date.now() < limite) await new Promise((ok) => setTimeout(ok, 250))
-    return completo(sessao) ? (sessao as CadastroMeta) : null
-  } finally {
-    window.removeEventListener('message', ouvir)
   }
+
+  return new Promise<ResultadoCadastroMeta>((resolver) => {
+    let encerrou = false
+    let prazo: ReturnType<typeof setTimeout> | null = null
+    const conferir = (fechado: boolean) => {
+      const r = resultadoDoCadastro(estado, fechado)
+      if (r) terminar(r)
+    }
+    const ouvir = (ev: MessageEvent) => {
+      if (!origemOk(ev.origin)) return
+      let dados: unknown = ev.data
+      if (typeof dados === 'string') {
+        try {
+          dados = JSON.parse(dados)
+        } catch {
+          return
+        }
+      }
+      estado = aplicarEvento(estado, lerEventoCadastro(dados))
+      conferir(false)
+    }
+    // Simulado: janela fechada sem concluir = cancelado (com folga para a última mensagem chegar).
+    const vigia = setInterval(() => {
+      if (janela?.closed) setTimeout(() => conferir(true), 800)
+    }, 500)
+    function terminar(r: ResultadoCadastroMeta) {
+      if (encerrou) return
+      encerrou = true
+      window.removeEventListener('message', ouvir)
+      clearInterval(vigia)
+      if (prazo) clearTimeout(prazo)
+      resolver(r)
+    }
+    window.addEventListener('message', ouvir)
+    // Real: o code chega pelo retorno do login; os IDs, por mensagem (até 15 s depois).
+    void codigoDoLogin?.then((code) => {
+      if (code) estado = { ...estado, code }
+      const r = resultadoDoCadastro(estado, !code)
+      if (r) return terminar(r)
+      prazo = setTimeout(() => conferir(true), 15000)
+    })
+  })
 }
 
 // ------------------------------------------------------------------ Meta Business Extension (Conversões do CRM)

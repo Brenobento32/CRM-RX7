@@ -196,6 +196,9 @@ begin
   perform public._servico();
   n_a := public.whatsapp_salvar_numero(t_a, g_a, '100000000000001', '200000000000001', '+55 21 3000-0001', 'Alfa', 'token-meta-alfa', 'WhatsApp Alfa', fa1, ea1, sdr_a);
   n_b := public.whatsapp_salvar_numero(t_b, g_b, '100000000000002', '200000000000002', '+55 21 3000-0002', 'Beta', 'token-meta-beta', 'WhatsApp Beta', fb1, eb1, g_b);
+  -- Número novo fica 'pendente_registro' até a Meta confirmar o registro (migration 20261103090000).
+  perform public.whatsapp_registro_resultado(n_a, true, null);
+  perform public.whatsapp_registro_resultado(n_b, true, null);
   v_r := public._recusa(format($q$select public.whatsapp_salvar_numero(%L, %L, '100000000000001', '200000000000009', null, null, 'tok', 'Roubo', %L, %L, %L)$q$, t_b, g_b, fb1, eb1, g_b));
   perform public._ok(v_r like '23505:%', '6a número já conectado a A não vai para B');
   select fonte_id into fw from public.whatsapp_numeros where id = n_a;

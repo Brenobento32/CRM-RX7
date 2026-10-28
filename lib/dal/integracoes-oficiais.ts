@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase/server'
  * `rpc()` abaixo é tipado aqui até `npm run db:types` rodar com ela aplicada.
  */
 
-export type SituacaoIntegracao = 'aguardando' | 'ativa' | 'pausada' | 'erro' | 'erro_autorizacao' | 'desconectada' | 'conectado' | 'pausado' | 'desconectado' | 'revogada'
+export type SituacaoIntegracao = 'aguardando' | 'ativa' | 'pausada' | 'erro' | 'erro_autorizacao' | 'desconectada' | 'pendente_registro' | 'conectado' | 'pausado' | 'desconectado' | 'revogada'
 
 export type IntegracaoOficial = {
   fonteId: string

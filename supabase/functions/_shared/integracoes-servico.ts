@@ -48,6 +48,8 @@ import {
   enviarTexto,
   extrairEventosWhatsapp,
   inscreverApp,
+  PIN_VALIDO,
+  registrarNumero,
   lerServicoDoMes,
   telefoneParaApi,
   trocarCodigoEmbedded,
@@ -549,7 +551,9 @@ async function whatsappConfig(deps: Dependencias, req: Request): Promise<Respons
   const { data: chaves } = await deps.comoUsuario(req).rpc('integracoes_habilitadas')
   const ligada = (chaves as { whatsapp_oficial: boolean }[] | null)?.[0]?.whatsapp_oficial === true
   const disponivel = ligada && Boolean(deps.meta?.appId && deps.meta?.configId)
-  return json(200, { ok: true, disponivel, appId: disponivel ? deps.meta!.appId : null, configId: disponivel ? deps.meta!.configId : null })
+  // Versão da Graph API: a MESMA do servidor, para o SDK da janela da Meta (fonte única: META_GRAPH_VERSION).
+  const versaoGraph = /\/(v\d+\.\d+)$/.exec(deps.meta?.graphUrl ?? '')?.[1] ?? null
+  return json(200, { ok: true, disponivel, appId: disponivel ? deps.meta!.appId : null, configId: disponivel ? deps.meta!.configId : null, versaoGraph: disponivel ? versaoGraph : null })
 }
 
 async function whatsappConcluir(deps: Dependencias, req: Request): Promise<Response> {
@@ -563,32 +567,121 @@ async function whatsappConcluir(deps: Dependencias, req: Request): Promise<Respo
   const funil = uuid(c.funil)
   const etapa = uuid(c.etapa)
   const responsavel = uuid(c.responsavel)
+  // Fim do fluxo informado pela janela da Meta: número novo (Cloud API) ou número do app WhatsApp Business (coexistência).
+  const modo = c.modo === 'coexistencia' ? 'coexistencia' : 'cloud_api'
+  const pin = typeof c.pin === 'string' ? c.pin : ''
   if (!code || !waba || !/^\d{5,30}$/.test(waba) || !phone || !/^\d{5,30}$/.test(phone) || !funil || !etapa || !responsavel) {
     return erro(422, 'dados_invalidos', 'Conclua a autorização da Meta e escolha funil, etapa e responsável.')
   }
+  // PIN conferido ANTES de usar o código (ele vale só ~30 s na Meta); nunca é devolvido nem gravado.
+  // Sem PIN, o número é salvo como pendente e o Administrador registra depois, no painel.
+  if (pin !== '' && !PIN_VALIDO.test(pin)) return erro(422, 'pin_invalido', 'O PIN tem 6 números.')
+
+  // Mesma conexão chegando de novo em poucos minutos (clique duplo, retorno repetido): devolve o estado atual.
+  const { data: recentes } = await ctx.usuario.rpc('whatsapp_conexao_recente', { p_phone_number_id: phone })
+  const recente = (recentes as { numero_id: string; situacao: string; numero_exibicao: string | null; nome_verificado: string | null }[] | null)?.[0]
+  if (recente?.situacao === 'conectado') {
+    return json(200, { ok: true, numero: recente.numero_id, situacao: 'conectado', numeroExibicao: recente.numero_exibicao, nomeVerificado: recente.nome_verificado, repetido: true })
+  }
+  if (recente?.situacao === 'pendente_registro' && modo === 'cloud_api' && pin) {
+    const r = await registrarComPin(deps, ctx.usuario, recente.numero_id, pin)
+    return json(200, { ok: true, numero: recente.numero_id, numeroExibicao: recente.numero_exibicao, nomeVerificado: recente.nome_verificado, repetido: true, ...r })
+  }
+
+  let token: string
+  let numero: { numeroExibicao: string | null; nomeVerificado: string | null }
   try {
-    const token = await trocarCodigoEmbedded(deps.buscar, deps.meta, code)
-    const numero = await conferirNumero(deps.buscar, deps.meta, token, waba, phone)
+    token = await trocarCodigoEmbedded(deps.buscar, deps.meta, code)
+    numero = await conferirNumero(deps.buscar, deps.meta, token, waba, phone)
     await inscreverApp(deps.buscar, deps.meta, token, waba)
-    const { data: numeroId, error } = await deps.admin.rpc('whatsapp_salvar_numero', {
-      p_tenant: ctx.tenantId,
-      p_usuario: ctx.userId,
-      p_phone_number_id: phone,
-      p_waba_id: waba,
-      p_numero_exibicao: numero.numeroExibicao,
-      p_nome_verificado: numero.nomeVerificado,
-      p_token: token,
-      p_nome: txt(c.nome, 80) ?? `WhatsApp ${numero.numeroExibicao ?? ''}`.trim(),
-      p_funil: funil,
-      p_etapa: etapa,
-      p_responsavel: responsavel,
-    })
-    if (error) return erroDoBanco(error)
-    return json(200, { ok: true, numero: numeroId, numeroExibicao: numero.numeroExibicao, nomeVerificado: numero.nomeVerificado })
   } catch (e) {
     if (e instanceof ErroMeta) return erro(502, `meta_${e.codigo}`, e.message)
     return erro(502, 'meta_rede', 'Falha ao falar com a Meta.')
   }
+  const { data: numeroId, error } = await deps.admin.rpc('whatsapp_salvar_numero', {
+    p_tenant: ctx.tenantId,
+    p_usuario: ctx.userId,
+    p_phone_number_id: phone,
+    p_waba_id: waba,
+    p_numero_exibicao: numero.numeroExibicao,
+    p_nome_verificado: numero.nomeVerificado,
+    p_token: token,
+    p_nome: txt(c.nome, 80) ?? `WhatsApp ${numero.numeroExibicao ?? ''}`.trim(),
+    p_funil: funil,
+    p_etapa: etapa,
+    p_responsavel: responsavel,
+    p_modo: modo,
+  })
+  if (error || typeof numeroId !== 'string') return erroDoBanco(error)
+  const base = { ok: true, numero: numeroId, numeroExibicao: numero.numeroExibicao, nomeVerificado: numero.nomeVerificado, modo }
+  // Coexistência: a Meta não pede registro (o número já está no app WhatsApp Business).
+  if (modo === 'coexistencia') return json(200, { ...base, situacao: 'conectado' })
+  // Reconexão de um número já registrado antes nesta empresa: nada a registrar.
+  const { data: agora } = await ctx.usuario.rpc('whatsapp_conexao_recente', { p_phone_number_id: phone })
+  if ((agora as { situacao: string }[] | null)?.[0]?.situacao === 'conectado') return json(200, { ...base, situacao: 'conectado' })
+  if (!pin) return json(200, { ...base, situacao: 'pendente_registro', pendencia: 'Falta registrar o número na Meta com um PIN de 6 números.' })
+  return json(200, { ...base, ...(await registrarComPin(deps, ctx.usuario, numeroId, pin, token)) })
+}
+
+/**
+ * Registra o número na Cloud API. Só com sucesso confirmado pela Meta o banco
+ * marca 'conectado'; em qualquer falha o número continua 'pendente_registro'
+ * (não recebe leads, não envia) e a tela mostra o que falta.
+ */
+async function registrarComPin(
+  deps: Dependencias,
+  usuario: ClienteUsuario,
+  numeroId: string,
+  pin: string,
+  tokenConhecido?: string,
+): Promise<{ situacao: 'conectado' | 'pendente_registro'; pendencia?: string }> {
+  // Banco confere empresa, situação pendente e limite de tentativas (o PIN não vai ao banco).
+  const { data: phone, error } = await usuario.rpc('whatsapp_preparar_registro', { p_numero: numeroId })
+  if (error || typeof phone !== 'string') {
+    const nossa = error?.code === 'RX010' || error?.code === '23514' || error?.code === 'P0002'
+    return { situacao: 'pendente_registro', pendencia: nossa ? error!.message : 'Não foi possível conferir o número agora. Tente de novo.' }
+  }
+  let token = tokenConhecido
+  if (!token) {
+    // Só número pendente desta conexão (Cloud API): o token de uso geral é só de número conectado.
+    const { data: cred } = await deps.admin.rpc('whatsapp_token_registro', { p_numero: numeroId })
+    token = typeof cred === 'string' && cred ? cred : undefined
+  }
+  if (!token) return { situacao: 'pendente_registro', pendencia: 'A autorização da Meta deste número não está disponível: conecte de novo.' }
+  // Conta o pedido ANTES de chamar a Meta (limite da Meta: 10 por número em 72 h, mesmo os que falham;
+  // o AVANTE para em 8 e respeita o bloqueio de 72 h depois de um 133016).
+  const { error: limite } = await deps.admin.rpc('whatsapp_registro_reservar', { p_numero: numeroId })
+  if (limite) {
+    const nossa = limite.code === 'RX010' || limite.code === '23514' || limite.code === 'P0002'
+    return { situacao: 'pendente_registro', pendencia: nossa ? limite.message : 'Não foi possível conferir o número agora. Tente de novo.' }
+  }
+  let falha: string | null = null
+  let codigo: string | null = null
+  try {
+    await registrarNumero(deps.buscar, deps.meta!, token, phone, pin)
+  } catch (e) {
+    falha = e instanceof ErroMeta ? e.message : 'Não foi possível falar com a Meta.'
+    codigo = e instanceof ErroMeta ? e.codigo : 'rede'
+  }
+  const { data: situacao } = await deps.admin.rpc('whatsapp_registro_resultado', { p_numero: numeroId, p_ok: falha === null, p_erro: falha, p_codigo: codigo })
+  if (situacao === 'conectado') return { situacao: 'conectado' }
+  return { situacao: 'pendente_registro', pendencia: falha ?? 'O registro do número ainda não foi confirmado.' }
+}
+
+/** POST /whatsapp/registrar — Administrador tenta de novo o registro de um número pendente (com o PIN). */
+async function whatsappRegistrar(deps: Dependencias, req: Request): Promise<Response> {
+  if (!deps.meta?.appId) return erro(503, 'nao_configurado', 'A integração com a Meta ainda não foi configurada na plataforma.')
+  const ctx = await contextoAdmin(deps, req)
+  if ('resposta' in ctx) return ctx.resposta!
+  const c = (await lerCorpo(req)) ?? {}
+  const numero = uuid(c.numero)
+  const pin = typeof c.pin === 'string' ? c.pin : ''
+  if (!numero) return erro(422, 'dados_invalidos', 'Número inválido.')
+  if (!PIN_VALIDO.test(pin)) return erro(422, 'pin_invalido', 'Informe um PIN de 6 números.')
+  // Conferência prévia: número de outra empresa, não pendente ou acima do limite → erro claro, sem chamar a Meta.
+  const { error } = await ctx.usuario.rpc('whatsapp_preparar_registro', { p_numero: numero })
+  if (error) return erroDoBanco(error)
+  return json(200, { ok: true, numero, ...(await registrarComPin(deps, ctx.usuario, numero, pin)) })
 }
 
 async function whatsappWebhook(deps: Dependencias, req: Request, url: URL): Promise<Response> {
@@ -795,6 +888,8 @@ export async function tratarIntegracoes(req: Request, deps: Dependencias): Promi
         return await whatsappConfig(deps, req)
       case '/whatsapp/concluir':
         return await whatsappConcluir(deps, req)
+      case '/whatsapp/registrar':
+        return await whatsappRegistrar(deps, req)
       case '/whatsapp/enviar':
         return await whatsappEnviar(deps, req)
       case '/meta-ads/config':
