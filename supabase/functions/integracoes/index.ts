@@ -42,6 +42,7 @@ const deps: Dependencias = {
         tokenUrl: 'https://oauth2.googleapis.com/token',
         revokeUrl: 'https://oauth2.googleapis.com/revoke',
         sheetsUrl: 'https://sheets.googleapis.com/v4',
+        driveUrl: 'https://www.googleapis.com/drive/v3',
         chaveApiPicker: env('GOOGLE_PICKER_API_KEY'),
         appIdPicker: env('GOOGLE_PICKER_APP_ID'),
       }
@@ -58,6 +59,15 @@ const deps: Dependencias = {
   segredoEstado: env('INTEGRACOES_STATE_SECRET'),
   segredoCron: env('INTEGRACOES_CRON_SECRET'),
   urlApp: env('AVANTE_URL') || 'https://avante.riox7comunicacao.com.br',
+  // Avisos do Google Drive: responde rápido e lê a planilha depois da resposta.
+  emSegundoPlano: tarefaEmSegundoPlano(),
+  // Desligar os avisos do Drive sem deploy: secret GOOGLE_AVISOS_DRIVE=desligado (vale na próxima inicialização da função).
+  avisosDrive: env('GOOGLE_AVISOS_DRIVE') !== 'desligado',
+}
+
+function tarefaEmSegundoPlano(): ((p: Promise<unknown>) => void) | undefined {
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+  return rt?.waitUntil ? (p) => rt.waitUntil!(p) : undefined
 }
 
 Deno.serve((req) => tratarIntegracoes(req, deps))

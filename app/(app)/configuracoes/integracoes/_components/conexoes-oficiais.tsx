@@ -13,7 +13,7 @@ import {
   desconectarGoogleAction,
   sincronizarAgoraAction,
 } from '@/lib/actions/integracoes-oficiais'
-import type { ConsumoWhatsapp, ContaGoogle, IntegracaoOficial, IntegracoesHabilitadas } from '@/lib/dal/integracoes-oficiais'
+import type { ConsumoWhatsapp, ContaGoogle, IntegracaoOficial, IntegracoesHabilitadas, MonitoramentoPlanilha } from '@/lib/dal/integracoes-oficiais'
 import type { ConexaoMetaAds, FranquiaWhatsapp } from '@/lib/dal/meta-conversoes'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
@@ -22,7 +22,7 @@ import { SeletorDestino, type OpcoesDestino } from './seletor-destino'
 
 const SITUACAO: Record<string, { rotulo: string; tom: TomSelo }> = {
   aguardando: { rotulo: 'Aguardando 1ª sincronização', tom: 'ambar' },
-  ativa: { rotulo: 'Sincronizando', tom: 'verde' },
+  ativa: { rotulo: 'Ativa', tom: 'verde' },
   pausada: { rotulo: 'Pausada', tom: 'neutro' },
   erro: { rotulo: 'Com erro (tentando de novo)', tom: 'vermelho' },
   erro_autorizacao: { rotulo: 'Reconectar conta Google', tom: 'vermelho' },
@@ -49,8 +49,10 @@ export function ConexoesOficiais({
   franquia,
   metaAds,
   habilitadas,
+  monitoramento = {},
 }: {
   habilitadas: IntegracoesHabilitadas
+  monitoramento?: Record<string, MonitoramentoPlanilha>
   integracoes: IntegracaoOficial[]
   contas: ContaGoogle[]
   consumo: ConsumoWhatsapp[]
@@ -107,7 +109,7 @@ export function ConexoesOficiais({
           ) : (
             <ul className="divide-y divide-premium-borda-suave rounded-lg border border-premium-borda">
               {planilhas.map((p) => (
-                <LinhaPlanilha key={p.fonteId} p={p} podeGerir={podeGerir} opcoes={opcoes} responsaveis={responsaveis} />
+                <LinhaPlanilha key={p.fonteId} p={p} m={monitoramento[p.fonteId] ?? null} podeGerir={podeGerir} opcoes={opcoes} responsaveis={responsaveis} />
               ))}
             </ul>
           )}
@@ -281,7 +283,33 @@ function AlterarDestino({ i, opcoes, responsaveis }: { i: IntegracaoOficial; opc
   )
 }
 
-function LinhaPlanilha({ p, podeGerir, opcoes, responsaveis }: { p: IntegracaoOficial; podeGerir: boolean; opcoes: OpcoesDestino; responsaveis: { id: string; nome: string }[] }) {
+/**
+ * Estado dos avisos do Google Drive. Sem prometer instantaneidade: o Google
+ * avisa quando a planilha muda (costuma levar de segundos a alguns minutos) e,
+ * por segurança, o AVANTE também confere a planilha periodicamente.
+ */
+function Monitoramento({ m }: { m: MonitoramentoPlanilha }) {
+  const texto: Record<MonitoramentoPlanilha['estado'], { selo: string; tom: TomSelo; detalhe: string }> = {
+    ativo: { selo: 'Avisos do Google ativos', tom: 'verde', detalhe: 'Linhas novas entram assim que o Google avisa a alteração — normalmente em segundos ou poucos minutos. A conferência periódica continua como garantia.' },
+    ativando: { selo: 'Ativando avisos do Google', tom: 'ambar', detalhe: 'Enquanto isso, a planilha é conferida periodicamente.' },
+    desligado: { selo: 'Somente conferência periódica', tom: 'neutro', detalhe: 'Os avisos do Google são ativados depois da primeira sincronização.' },
+    erro: { selo: 'Avisos do Google com falha', tom: 'ambar', detalhe: 'Tentaremos de novo em alguns minutos. A conferência periódica continua.' },
+    indisponivel: { selo: 'Avisos do Google indisponíveis', tom: 'neutro', detalhe: 'O Google não aceitou o monitoramento desta planilha agora. A conferência periódica continua.' },
+  }
+  const t = texto[m.estado] ?? texto.desligado
+  return (
+    <div className="space-y-0.5 text-xs">
+      <p className="flex flex-wrap items-center gap-2">
+        <Selo tom={t.tom}>{t.selo}</Selo>
+        {m.ultimoAviso && <span className="text-premium-mudo">Último aviso do Google: {quando(m.ultimoAviso)}</span>}
+      </p>
+      <p className="text-premium-mudo">{t.detalhe}</p>
+      {m.erro && m.estado !== 'ativo' && <p className="text-premium-mudo">Detalhe: {m.erro}</p>}
+    </div>
+  )
+}
+
+function LinhaPlanilha({ p, m, podeGerir, opcoes, responsaveis }: { p: IntegracaoOficial; m: MonitoramentoPlanilha | null; podeGerir: boolean; opcoes: OpcoesDestino; responsaveis: { id: string; nome: string }[] }) {
   const s = SITUACAO[p.situacao] ?? { rotulo: p.situacao, tom: 'neutro' as TomSelo }
   const pausada = p.situacao === 'pausada' || p.status === 'pausada'
   const semAcessoAoArquivo = p.situacao === 'erro' && /seletor/i.test(p.ultimoErro ?? '')
@@ -297,6 +325,7 @@ function LinhaPlanilha({ p, podeGerir, opcoes, responsaveis }: { p: IntegracaoOf
         <Selo tom={s.tom}>{s.rotulo}</Selo>
       </div>
       <Destino i={p} />
+      {m && !pausada && <Monitoramento m={m} />}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
         <div>
           <dt className="text-premium-mudo">Importados</dt>
@@ -311,7 +340,7 @@ function LinhaPlanilha({ p, podeGerir, opcoes, responsaveis }: { p: IntegracaoOf
           <dd>{quando(p.ultimaSincronizacaoEm)}</dd>
         </div>
         <div>
-          <dt className="text-premium-mudo">Próxima</dt>
+          <dt className="text-premium-mudo">{m?.estado === 'ativo' ? 'Conferência periódica' : 'Próxima'}</dt>
           <dd>{pausada ? 'Pausada' : quando(p.proximaSincronizacaoEm)}</dd>
         </div>
       </dl>

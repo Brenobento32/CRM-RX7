@@ -241,3 +241,7 @@ vier diferente, a reconciliação falha e o envio fica **bloqueado** (lado segur
   padrão `LeadSubmitted`/`QualifiedLead`/`Purchase`, dataset da WABA, token do número com
   `whatsapp_business_manage_events`). Não ligada ao serviço nem ao `db push`.
 - Passo a passo da publicação: [PUBLICACAO-INTEGRACOES-GOOGLE.md](PUBLICACAO-INTEGRACOES-GOOGLE.md).
+
+# Rodada 4 — Google Sheets quase em tempo real (só local)
+
+Avisos oficiais do Google Drive (`files.watch`) para cada planilha, com o agendador como contingência, e a etiqueta "Google Sheets" no funil. Funcionamento, limites do Google, testes e publicação controlada: [`GOOGLE-SHEETS-TEMPO-REAL.md`](GOOGLE-SHEETS-TEMPO-REAL.md).

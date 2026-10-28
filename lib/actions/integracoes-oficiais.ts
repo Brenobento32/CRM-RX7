@@ -118,6 +118,9 @@ export async function acaoPlanilhaAction(fd: FormData): Promise<void> {
   if (!uuid.safeParse(fonte).success || !ACOES_PLANILHA.includes(acao)) voltar('erro', 'Ação inválida.')
   const r = await acaoPlanilha(fonte, acao)
   if (!r.ok) voltar('erro', r.mensagem)
+  // Pausar/desconectar encerra o aviso do Google na hora; retomar ativa de novo.
+  // Se falhar, o agendador faz o mesmo em até 5 minutos (e avisos de fonte pausada são ignorados).
+  if (acao !== 'reprocessar_erros') await chamarIntegracoes('/google/monitoramento', { fonte })
   const msg = { pausar: 'Planilha pausada.', retomar: 'Planilha retomada.', reprocessar_erros: 'As linhas com erro serão tentadas de novo na próxima sincronização.', remover: 'Planilha desconectada. Os leads já importados continuam no CRM.' }
   voltar('ok', msg[acao])
 }

@@ -187,6 +187,37 @@ export async function listarIntegracoesOficiais(): Promise<IntegracaoOficial[]> 
   }))
 }
 
+/** Monitoramento das planilhas pelos avisos do Google Drive (estado mostrado no painel). */
+export type MonitoramentoPlanilha = {
+  estado: 'desligado' | 'ativando' | 'ativo' | 'indisponivel' | 'erro'
+  desde: string | null
+  ultimoAviso: string | null
+  canalExpiraEm: string | null
+  erro: string | null
+}
+
+/**
+ * Estado dos avisos por planilha. Falha fechada: se a migration do
+ * monitoramento ainda não existir, o painel só não mostra a linha.
+ */
+export async function monitoramentoDasPlanilhas(): Promise<Record<string, MonitoramentoPlanilha>> {
+  if (!(await podeAdministrarIntegracoes())) return {}
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('sheets_monitoramento_da_empresa')
+    if (error) return {}
+    type Linha = { fonte_id: string; monitoramento: MonitoramentoPlanilha['estado']; monitoramento_desde: string | null; ultima_notificacao_em: string | null; canal_expira_em: string | null; monitoramento_erro: string | null }
+    return Object.fromEntries(
+      ((data as Linha[] | null) ?? []).map((l) => [
+        l.fonte_id,
+        { estado: l.monitoramento, desde: l.monitoramento_desde, ultimoAviso: l.ultima_notificacao_em, canalExpiraEm: l.canal_expira_em, erro: l.monitoramento_erro },
+      ]),
+    )
+  } catch {
+    return {}
+  }
+}
+
 export async function listarContasGoogle(): Promise<ContaGoogle[]> {
   if (!(await podeAdministrarIntegracoes())) return []
   const { rpc } = await banco()

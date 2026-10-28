@@ -55,6 +55,9 @@ export type AtribuicaoCampanha = {
   respondent_id?: string | null
   form_id?: string | null
   form_name?: string | null
+  /** Integração que trouxe o lead (ex.: 'google_sheets'), gravada pela ingestão oficial. */
+  fonte?: string | null
+  fonte_id?: string | null
 }
 
 export type CardFunil = {

@@ -10,7 +10,7 @@ import { formatarTelefone } from '@/lib/utils/documentos'
 import type { EtapaKanban } from '@/lib/utils/etapas'
 import { formatarMoeda } from '@/lib/utils/formatacao'
 import { formatarDuracaoHistorico, montarHistorico, type LinhaHistoricoBruta } from '@/lib/utils/historico'
-import { ROTULO_ORIGEM } from '@/lib/validations/funil'
+import { rotuloDaOrigem } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 import { botaoCompactoClass } from '@/components/ui/estilos'
 
@@ -125,7 +125,7 @@ export function DrawerNegociacao({
               {card.clienteTelefone && <Campo rotulo="WhatsApp" valor={formatarTelefone(card.clienteTelefone)} />}
               {detalhes?.clienteEmail && <Campo rotulo="E-mail" valor={detalhes.clienteEmail} />}
               <Campo rotulo="Nicho" valor={card.nichoNome ?? 'Outros'} />
-              <Campo rotulo="Origem" valor={ROTULO_ORIGEM[card.origem]} />
+              <Campo rotulo="Origem" valor={rotuloDaOrigem(card.origem, card.atribuicao)} />
               <Campo rotulo="Responsável" valor={card.responsavel ?? '—'} />
             </dl>
           </section>

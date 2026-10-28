@@ -17,7 +17,13 @@
  */
 import { assinarEstado, verificarEstado } from './estado-oauth.ts'
 import {
+  ErroCanal,
   ErroGoogle,
+  ESTADOS_AVISO,
+  conferirTokenDoCanal,
+  criarCanal,
+  encerrarCanal,
+  tokenDoCanal,
   emailDoIdToken,
   extrairPlanilhaDoLink,
   lerLinhas,
@@ -65,6 +71,25 @@ export type Dependencias = {
   segredoEstado: string
   segredoCron: string
   urlApp: string
+  /**
+   * Trabalho depois da resposta (Edge Runtime: EdgeRuntime.waitUntil). Sem ele,
+   * o trabalho é feito antes de responder — mais lento, nunca perdido.
+   */
+  emSegundoPlano?: (tarefa: Promise<unknown>) => void
+  /**
+   * Avisos do Google Drive (files.watch). `false` = desligados sem deploy
+   * (secret GOOGLE_AVISOS_DRIVE=desligado): nada cria canal, avisos são
+   * ignorados e os canais que existirem vencem sozinhos em até 1 dia.
+   * A leitura periódica não muda.
+   */
+  avisosDrive?: boolean
+}
+
+/** Executa depois da resposta quando o ambiente permite; senão, espera aqui. */
+async function depois(deps: Dependencias, tarefa: () => Promise<unknown>): Promise<void> {
+  const p = tarefa().catch(() => undefined)
+  if (deps.emSegundoPlano) deps.emSegundoPlano(p)
+  else await p
 }
 
 const LIMITE_CORPO = 64 * 1024
@@ -267,6 +292,8 @@ async function googleDesconectar(deps: Dependencias, req: Request): Promise<Resp
   if (!conta) return erro(422, 'dados_invalidos', 'Conta inválida.')
   const { error } = await ctx.usuario.rpc('google_preparar_desconexao', { p_conta: conta })
   if (error) return erroDoBanco(error)
+  // Avisos do Drive: encerrar ANTES de revogar (depois o Google não aceita o pedido de parada).
+  await encerrarCanaisDaConta(deps, conta)
   const { data: refresh } = await deps.admin.rpc('google_obter_refresh_token', { p_conta: conta })
   if (deps.google && typeof refresh === 'string') await revogar(deps.buscar, deps.google, refresh)
   const { error: e2 } = await deps.admin.rpc('google_remover_conta', { p_conta: conta, p_usuario: ctx.userId })
@@ -284,12 +311,17 @@ type Reservada = {
   primeira: boolean
 }
 
-/** Uma rodada da fila: reserva (lease + SKIP LOCKED), lê, deduplica, registra. */
-export async function processarFila(deps: Dependencias, opcoes: { limite?: number; fonte?: string | null } = {}) {
+/**
+ * Uma rodada da fila: reserva (lease + SKIP LOCKED), lê, deduplica, registra.
+ * Se um aviso do Google chegou DURANTE a leitura, a mesma planilha é lida de
+ * novo logo em seguida (até 2 vezes por rodada), sem esperar o agendador.
+ */
+export async function processarFila(deps: Dependencias, opcoes: { limite?: number; fonte?: string | null; repeticao?: number } = {}) {
   const resumo: Record<string, unknown>[] = []
   if (!deps.google) return resumo
   const { data, error } = await deps.admin.rpc('sheets_reservar', { p_limite: opcoes.limite ?? 5, p_lease_segundos: 300, p_fonte: opcoes.fonte ?? null })
   if (error) throw new Error('Falha ao reservar a fila de planilhas.')
+  const pendentes: string[] = []
   const acessos = new Map<string, string>()
   for (const f of (data as Reservada[] | null) ?? []) {
     try {
@@ -312,6 +344,8 @@ export async function processarFila(deps: Dependencias, opcoes: { limite?: numbe
       }
       await deps.admin.rpc('sheets_concluir', { p_fonte: f.fonte_id, p_ok: true, p_erro: null, p_linhas_lidas: linhas.length, p_autorizacao: false })
       resumo.push({ fonte: f.fonte_id, ok: true, linhas: linhas.length, ...total })
+      const { data: pendente } = await deps.admin.rpc('sheets_tem_pendencia', { p_fonte: f.fonte_id })
+      if (pendente === true) pendentes.push(f.fonte_id)
     } catch (e) {
       const autorizacao = e instanceof ErroGoogle && e.tipo === 'autorizacao'
       const mensagem = e instanceof Error ? e.message : 'Falha inesperada.'
@@ -320,7 +354,142 @@ export async function processarFila(deps: Dependencias, opcoes: { limite?: numbe
       resumo.push({ fonte: f.fonte_id, ok: false, erro: mensagem })
     }
   }
+  const repeticao = opcoes.repeticao ?? 0
+  if (repeticao < 2) {
+    for (const fonte of pendentes) resumo.push(...(await processarFila(deps, { limite: 1, fonte, repeticao: repeticao + 1 })))
+  }
   return resumo
+}
+
+// ----------------------------------------------------------------- avisos do Google Drive (files.watch)
+/** Endereço público que o Google chama: mesma função, rota /google/notificacao. */
+function enderecoDeAvisos(deps: Dependencias): string {
+  return deps.google!.redirectUri.replace(/\/google\/callback$/, '/google/notificacao')
+}
+
+type TarefaCanal = { acao: 'criar' | 'encerrar'; canal_id: string | null; fonte_id: string; conta_id: string; planilha_id: string | null; resource_id: string | null }
+
+async function encerrarUmCanal(deps: Dependencias, t: { canal_id: string; conta_id: string; resource_id: string }, acessos: Map<string, string>, motivo: string) {
+  try {
+    let token = acessos.get(t.conta_id)
+    if (!token) {
+      token = await acessoGoogle(deps, t.conta_id)
+      acessos.set(t.conta_id, token)
+    }
+    const r = await encerrarCanal(deps.buscar, deps.google!, token, { canalId: t.canal_id, resourceId: t.resource_id })
+    if (r === 'encerrado') await deps.admin.rpc('sheets_canal_encerrado', { p_canal: t.canal_id, p_motivo: motivo })
+    return r
+  } catch (e) {
+    // Sem acesso ao Google (conta revogada): o canal vence sozinho em até 1 dia e os avisos dele são ignorados.
+    if (e instanceof ErroGoogle && e.tipo === 'autorizacao') {
+      await deps.admin.rpc('sheets_canal_encerrado', { p_canal: t.canal_id, p_motivo: `${motivo} (sem acesso ao Google: vence sozinho)` })
+      return 'encerrado'
+    }
+    return 'falhou'
+  }
+}
+
+/**
+ * Mantém os canais: cria para planilhas monitoráveis (inclusive as que já
+ * existiam), renova antes de vencer e encerra os que não devem mais avisar.
+ * Roda no agendador e logo depois de uma sincronização manual/conexão.
+ */
+export async function manterMonitoramento(deps: Dependencias, opcoes: { fonte?: string | null; limite?: number } = {}) {
+  const resumo = { criados: 0, encerrados: 0, falhas: 0 }
+  if (!deps.google || deps.segredoEstado.length < 32 || deps.avisosDrive === false) return resumo
+  const { data, error } = await deps.admin.rpc('sheets_canais_tarefas', { p_limite: opcoes.limite ?? 20, p_renovar_minutos: 120 })
+  if (error) return resumo
+  const tarefas = ((data as TarefaCanal[] | null) ?? []).filter((t) => !opcoes.fonte || t.fonte_id === opcoes.fonte)
+  const acessos = new Map<string, string>()
+  for (const t of tarefas) {
+    if (t.acao === 'encerrar' && t.canal_id && t.resource_id) {
+      const r = await encerrarUmCanal(deps, { canal_id: t.canal_id, conta_id: t.conta_id, resource_id: t.resource_id }, acessos, 'encerrado pelo agendador')
+      if (r === 'encerrado') resumo.encerrados++
+      else resumo.falhas++
+      continue
+    }
+    if (t.acao !== 'criar' || !t.planilha_id) continue
+    const { data: canal } = await deps.admin.rpc('sheets_canal_reservar', { p_fonte: t.fonte_id })
+    if (typeof canal !== 'string') continue
+    try {
+      let token = acessos.get(t.conta_id)
+      if (!token) {
+        token = await acessoGoogle(deps, t.conta_id)
+        acessos.set(t.conta_id, token)
+      }
+      const criado = await criarCanal(deps.buscar, deps.google, token, {
+        planilhaId: t.planilha_id,
+        canalId: canal,
+        endereco: enderecoDeAvisos(deps),
+        token: await tokenDoCanal(deps.segredoEstado, canal, t.fonte_id),
+      })
+      const { error: e } = await deps.admin.rpc('sheets_canal_ativar', { p_canal: canal, p_resource: criado.resourceId, p_expira: criado.expiraEm })
+      if (e) {
+        // Banco recusou (ex.: recurso inesperado): não deixa canal órfão no Google.
+        await encerrarCanal(deps.buscar, deps.google, token, { canalId: canal, resourceId: criado.resourceId })
+        await deps.admin.rpc('sheets_canal_falhou', { p_canal: canal, p_erro: 'Resposta do Google não reconhecida.', p_indisponivel: false })
+        resumo.falhas++
+      } else resumo.criados++
+    } catch (e) {
+      const definitivo = e instanceof ErroCanal ? e.definitivo : false
+      const mensagem = e instanceof Error ? e.message : 'Falha ao ativar o monitoramento.'
+      await deps.admin.rpc('sheets_canal_falhou', { p_canal: canal, p_erro: mensagem, p_indisponivel: definitivo })
+      resumo.falhas++
+    }
+  }
+  return resumo
+}
+
+/** Encerra no Google todos os canais vivos de uma conta (antes de revogar o acesso). */
+async function encerrarCanaisDaConta(deps: Dependencias, conta: string) {
+  if (!deps.google) return
+  const { data } = await deps.admin.rpc('sheets_canais_da_conta', { p_conta: conta })
+  const acessos = new Map<string, string>()
+  for (const k of (data as { canal_id: string; resource_id: string }[] | null) ?? []) {
+    await encerrarUmCanal(deps, { canal_id: k.canal_id, conta_id: conta, resource_id: k.resource_id }, acessos, 'conta Google desconectada')
+  }
+}
+
+/**
+ * POST /google/notificacao — chamado pelo Google (sem JWT).
+ * 1) token do canal (HMAC canal+fonte) em tempo constante; 2) o banco confere
+ * canal, recurso, empresa liberada e fonte ativa; 3) só então a planilha é lida
+ * pela fila normal. A resposta sai rápido; a leitura segue em segundo plano.
+ */
+async function googleNotificacao(deps: Dependencias, req: Request): Promise<Response> {
+  if (!deps.google) return erro(503, 'nao_configurado', 'Google não configurado.')
+  // Desligados pela plataforma: responde 200 (o Google não insiste) e não lê nada.
+  if (deps.avisosDrive === false) return json(200, { ok: true, acao: 'ignorar' })
+  const h = req.headers
+  const canal = (h.get('x-goog-channel-id') ?? '').toLowerCase()
+  const estado = h.get('x-goog-resource-state') ?? ''
+  const recurso = h.get('x-goog-resource-id') ?? ''
+  const fonte = await conferirTokenDoCanal(deps.segredoEstado, canal, h.get('x-goog-channel-token') ?? '').catch(() => null)
+  if (!fonte) return erro(401, 'nao_autorizado', 'Aviso não reconhecido.')
+  if (!(ESTADOS_AVISO as readonly string[]).includes(estado)) return json(200, { ok: true, acao: 'ignorar' })
+  const { data, error } = await deps.admin.rpc('sheets_canal_notificar', { p_canal: canal, p_fonte: fonte, p_resource: recurso.slice(0, 200), p_estado: estado })
+  if (error) return erro(500, 'interno', 'Não foi possível registrar o aviso.')
+  const r = (data as { acao: string; conta_id: string | null; resource_id: string | null }[] | null)?.[0]
+  const acao = r?.acao ?? 'desconhecido'
+  if (acao === 'desconhecido') return erro(404, 'nao_encontrado', 'Canal desconhecido.')
+  if (acao === 'sincronizar') await depois(deps, () => processarFila(deps, { limite: 1, fonte }))
+  if (acao === 'encerrar' && r?.conta_id && r.resource_id) {
+    const alvo = { canal_id: canal, conta_id: r.conta_id, resource_id: r.resource_id }
+    await depois(deps, () => encerrarUmCanal(deps, alvo, new Map(), 'fonte não monitorável'))
+  }
+  return json(200, { ok: true, acao })
+}
+
+/** POST /google/monitoramento — Administrador pede para (re)ativar/encerrar o monitoramento de uma planilha da empresa. */
+async function googleMonitoramento(deps: Dependencias, req: Request): Promise<Response> {
+  const ctx = await contextoAdmin(deps, req)
+  if ('resposta' in ctx) return ctx.resposta!
+  const fonte = uuid(((await lerCorpo(req)) ?? {}).fonte)
+  if (!fonte) return erro(422, 'dados_invalidos', 'Planilha inválida.')
+  const { data } = await ctx.usuario.rpc('sheets_monitoramento_da_empresa')
+  if (!((data as { fonte_id: string }[] | null) ?? []).some((l) => l.fonte_id === fonte)) return erro(404, 'nao_encontrado', 'Planilha não encontrada nesta empresa.')
+  const resumo = await manterMonitoramento(deps, { fonte })
+  return json(200, { ok: true, ...resumo })
 }
 
 async function googleSincronizarAgora(deps: Dependencias, req: Request): Promise<Response> {
@@ -331,6 +500,8 @@ async function googleSincronizarAgora(deps: Dependencias, req: Request): Promise
   const { error } = await ctx.usuario.rpc('sheets_acao', { p_fonte: fonte, p_acao: 'sincronizar_agora' })
   if (error) return erroDoBanco(error)
   const resumo = await processarFila(deps, { limite: 1, fonte })
+  // Depois da 1ª leitura (conexão) ou de uma manual: ativa/renova o aviso do Google desta planilha.
+  await depois(deps, () => manterMonitoramento(deps, { fonte, limite: 100 }))
   return json(200, { ok: true, resultado: resumo[0] ?? { fonte, ok: true, emAndamento: true } })
 }
 
@@ -364,9 +535,11 @@ export async function reconciliarFranquias(deps: Dependencias, limite = 10) {
 async function cron(deps: Dependencias, req: Request): Promise<Response> {
   if (!comparacaoSegura(req.headers.get('x-cron-secret') ?? '', deps.segredoCron)) return erro(401, 'nao_autorizado', 'Não autorizado.')
   const resumo = await processarFila(deps, { limite: 10 })
+  // Contingência + manutenção dos avisos do Google (criar, renovar antes de vencer, encerrar).
+  const monitoramento = await manterMonitoramento(deps)
   const franquias = await reconciliarFranquias(deps)
   const conversoes = await processarConversoes(deps)
-  return json(200, { ok: true, processadas: resumo.length, resumo, franquias, conversoes })
+  return json(200, { ok: true, processadas: resumo.length, resumo, monitoramento, franquias, conversoes })
 }
 
 // =============================================================== WhatsApp
@@ -612,6 +785,10 @@ export async function tratarIntegracoes(req: Request, deps: Dependencias): Promi
         return await googleSincronizarAgora(deps, req)
       case '/google/desconectar':
         return await googleDesconectar(deps, req)
+      case '/google/notificacao':
+        return await googleNotificacao(deps, req)
+      case '/google/monitoramento':
+        return await googleMonitoramento(deps, req)
       case '/cron':
         return await cron(deps, req)
       case '/whatsapp/config':

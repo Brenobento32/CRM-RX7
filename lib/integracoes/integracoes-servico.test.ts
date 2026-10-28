@@ -3,7 +3,8 @@ import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 
 import { assinarEstado } from '../../supabase/functions/_shared/estado-oauth.ts'
-import { processarFila, tratarIntegracoes, type Dependencias, type ErroBanco } from '../../supabase/functions/_shared/integracoes-servico.ts'
+import { conferirTokenDoCanal, tokenDoCanal } from '../../supabase/functions/_shared/google-sheets.ts'
+import { manterMonitoramento, processarFila, tratarIntegracoes, type Dependencias, type ErroBanco } from '../../supabase/functions/_shared/integracoes-servico.ts'
 
 /**
  * Serviço `integracoes` com dependências falsas: banco (RPCs gravadas), usuário
@@ -262,12 +263,164 @@ describe('fila de sincronização', () => {
     })
     const resumo = await processarFila(deps)
     expect(resumo[0]).toMatchObject({ ok: true, linhas: 2, importada: 2 })
-    expect(chamadasAdmin.at(-1)).toMatchObject({ nome: 'sheets_concluir', args: { p_ok: true } })
+    expect(chamadasAdmin.find((c) => c.nome === 'sheets_concluir')).toMatchObject({ args: { p_ok: true } })
+    // depois de concluir, confere se chegou aviso do Google durante a leitura
+    expect(chamadasAdmin.at(-1)).toMatchObject({ nome: 'sheets_tem_pendencia' })
   })
 
   it('agendador exige o segredo', async () => {
     const { deps, chamadasAdmin } = montar()
     expect((await tratarIntegracoes(post('/cron', {}, { 'x-cron-secret': 'errado' }), deps)).status).toBe(401)
     expect(chamadasAdmin).toHaveLength(0)
+  })
+})
+
+// ------------------------------------------------------------------ avisos do Google Drive (files.watch)
+describe('avisos do Google Drive (quase em tempo real)', () => {
+  const CANAL = '66666666-6666-4666-8666-666666666666'
+  const tokenOk = () => tokenDoCanal(SEGREDO_ESTADO, CANAL, FONTE)
+  const aviso = (estado: string, token: string | null, canal = CANAL) =>
+    new Request(`${BASE}/google/notificacao`, {
+      method: 'POST',
+      headers: {
+        'x-goog-channel-id': canal,
+        'x-goog-resource-id': 'res1',
+        'x-goog-resource-state': estado,
+        ...(token ? { 'x-goog-channel-token': token } : {}),
+      },
+    })
+  const acesso = (url: string) => (url.includes('/token') ? new Response(JSON.stringify({ access_token: 'ya29' }), { status: 200 }) : null)
+
+  it('token forjado, ausente ou de outro canal: 401 e nada chega ao banco', async () => {
+    const outro = await tokenDoCanal(SEGREDO_ESTADO, '77777777-7777-4777-8777-777777777777', FONTE)
+    for (const t of [`${FONTE}.forjado-forjado-forjado-forjado`, null, outro]) {
+      const { deps, chamadasAdmin } = montar()
+      const r = await tratarIntegracoes(aviso('update', t), deps)
+      expect(r.status).toBe(401)
+      expect(chamadasAdmin).toHaveLength(0)
+    }
+  })
+
+  it('aviso válido: o banco confere canal/fonte/recurso e só então a fila lê a fonte do token', async () => {
+    const { deps, chamadasAdmin } = montar({
+      admin: {
+        sheets_canal_notificar: () => ({ data: [{ acao: 'sincronizar', conta_id: null, resource_id: null }], error: null }),
+        sheets_reservar: () => ({ data: [], error: null }),
+      },
+    })
+    const r = await tratarIntegracoes(aviso('update', await tokenOk()), deps)
+    expect(r.status).toBe(200)
+    expect(chamadasAdmin[0]).toEqual({ nome: 'sheets_canal_notificar', args: { p_canal: CANAL, p_fonte: FONTE, p_resource: 'res1', p_estado: 'update' } })
+    expect(chamadasAdmin.find((c) => c.nome === 'sheets_reservar')?.args).toMatchObject({ p_fonte: FONTE, p_limite: 1 })
+  })
+
+  it('canal desconhecido para o banco: 404, nenhuma leitura', async () => {
+    const { deps, chamadasAdmin } = montar({ admin: { sheets_canal_notificar: () => ({ data: [{ acao: 'desconhecido' }], error: null }) } })
+    expect((await tratarIntegracoes(aviso('update', await tokenOk()), deps)).status).toBe(404)
+    expect(chamadasAdmin.some((c) => c.nome === 'sheets_reservar')).toBe(false)
+  })
+
+  it('fonte pausada/não liberada: o banco responde "encerrar" e o canal é parado no Google', async () => {
+    const { deps, chamadasAdmin, externas } = montar({
+      admin: {
+        sheets_canal_notificar: () => ({ data: [{ acao: 'encerrar', conta_id: CONTA, resource_id: 'res1' }], error: null }),
+        google_obter_refresh_token: () => ({ data: 'refresh', error: null }),
+      },
+      buscar: (url) => acesso(url) ?? new Response(null, { status: 204 }),
+    })
+    const r = await tratarIntegracoes(aviso('update', await tokenOk()), deps)
+    expect(r.status).toBe(200)
+    expect(externas.some((u) => u.endsWith('/channels/stop'))).toBe(true)
+    expect(chamadasAdmin.some((c) => c.nome === 'sheets_reservar')).toBe(false)
+    expect(chamadasAdmin.find((c) => c.nome === 'sheets_canal_encerrado')?.args).toMatchObject({ p_canal: CANAL })
+  })
+
+  it('manutenção: cria o canal com o endereço da própria função e o token assinado', async () => {
+    let corpo: Record<string, string> | null = null
+    const { deps, chamadasAdmin } = montar({
+      admin: {
+        sheets_canais_tarefas: () => ({ data: [{ acao: 'criar', canal_id: null, fonte_id: FONTE, conta_id: CONTA, planilha_id: 'PLANILHA0000000000000000001', resource_id: null }], error: null }),
+        sheets_canal_reservar: () => ({ data: CANAL, error: null }),
+        google_obter_refresh_token: () => ({ data: 'refresh', error: null }),
+      },
+      buscar: (url, init) => {
+        const a = acesso(url)
+        if (a) return a
+        corpo = JSON.parse(String(init?.body))
+        return new Response(JSON.stringify({ resourceId: 'res9', expiration: String(Date.now() + 3_600_000) }), { status: 200 })
+      },
+    })
+    const r = await manterMonitoramento(deps)
+    expect(r.criados).toBe(1)
+    expect(corpo).toMatchObject({ id: CANAL, type: 'web_hook', address: `${BASE}/google/notificacao` })
+    expect(await conferirTokenDoCanal(SEGREDO_ESTADO, CANAL, corpo!.token)).toBe(FONTE)
+    expect(chamadasAdmin.find((c) => c.nome === 'sheets_canal_ativar')?.args).toMatchObject({ p_canal: CANAL, p_resource: 'res9' })
+  })
+
+  it('Google recusa o endereço: registra "indisponível" (definitivo) e a leitura periódica segue', async () => {
+    const { deps, chamadasAdmin } = montar({
+      admin: {
+        sheets_canais_tarefas: () => ({ data: [{ acao: 'criar', canal_id: null, fonte_id: FONTE, conta_id: CONTA, planilha_id: 'PLANILHA0000000000000000001', resource_id: null }], error: null }),
+        sheets_canal_reservar: () => ({ data: CANAL, error: null }),
+        google_obter_refresh_token: () => ({ data: 'refresh', error: null }),
+      },
+      buscar: (url) => acesso(url) ?? new Response('{}', { status: 400 }),
+    })
+    expect((await manterMonitoramento(deps)).falhas).toBe(1)
+    expect(chamadasAdmin.find((c) => c.nome === 'sheets_canal_falhou')?.args).toMatchObject({ p_canal: CANAL, p_indisponivel: true })
+  })
+
+  it('desconectar a conta: canais parados ANTES de revogar o acesso no Google', async () => {
+    const { deps, externas } = montar({
+      usuario: { ...adminA, google_preparar_desconexao: () => ({ data: null, error: null }) },
+      admin: {
+        sheets_canais_da_conta: () => ({ data: [{ canal_id: CANAL, resource_id: 'res1' }], error: null }),
+        google_obter_refresh_token: () => ({ data: 'refresh', error: null }),
+      },
+      buscar: (url) => acesso(url) ?? new Response(null, { status: 204 }),
+    })
+    const r = await tratarIntegracoes(post('/google/desconectar', { conta: CONTA }), deps)
+    expect(r.status).toBe(200)
+    const parada = externas.findIndex((u) => u.endsWith('/channels/stop'))
+    const revogacao = externas.findIndex((u) => u.includes('/revoke'))
+    expect(parada).toBeGreaterThanOrEqual(0)
+    expect(revogacao).toBeGreaterThan(parada)
+  })
+
+  it('aviso que chega durante a leitura: a mesma planilha é lida de novo na hora (no máximo 2 vezes)', async () => {
+    let reservas = 0
+    const fila = [{ fonte_id: FONTE, conta_id: CONTA, planilha_id: 'P', aba_nome: 'A', linha_cabecalho: 1, mapeamento: { telefone: 'Telefone' }, coluna_chave: null, primeira: false }]
+    const { deps } = montar({
+      admin: {
+        sheets_reservar: () => ({ data: reservas++ < 5 ? fila : [], error: null }),
+        google_obter_refresh_token: () => ({ data: 'refresh', error: null }),
+        sheets_processar_linhas: () => ({ data: { importadas: 0 }, error: null }),
+        sheets_tem_pendencia: () => ({ data: true, error: null }),
+      },
+      buscar: (url) => acesso(url) ?? new Response(JSON.stringify({ values: [['Telefone']] }), { status: 200 }),
+    })
+    const resumo = await processarFila(deps, { limite: 1 })
+    expect(resumo).toHaveLength(3) // 1ª leitura + 2 repetições, mesmo com aviso sempre pendente
+    expect(reservas).toBe(3)
+  })
+})
+
+describe('avisos do Drive desligados pela plataforma (GOOGLE_AVISOS_DRIVE=desligado)', () => {
+  it('aviso é ignorado sem tocar no banco e nenhum canal é criado', async () => {
+    const { deps, chamadasAdmin } = montar()
+    deps.avisosDrive = false
+    const r = await tratarIntegracoes(new Request(`${BASE}/google/notificacao`, { method: 'POST', headers: { 'x-goog-channel-id': '66666666-6666-4666-8666-666666666666', 'x-goog-resource-state': 'update' } }), deps)
+    expect(r.status).toBe(200)
+    expect(await manterMonitoramento(deps)).toEqual({ criados: 0, encerrados: 0, falhas: 0 })
+    expect(chamadasAdmin).toHaveLength(0)
+  })
+
+  it('com os avisos desligados, o agendador continua lendo as planilhas (contingência intacta)', async () => {
+    const { deps, chamadasAdmin } = montar({ admin: { sheets_reservar: () => ({ data: [], error: null }) } })
+    deps.avisosDrive = false
+    const r = await tratarIntegracoes(new Request(`${BASE}/cron`, { method: 'POST', headers: { 'x-cron-secret': deps.segredoCron } }), deps)
+    expect(r.status).toBe(200)
+    expect(chamadasAdmin.some((c) => c.nome === 'sheets_reservar')).toBe(true) // leitura periódica
+    expect(chamadasAdmin.some((c) => c.nome.startsWith('sheets_canal') || c.nome === 'sheets_canais_tarefas')).toBe(false) // nenhum canal
   })
 })

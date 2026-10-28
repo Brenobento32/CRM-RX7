@@ -9,7 +9,7 @@ import { listarFunis } from '@/lib/dal/funis'
 import { listarNegociacoesArquivadas, type NegociacaoArquivada } from '@/lib/dal/negociacoes'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { formatarData } from '@/lib/utils/formatacao'
-import { ROTULO_ORIGEM } from '@/lib/validations/funil'
+import { ROTULO_ORIGEM, rotuloDaOrigem } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 import { AcoesLeadArquivado } from './_components/acoes-lead-arquivado'
@@ -113,7 +113,7 @@ function TabelaAtivos({ leads, mostrarFunil }: { leads: CardFunil[]; mostrarFuni
               </td>
               <td className="px-4 py-3 text-premium-secundario">{l.clienteEmpresa ?? '—'}</td>
               <td className="px-4 py-3 text-premium-secundario">{l.nichoNome ?? 'Outros'}</td>
-              <td className="px-4 py-3 text-premium-secundario">{ROTULO_ORIGEM[l.origem]}</td>
+              <td className="px-4 py-3 text-premium-secundario">{rotuloDaOrigem(l.origem, l.atribuicao)}</td>
               <td className="px-4 py-3 text-premium-secundario">{l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}</td>
               <td className="px-4 py-3 text-premium-secundario">{l.clienteTelefone ? formatarTelefone(l.clienteTelefone) : '—'}</td>
               <td className="px-4 py-3 text-premium-secundario">{l.responsavel ?? '—'}</td>

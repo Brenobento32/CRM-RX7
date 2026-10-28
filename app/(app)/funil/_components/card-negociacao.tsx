@@ -15,7 +15,7 @@ import {
   formatarTempoParado,
   hojeSaoPaulo,
 } from '@/lib/utils/formatacao'
-import { ROTULO_ORIGEM } from '@/lib/validations/funil'
+import { rotuloDaOrigem } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 import { MenuMoverPara } from './menu-mover'
@@ -185,7 +185,7 @@ export function CardConteudo({
       {/* 4: origem (pill) + temperatura (texto + emoji fixo) na mesma linha (item 1.4). */}
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${PILL_ORIGEM[card.origem]}`}>
-          {ROTULO_ORIGEM[card.origem]}
+          {rotuloDaOrigem(card.origem, card.atribuicao)}
         </span>
         {card.temperatura && (
           <span className="text-xs font-medium text-premium-secundario">

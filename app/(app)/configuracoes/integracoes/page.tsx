@@ -11,7 +11,7 @@ import { Selo, type TomSelo } from '@/components/ui/selo'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarResponsaveis } from '@/lib/dal/clientes'
 import { listarFontes, opcoesDeDestino, podeGerirFontes } from '@/lib/dal/fontes-leads'
-import { consumoWhatsapp, integracoesHabilitadas, listarContasGoogle, listarIntegracoesOficiais, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
+import { consumoWhatsapp, integracoesHabilitadas, listarContasGoogle, listarIntegracoesOficiais, monitoramentoDasPlanilhas, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
 import { conexaoMetaAds, franquiaWhatsapp } from '@/lib/dal/meta-conversoes'
 import { CATALOGO, itemDoTipo, situacaoDaFonte } from '@/lib/integracoes/catalogo'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
@@ -43,7 +43,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') notFound()
 
-  const [todasFontes, podeGerir, opcoes, responsaveis, params, oficiais, contas, consumo, podeConectar, franquia, metaAds, habilitadas] = await Promise.all([
+  const [todasFontes, podeGerir, opcoes, responsaveis, params, oficiais, contas, consumo, podeConectar, franquia, metaAds, habilitadas, monitoramento] = await Promise.all([
     listarFontes(),
     podeGerirFontes(),
     opcoesDeDestino(),
@@ -56,6 +56,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
     franquiaWhatsapp(),
     conexaoMetaAds(),
     integracoesHabilitadas(),
+    monitoramentoDasPlanilhas(),
   ])
   const erro = typeof params.erro === 'string' ? params.erro : null
   const ok = typeof params.ok === 'string' ? params.ok : null
@@ -90,6 +91,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
         franquia={franquia}
         metaAds={metaAds}
         habilitadas={habilitadas}
+        monitoramento={monitoramento}
       />
 
       <section aria-labelledby="catalogo-titulo" className="space-y-3">

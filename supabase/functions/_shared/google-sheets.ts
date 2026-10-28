@@ -18,7 +18,11 @@ export type ConfigGoogle = {
   tokenUrl: string // https://oauth2.googleapis.com/token
   revokeUrl: string // https://oauth2.googleapis.com/revoke
   sheetsUrl: string // https://sheets.googleapis.com/v4
+  /** Drive API (avisos de alteração: files.watch / channels.stop). Padrão: https://www.googleapis.com/drive/v3 */
+  driveUrl?: string
 }
+
+export const DRIVE_URL_PADRAO = 'https://www.googleapis.com/drive/v3'
 
 export type Busca = (entrada: string, init?: RequestInit) => Promise<Response>
 
@@ -295,3 +299,113 @@ export async function montarLeads(
   const vistos = new Set<string>()
   return { leads: leads.filter((x) => (vistos.has(x.chave) ? false : (vistos.add(x.chave), true))), vazias }
 }
+
+// ----------------------------------------------------------------- Drive: avisos de alteração (files.watch)
+/**
+ * Monitoramento oficial do Google Drive para UMA planilha (mesmo OAuth, escopo
+ * drive.file: o arquivo já foi liberado no seletor). O Google chama o endereço
+ * do AVANTE quando o arquivo muda; o aviso vem vazio ("mudou"), então quem lê
+ * as linhas continua sendo a fila normal.
+ *
+ * Limites documentados pelo Google: canal de arquivo dura no máximo 1 dia e
+ * não é renovável (cria-se outro); o aviso não garante tempo de entrega — para
+ * planilhas, alterações costumam ser agrupadas e avisadas com atraso de alguns
+ * minutos. Por isso o agendador periódico continua como contingência.
+ */
+export const DURACAO_MAXIMA_CANAL_MS = 24 * 60 * 60 * 1000
+
+const codificador = new TextEncoder()
+function base64Url(bytes: Uint8Array): string {
+  let binario = ''
+  for (const b of bytes) binario += String.fromCharCode(b)
+  return btoa(binario).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+}
+async function hmac(segredo: string, texto: string): Promise<string> {
+  if (segredo.length < 32) throw new Error('Segredo curto demais para assinar o canal (mínimo 32 caracteres).')
+  const chave = await crypto.subtle.importKey('raw', codificador.encode(segredo), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  return base64Url(new Uint8Array(await crypto.subtle.sign('HMAC', chave, codificador.encode(texto))))
+}
+
+/** Token do canal (volta em X-Goog-Channel-Token): `<fonte>.<HMAC(canal:fonte)>`. Não é segredo do Google; prova que o canal é nosso. */
+export async function tokenDoCanal(segredo: string, canalId: string, fonteId: string): Promise<string> {
+  return `${fonteId}.${await hmac(segredo, `drive-canal:${canalId}:${fonteId}`)}`
+}
+
+/** Confere o token do aviso em tempo constante; devolve a fonte só se a assinatura bater com ESTE canal. */
+export async function conferirTokenDoCanal(segredo: string, canalId: string, token: string): Promise<string | null> {
+  const m = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{20,100})$/i.exec(token ?? '')
+  if (!m || !/^[0-9a-f-]{36}$/i.test(canalId ?? '')) return null
+  const esperado = await tokenDoCanal(segredo, canalId.toLowerCase(), m[1].toLowerCase())
+  const recebido = `${m[1].toLowerCase()}.${m[2]}`
+  if (esperado.length !== recebido.length) return null
+  let d = 0
+  for (let i = 0; i < esperado.length; i++) d |= esperado.charCodeAt(i) ^ recebido.charCodeAt(i)
+  return d === 0 ? m[1].toLowerCase() : null
+}
+
+export type CanalCriado = { resourceId: string; expiraEm: string }
+
+/** Erro do Google ao criar o canal: `definitivo` = endereço/recurso recusado (não adianta insistir logo). */
+export class ErroCanal extends Error {
+  readonly definitivo: boolean
+  readonly autorizacao: boolean
+  constructor(mensagem: string, definitivo: boolean, autorizacao = false) {
+    super(mensagem)
+    this.definitivo = definitivo
+    this.autorizacao = autorizacao
+  }
+}
+
+export async function criarCanal(
+  buscar: Busca,
+  cfg: ConfigGoogle,
+  accessToken: string,
+  p: { planilhaId: string; canalId: string; endereco: string; token: string; duracaoMs?: number },
+): Promise<CanalCriado> {
+  const duracao = Math.min(Math.max(p.duracaoMs ?? DURACAO_MAXIMA_CANAL_MS, 60_000), DURACAO_MAXIMA_CANAL_MS)
+  let r: Response
+  try {
+    r = await buscar(`${cfg.driveUrl ?? DRIVE_URL_PADRAO}/files/${encodeURIComponent(p.planilhaId)}/watch?supportsAllDrives=true`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.canalId, type: 'web_hook', address: p.endereco, token: p.token, expiration: String(Date.now() + duracao) }),
+    })
+  } catch {
+    throw new ErroCanal('Não foi possível falar com o Google Drive.', false)
+  }
+  const c = await lerJson(r)
+  if (r.status === 401) throw new ErroCanal('A autorização do Google expirou. Conecte a conta de novo.', false, true)
+  if (r.status === 403 || r.status === 404) {
+    throw new ErroCanal('O Google não liberou o monitoramento desta planilha (acesso do arquivo).', true)
+  }
+  if (r.status === 400) {
+    // Ex.: push.webhookUrlUnauthorized / webhookUrlNotHttps — configuração do endereço, não da planilha.
+    throw new ErroCanal('O Google recusou o endereço de avisos do AVANTE. A leitura periódica continua.', true)
+  }
+  if (r.status === 429) throw new ErroCanal('Limite de uso do Google atingido. Tentaremos de novo.', false)
+  if (!r.ok || typeof c.resourceId !== 'string') throw new ErroCanal(`O Google Drive respondeu ${r.status}.`, false)
+  const expira = Number(c.expiration)
+  return { resourceId: c.resourceId, expiraEm: new Date(Number.isFinite(expira) && expira > 0 ? expira : Date.now() + duracao).toISOString() }
+}
+
+/** Encerra o canal no Google. Canal já vencido/inexistente (404) conta como encerrado. */
+export async function encerrarCanal(
+  buscar: Busca,
+  cfg: ConfigGoogle,
+  accessToken: string,
+  p: { canalId: string; resourceId: string },
+): Promise<'encerrado' | 'falhou'> {
+  try {
+    const r = await buscar(`${cfg.driveUrl ?? DRIVE_URL_PADRAO}/channels/stop`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.canalId, resourceId: p.resourceId }),
+    })
+    return r.ok || r.status === 404 ? 'encerrado' : 'falhou'
+  } catch {
+    return 'falhou'
+  }
+}
+
+/** Estados que o Google manda para arquivo (X-Goog-Resource-State). */
+export const ESTADOS_AVISO = ['sync', 'add', 'remove', 'update', 'trash', 'untrash'] as const

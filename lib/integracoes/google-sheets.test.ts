@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  DURACAO_MAXIMA_CANAL_MS,
+  ErroCanal,
   ErroGoogle,
+  conferirTokenDoCanal,
+  criarCanal,
+  encerrarCanal,
+  tokenDoCanal,
   emailDoIdToken,
   extrairPlanilhaDoLink,
   lerLinhas,
@@ -145,5 +151,55 @@ describe('chave estável (idempotência)', () => {
   it('a mesma chave duas vezes na leitura entra uma vez só', async () => {
     const dup = [linhas[0], { ...linhas[0], numero: 8 }]
     expect((await montarLeads(cab, dup, m, 'ID')).leads).toHaveLength(1)
+  })
+})
+
+// ------------------------------------------------------------------ avisos do Drive (files.watch)
+describe('avisos do Google Drive (files.watch)', () => {
+  const SEGREDO = 'segredo-de-estado-com-pelo-menos-32-caracteres!!'
+  const CANAL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const FONTE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+  it('token do canal: devolve a fonte só para o MESMO canal e a mesma assinatura', async () => {
+    const t = await tokenDoCanal(SEGREDO, CANAL, FONTE)
+    expect(t.startsWith(`${FONTE}.`)).toBe(true)
+    expect(await conferirTokenDoCanal(SEGREDO, CANAL, t)).toBe(FONTE)
+    expect(await conferirTokenDoCanal(SEGREDO, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', t)).toBeNull() // outro canal
+    expect(await conferirTokenDoCanal('outro-segredo-com-pelo-menos-32-caracteres!!', CANAL, t)).toBeNull()
+    expect(await conferirTokenDoCanal(SEGREDO, CANAL, t.replace(FONTE, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'))).toBeNull() // fonte trocada
+    expect(await conferirTokenDoCanal(SEGREDO, CANAL, '')).toBeNull()
+    expect(await conferirTokenDoCanal(SEGREDO, 'nao-uuid', t)).toBeNull()
+  })
+
+  it('criarCanal: pede web_hook com id, endereço, token e no máximo 1 dia', async () => {
+    let pedido: { url: string; corpo: Record<string, string>; auth: string | null } | null = null
+    const buscar = async (url: string, init?: RequestInit) => {
+      pedido = { url, corpo: JSON.parse(String(init?.body)), auth: new Headers(init?.headers).get('authorization') }
+      return resposta(200, { resourceId: 'res123', expiration: String(Date.now() + 86_400_000) })
+    }
+    const antes = Date.now()
+    const r = await criarCanal(buscar, { ...cfg, driveUrl: 'https://drive.falso/v3' }, 'ya29.acesso', {
+      planilhaId: ID, canalId: CANAL, endereco: 'https://exemplo.supabase.co/functions/v1/integracoes/google/notificacao', token: 'tok', duracaoMs: 9e9,
+    })
+    expect(pedido!.url).toBe(`https://drive.falso/v3/files/${ID}/watch?supportsAllDrives=true`)
+    expect(pedido!.auth).toBe('Bearer ya29.acesso')
+    expect(pedido!.corpo).toMatchObject({ id: CANAL, type: 'web_hook', token: 'tok' })
+    expect(Number(pedido!.corpo.expiration) - antes).toBeLessThanOrEqual(DURACAO_MAXIMA_CANAL_MS + 1000)
+    expect(r.resourceId).toBe('res123')
+  })
+
+  it('criarCanal: classifica as recusas do Google', async () => {
+    const com = (status: number) => criarCanal(async () => resposta(status, {}), cfg, 't', { planilhaId: ID, canalId: CANAL, endereco: 'https://x', token: 't' })
+    await expect(com(400)).rejects.toMatchObject({ definitivo: true }) // endereço recusado
+    await expect(com(404)).rejects.toMatchObject({ definitivo: true }) // arquivo sem acesso
+    await expect(com(401)).rejects.toMatchObject({ autorizacao: true, definitivo: false })
+    await expect(com(503)).rejects.toMatchObject({ definitivo: false })
+    await expect(com(503)).rejects.toBeInstanceOf(ErroCanal)
+  })
+
+  it('encerrarCanal: 404 (já vencido) conta como encerrado; falha de rede não', async () => {
+    expect(await encerrarCanal(async () => new Response(null, { status: 204 }), cfg, 't', { canalId: CANAL, resourceId: 'r' })).toBe('encerrado')
+    expect(await encerrarCanal(async () => resposta(404, {}), cfg, 't', { canalId: CANAL, resourceId: 'r' })).toBe('encerrado')
+    expect(await encerrarCanal(async () => { throw new Error('rede') }, cfg, 't', { canalId: CANAL, resourceId: 'r' })).toBe('falhou')
   })
 })

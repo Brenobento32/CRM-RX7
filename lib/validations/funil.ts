@@ -230,6 +230,21 @@ export const ROTULO_ORIGEM: Record<Enums['origem_negociacao'], string> = {
 }
 
 /**
+ * Fonte exata gravada pelas integrações em `negociacoes.atribuicao.fonte`.
+ * A CLASSE da origem (`origem_negociacao`) continua como está no banco — o
+ * Google Sheets entra como "formulario" (lead que chega por cadastro externo)
+ * e isso não é reclassificado; aqui só se mostra o nome certo da fonte.
+ */
+const ROTULO_FONTE: Record<string, string> = {
+  google_sheets: 'Google Sheets',
+}
+
+export function rotuloDaOrigem(origem: Enums['origem_negociacao'], atribuicao?: { fonte?: unknown } | null): string {
+  const fonte = typeof atribuicao?.fonte === 'string' ? atribuicao.fonte : null
+  return (fonte && ROTULO_FONTE[fonte]) || ROTULO_ORIGEM[origem]
+}
+
+/**
  * "Dados comerciais" editáveis na ficha do cliente (item 3/4 do refinamento):
  * nicho, temperatura e proposta/valor. Funil, etapa e responsável ficam fora
  * daqui — têm telas próprias (Mover, carteira do cliente). `origem` também

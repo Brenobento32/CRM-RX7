@@ -162,7 +162,7 @@ export function AssistentePlanilha({
           ) : (
             <Aviso tom="alerta">A conexão foi salva, mas a primeira leitura falhou: {feito.erro}. O AVANTE tenta de novo automaticamente.</Aviso>
           )}
-          <p className="text-premium-secundario">A partir de agora, a planilha é lida automaticamente a cada 10 minutos. Você pode pausar, sincronizar na hora ou mudar o destino em Integrações.</p>
+          <p className="text-premium-secundario">A partir de agora, linhas novas entram quando o Google avisar a alteração da planilha (normalmente em segundos ou poucos minutos) e, por garantia, a planilha também é conferida periodicamente. Você pode pausar, sincronizar na hora ou mudar o destino em Integrações.</p>
           <Link href="/configuracoes/integracoes#google-sheets" className={botaoPrimarioClass}>
             Ver em Integrações
           </Link>
