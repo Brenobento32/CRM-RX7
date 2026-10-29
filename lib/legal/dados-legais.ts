@@ -10,7 +10,7 @@
  * `docs/PAGINAS-PUBLICAS-REVISAO-JURIDICA.md`.
  */
 export type DadosLegais = {
-  /** Nome comercial usado no produto (rodapé do login e metadados). */
+  /** Marca comercial usada no produto (não é o nome fantasia cadastral). */
   marca: string
   razaoSocial: string | null
   cnpj: string | null
@@ -30,7 +30,7 @@ export type DadosLegais = {
 
 export const DADOS_LEGAIS: DadosLegais = {
   marca: 'Rio X7 Agência Digital',
-  razaoSocial: 'MG Gestão e Suporte LTDA',
+  razaoSocial: 'MH GESTAO & SUPORTE LTDA',
   cnpj: '61.164.464/0001-28',
   localidade: 'Petrópolis – RJ',
   emailPrivacidade: 'suporte@riox7comunicacao.com.br',

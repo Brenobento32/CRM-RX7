@@ -25,7 +25,7 @@ export default function TermosPage() {
 
       <Secao titulo="1. O serviço">
         <p>
-          O AVANTE CRM é um sistema de gestão comercial oferecido pela <Dado campo="razaoSocial" rotulo="razão social" />, nome comercial{' '}
+          O AVANTE CRM é um sistema de gestão comercial oferecido pela <Dado campo="razaoSocial" rotulo="razão social" />, que atua com a marca{' '}
           {DADOS_LEGAIS.marca}, CNPJ <Dado campo="cnpj" rotulo="CNPJ" />, às suas empresas clientes: funil de vendas, clientes e negociações, agenda, metas,
           captação de leads e integrações com Google e Meta.
         </p>

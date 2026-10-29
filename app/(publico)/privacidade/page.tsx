@@ -42,7 +42,7 @@ export default function PrivacidadePage() {
       <Secao titulo="1. Quem somos">
         <p>
           O AVANTE CRM (<a href={SITE_AVANTE} className={link}>{SITE_AVANTE.replace('https://', '')}</a>) é um sistema de gestão comercial oferecido pela{' '}
-          <Dado campo="razaoSocial" rotulo="razão social" />, nome comercial {DADOS_LEGAIS.marca}, CNPJ <Dado campo="cnpj" rotulo="CNPJ" />, localizada em{' '}
+          <Dado campo="razaoSocial" rotulo="razão social" />, que atua com a marca {DADOS_LEGAIS.marca}, CNPJ <Dado campo="cnpj" rotulo="CNPJ" />, localizada em{' '}
           <Dado campo="localidade" rotulo="cidade" />, às suas empresas clientes. O acesso é criado pela Rio X7 ou pelo Administrador de cada empresa; não há
           cadastro aberto ao público.
         </p>

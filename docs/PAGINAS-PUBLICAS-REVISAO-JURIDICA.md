@@ -8,7 +8,7 @@ Os dados da empresa ficam em `lib/legal/dados-legais.ts`; se algum voltar a
 
 | Item | Fonte |
 |---|---|
-| Razão social MG Gestão e Suporte LTDA, nome comercial Rio X7 Agência Digital, CNPJ 61.164.464/0001-28, Petrópolis – RJ (sem endereço completo, por decisão do proprietário) | proprietário, 28/10/2026 |
+| Razão social MH GESTAO & SUPORTE LTDA, CNPJ 61.164.464/0001-28, ativa, Petrópolis – RJ (sem endereço completo, por decisão do proprietário). "Rio X7 Agência Digital" é a marca usada (o nome fantasia cadastral é outro e não é publicado) | base pública do CNPJ (BrasilAPI e CNPJ.ws, atualizada em 10/10/2026); comprovante oficial da Receita a anexar pelo proprietário |
 | Atendimento: Setor de Privacidade e Proteção de Dados, suporte@riox7comunicacao.com.br, resposta em até 15 dias, observados os prazos legais | proprietário |
 | Foro: Petrópolis – RJ, ressalvadas as regras legais | proprietário |
 | Banco de dados, autenticação e arquivos na Supabase, região São Paulo (`sa-east-1`) | conexão do projeto `ybgzlxgeoiggmfdxarqx` |
