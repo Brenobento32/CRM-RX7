@@ -35,6 +35,7 @@ export const SLUGS_RESERVADOS: ReadonlySet<string> = new Set([
   'login', 'auth', 'admin', 'api', 'f', 'e', 'esqueci-senha', 'redefinir-senha',
   'sem-acesso', 'empresas', 'next', 'static', 'public', 'assets', 'favicon-ico',
   'robots-txt', 'sitemap-xml', 'www', 'app', 'suporte', 'ajuda', 'status',
+  'apresentacao', 'privacidade', 'termos',
   // área interna
   'inicio', 'agenda', 'funil', 'clientes', 'metas', 'propostas', 'relatorios',
   'configuracoes', 'perfil', 'negociacoes', 'conversas', 'leads', 'dashboard',
