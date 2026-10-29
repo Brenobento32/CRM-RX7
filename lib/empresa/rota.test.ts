@@ -74,12 +74,16 @@ describe('lista de reservados', () => {
     const sql = pastas
       .flatMap((p) => {
         try {
-          return readdirSync(join(raiz, p)).map((f) => readFileSync(join(raiz, p, f), 'utf8'))
+          return readdirSync(join(raiz, p))
+            .sort()
+            .map((f) => readFileSync(join(raiz, p, f), 'utf8'))
         } catch {
           return []
         }
       })
-      .find((t) => t.includes('function public.slug_reservado'))
+      .filter((t) => t.includes('function public.slug_reservado'))
+      // a definição em vigor é a da migration mais recente (create or replace)
+      .at(-1)
     expect(sql, 'definição de slug_reservado não encontrada').toBeTruthy()
     const corpo = sql!.slice(sql!.indexOf('function public.slug_reservado'))
     const lista = corpo.slice(corpo.indexOf('array['), corpo.indexOf(']'))

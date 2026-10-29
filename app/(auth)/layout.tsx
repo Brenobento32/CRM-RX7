@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import { MarcaAvante } from '@/components/marca/logo-avante'
 
 /**
@@ -49,6 +51,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <MarcaAvante className="h-9 w-auto" />
           </div>
           {children}
+          <nav aria-label="Documentos" className="mt-10 flex flex-wrap gap-x-4 gap-y-1 text-xs text-premium-mudo">
+            <Link href="/apresentacao" className="hover:text-premium-texto">
+              Sobre o AVANTE
+            </Link>
+            <Link href="/privacidade" className="hover:text-premium-texto">
+              Política de Privacidade
+            </Link>
+            <Link href="/termos" className="hover:text-premium-texto">
+              Termos de Uso
+            </Link>
+          </nav>
         </div>
       </div>
     </main>

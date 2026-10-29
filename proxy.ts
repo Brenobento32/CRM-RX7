@@ -25,7 +25,12 @@ const ROTAS_PUBLICAS = ['/login']
  * de o Route Handler rodar).
  */
 // `/f/<id>`: formulário público de captação (Formulário AVANTE), sem login.
-const ROTAS_LIVRES = ['/sem-acesso', '/esqueci-senha', '/auth/callback', '/f']
+// `/apresentacao`, `/privacidade`, `/termos`: páginas públicas do produto (também
+// para os verificadores do Google e da Meta); não leem dado de empresa nenhuma.
+const ROTAS_LIVRES = ['/sem-acesso', '/esqueci-senha', '/auth/callback', '/f', '/apresentacao', '/privacidade', '/termos']
+
+/** Página pública mostrada em `/` para quem não está logado (logado, `/` é o início do CRM). */
+const APRESENTACAO = '/apresentacao'
 
 /** Logadas, mas fora de qualquer empresa. */
 const ROTAS_SEM_EMPRESA = ['/empresas', '/redefinir-senha', '/admin']
@@ -94,6 +99,13 @@ export async function proxy(request: NextRequest) {
     const entrada = urlCom(request, '/admin', '')
     entrada.searchParams.set('next', destinoAdminSeguro(nextLogin))
     return redirecionar(entrada, response)
+  }
+
+  // Visitante sem sessão em `/`: apresentação pública do AVANTE (mesma URL, sem redirect).
+  if (!claims && !prefixo && pathname === '/') {
+    const apresentacao = NextResponse.rewrite(urlCom(request, APRESENTACAO, ''), { request: { headers: cabecalhos } })
+    copiarSessao(response, apresentacao)
+    return apresentacao
   }
 
   if (!claims && !publica) {
