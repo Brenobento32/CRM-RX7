@@ -46,8 +46,10 @@ import {
   ErroMeta,
   conferirNumero,
   enviarTexto,
+  extrairEventosCoexistencia,
   extrairEventosWhatsapp,
   inscreverApp,
+  pedirSincronizacaoApp,
   PIN_VALIDO,
   registrarNumero,
   lerServicoDoMes,
@@ -615,12 +617,33 @@ async function whatsappConcluir(deps: Dependencias, req: Request): Promise<Respo
   if (error || typeof numeroId !== 'string') return erroDoBanco(error)
   const base = { ok: true, numero: numeroId, numeroExibicao: numero.numeroExibicao, nomeVerificado: numero.nomeVerificado, modo }
   // Coexistência: a Meta não pede registro (o número já está no app WhatsApp Business).
-  if (modo === 'coexistencia') return json(200, { ...base, situacao: 'conectado' })
+  // Pede logo a sincronização (contatos e histórico): a Meta só aceita nas 24 h após a conexão, uma vez por tipo.
+  if (modo === 'coexistencia') {
+    const sincronizacao = await pedirSincronizacoes(deps, numeroId, token, phone)
+    return json(200, { ...base, situacao: 'conectado', sincronizacao })
+  }
   // Reconexão de um número já registrado antes nesta empresa: nada a registrar.
   const { data: agora } = await ctx.usuario.rpc('whatsapp_conexao_recente', { p_phone_number_id: phone })
   if ((agora as { situacao: string }[] | null)?.[0]?.situacao === 'conectado') return json(200, { ...base, situacao: 'conectado' })
   if (!pin) return json(200, { ...base, situacao: 'pendente_registro', pendencia: 'Falta registrar o número na Meta com um PIN de 6 números.' })
   return json(200, { ...base, ...(await registrarComPin(deps, ctx.usuario, numeroId, pin, token)) })
+}
+
+/** Contatos primeiro, depois histórico (ordem da documentação). Falha não desfaz a conexão: fica registrada. */
+async function pedirSincronizacoes(deps: Dependencias, numeroId: string, token: string, phone: string): Promise<Record<string, string>> {
+  const saida: Record<string, string> = {}
+  for (const [tipo, sync] of [['contatos', 'smb_app_state_sync'], ['historico', 'history']] as const) {
+    try {
+      const requestId = await pedirSincronizacaoApp(deps.buscar, deps.meta!, token, phone, sync)
+      await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: tipo, p_ok: true, p_request_id: requestId, p_erro: null })
+      saida[tipo] = 'pedida'
+    } catch (e) {
+      const msg = e instanceof ErroMeta ? e.message : 'Falha ao falar com a Meta.'
+      await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: tipo, p_ok: false, p_request_id: null, p_erro: msg })
+      saida[tipo] = 'erro'
+    }
+  }
+  return saida
 }
 
 /**
@@ -728,8 +751,33 @@ async function whatsappWebhook(deps: Dependencias, req: Request, url: URL): Prom
     })
     if (error) falhou = true
   }
+  // Coexistência: ecos do app, histórico compartilhado e contatos (só números em coexistência; o banco confere).
+  const coex = extrairEventosCoexistencia(corpo)
+  for (const e of coex.ecos) {
+    const { error } = await deps.admin.rpc('whatsapp_registrar_mensagens_app', { p_phone_number_id: e.phoneNumberId, p_origem: 'eco_app', p_itens: e.itens })
+    if (error) falhou = true
+  }
+  for (const h of coex.historico) {
+    if (h.itens.length) {
+      const { error } = await deps.admin.rpc('whatsapp_registrar_mensagens_app', { p_phone_number_id: h.phoneNumberId, p_origem: 'historico', p_itens: h.itens })
+      if (error) falhou = true
+    }
+    const { error } = await deps.admin.rpc('whatsapp_historico_andamento', {
+      p_phone_number_id: h.phoneNumberId,
+      p_fase: h.fase,
+      p_progresso: h.progresso,
+      p_recusado: h.recusado,
+    })
+    if (error) falhou = true
+  }
+  for (const c of coex.contatos) {
+    const { error } = await deps.admin.rpc('whatsapp_registrar_contatos_app', { p_phone_number_id: c.phoneNumberId, p_itens: c.itens })
+    if (error) falhou = true
+  }
   // 500 faz a Meta reenviar; a gravação é idempotente pelo ID da mensagem.
-  return falhou ? erro(500, 'reenviar', 'Falha temporária.') : json(200, { ok: true, mensagens: mensagens.length, status: status.length })
+  return falhou
+    ? erro(500, 'reenviar', 'Falha temporária.')
+    : json(200, { ok: true, mensagens: mensagens.length, status: status.length, ecos: coex.ecos.length, historico: coex.historico.length, contatos: coex.contatos.length })
 }
 
 async function whatsappEnviar(deps: Dependencias, req: Request): Promise<Response> {
@@ -856,6 +904,7 @@ export async function processarConversoes(deps: Dependencias, limite = 50) {
   }
   return resumo
 }
+
 
 // =============================================================== roteador
 export async function tratarIntegracoes(req: Request, deps: Dependencias): Promise<Response> {

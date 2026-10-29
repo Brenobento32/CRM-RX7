@@ -6,7 +6,7 @@ import { Aviso } from '@/components/ui/aviso'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { listarResponsaveis } from '@/lib/dal/clientes'
 import { opcoesDeDestino } from '@/lib/dal/fontes-leads'
-import { integracoesHabilitadas, listarContasGoogle, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
+import { integracoesHabilitadas, listarContasGoogle, listarIntegracoesOficiais, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
 
 import { AssistentePlanilha } from './assistente-planilha'
 
@@ -26,19 +26,31 @@ const MOTIVOS: Record<string, string> = {
 export default async function ConectarPlanilhaPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') notFound()
-  const [podeGerir, contas, opcoes, responsaveis, params, habilitadas] = await Promise.all([
+  const [podeGerir, contas, opcoes, responsaveis, params, habilitadas, oficiais] = await Promise.all([
     podeAdministrarIntegracoes(),
     listarContasGoogle(),
     opcoesDeDestino(),
     listarResponsaveis(),
     searchParams,
     integracoesHabilitadas(),
+    listarIntegracoesOficiais(),
   ])
+  // Destino padrão: o da última planilha conectada (se ainda válido) ou o funil principal, etapa inicial e você como responsável.
+  const ultima = oficiais.find((i) => i.tipo === 'google_sheets' && i.status !== 'revogada')
+  const valido = ultima && opcoes.funis.some((f) => f.id === ultima.funilId && f.etapas.some((e) => e.id === ultima.etapaId)) && responsaveis.some((r) => r.id === ultima.responsavelId)
+  const principal = opcoes.funis[0]
+  const destinoPadrao = valido
+    ? { funilId: ultima.funilId, etapaId: ultima.etapaId, responsavelId: ultima.responsavelId }
+    : {
+        funilId: principal?.id ?? '',
+        etapaId: principal?.etapas.find((e) => e.inicial)?.id ?? principal?.etapas[0]?.id ?? '',
+        responsavelId: responsaveis.some((r) => r.id === eu.id) ? eu.id : '',
+      }
   const p = (k: string) => (typeof params[k] === 'string' ? (params[k] as string) : null)
   const retorno = p('google')
   const aviso =
     retorno === 'conectado'
-      ? { tom: 'sucesso' as const, texto: 'Conta Google conectada. Agora cole o link da planilha.' }
+      ? { tom: 'sucesso' as const, texto: 'Conta Google conectada.' }
       : retorno === 'cancelado'
         ? { tom: 'alerta' as const, texto: 'Autorização cancelada no Google. Nada foi conectado.' }
         : retorno === 'erro'
@@ -49,8 +61,8 @@ export default async function ConectarPlanilhaPage({ searchParams }: { searchPar
     <div className="max-w-3xl space-y-6">
       <PageHeaderPremium
         titulo="Conectar planilha do Google"
-        subtitulo="Conta Google da empresa → planilha → aba → colunas → funil, etapa e responsável. Sem Apps Script: o AVANTE lê a planilha pela API oficial do Google, só com a permissão que você der."
-        voltar={{ href: '/configuracoes/integracoes', rotulo: 'Integrações' }}
+        subtitulo="Cole o link, conecte, autorize o Google e pronto. Sem Apps Script: o AVANTE lê a planilha pela API oficial do Google, só com a permissão que você der, e guarda todas as colunas no lead."
+        voltar={{ href: '/configuracoes/integracoes?abrir=google_sheets', rotulo: 'Integrações' }}
       />
       {aviso && <Aviso tom={aviso.tom}>{aviso.texto}</Aviso>}
       {!habilitadas.googleSheets ? (
@@ -62,6 +74,7 @@ export default async function ConectarPlanilhaPage({ searchParams }: { searchPar
           reconectar={p('reconectar') === '1'}
           opcoes={opcoes}
           responsaveis={responsaveis.map((r) => ({ id: r.id, nome: r.nome }))}
+          destinoPadrao={destinoPadrao}
         />
       ) : (
         <Aviso tom="info">Somente o Administrador da empresa conecta planilhas.</Aviso>

@@ -101,6 +101,8 @@ export type CardFunil = {
    * vez de `posicao` (um lead importado hoje não deve parecer recém-chegado).
    */
   dataChegada: string
+  /** Até 2 respostas do formulário/planilha mais recente (vazio quando não há). */
+  resumoRespostas?: { pergunta: string; resposta: string }[]
 }
 
 type LinhaFunilCards = Database['public']['Views']['funil_cards']['Row']
@@ -200,8 +202,28 @@ export async function listarCardsFunil(funilId: string): Promise<CardFunil[]> {
     throw new Error('Não foi possível carregar o funil.', { cause: error })
   }
 
-  const criadoEm = await buscarCriadoEm(supabase, data)
-  return data.flatMap((r) => paraCardFunil(r, agora, criadoEm))
+  const [criadoEm, resumo] = await Promise.all([buscarCriadoEm(supabase, data), buscarResumoRespostas(supabase, data)])
+  return data.flatMap((r) => paraCardFunil(r, agora, criadoEm)).map((c) => (resumo.has(c.id) ? { ...c, resumoRespostas: resumo.get(c.id) } : c))
+}
+
+/**
+ * Resumo das respostas para o cartão (uma chamada só, RLS valendo). Sem a
+ * migration 20261104090000 aplicada, o cartão só fica sem o resumo.
+ */
+async function buscarResumoRespostas(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  linhas: LinhaFunilCards[],
+): Promise<Map<string, { pergunta: string; resposta: string }[]>> {
+  const ids = linhas.flatMap((r) => (r.id ? [r.id] : []))
+  const mapa = new Map<string, { pergunta: string; resposta: string }[]>()
+  if (ids.length === 0) return mapa
+  const rpc = supabase.rpc.bind(supabase) as unknown as (nome: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>
+  const { data, error } = await rpc('resumo_respostas_negociacoes', { p_ids: ids })
+  if (error || !Array.isArray(data)) return mapa
+  for (const r of data as { negociacao_id: string; pergunta: string; resposta: string }[]) {
+    mapa.set(r.negociacao_id, [...(mapa.get(r.negociacao_id) ?? []), { pergunta: r.pergunta, resposta: r.resposta }])
+  }
+  return mapa
 }
 
 /**

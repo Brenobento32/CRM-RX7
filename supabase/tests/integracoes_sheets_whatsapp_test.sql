@@ -25,6 +25,19 @@ begin
 end;
 $$;
 
+-- Ambiente local: os planos locais não têm quantidades; com a migration 20261104090000 (limite vazio =
+-- a definir = bloqueia novas conexões), o teste define limites por empresa. Sem ela, nada muda.
+do $lim$
+begin
+  if to_regclass('public.empresa_limites') is not null then
+    execute $x$insert into public.empresa_limites (tenant_id, recurso, limite, motivo)
+             select t.id, r, 100, 'ambiente local de teste' from public.tenants t cross join unnest(array['fontes', 'numeros_whatsapp', 'funis']) r
+              where t.tipo = 'assinante' on conflict (tenant_id, recurso) do nothing$x$;
+  end if;
+end;
+$lim$;
+
+
 create function public._como(p_uid uuid, p_slug text, p_sessao text default 'sessao-1')
 returns void language plpgsql as $$
 begin

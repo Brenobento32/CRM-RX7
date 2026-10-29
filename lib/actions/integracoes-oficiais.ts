@@ -279,3 +279,17 @@ export async function reprocessarMetaAdsAction(fd: FormData): Promise<void> {
   const r = await reprocessarEventoMetaAds(id)
   voltarMetaAds(r.ok ? 'ok' : 'erro', r.ok ? 'Evento volta para a fila de envio.' : r.mensagem)
 }
+
+// ------------------------------------------------------------------ Central (upgrade)
+const INTEGRACOES_CENTRAL = ['formularios', 'google_sheets', 'whatsapp_oficial', 'meta_conversoes']
+
+/** Pedido de upgrade: só registra o interesse (o Super Admin atende). Não libera nada sozinho. */
+export async function solicitarIntegracaoAction(fd: FormData): Promise<void> {
+  const integracao = texto(fd, 'integracao')
+  if (!INTEGRACOES_CENTRAL.includes(integracao)) voltar('erro', 'Integração inválida.')
+  const { solicitarIntegracao } = await import('@/lib/dal/central-integracoes')
+  const r = await solicitarIntegracao(integracao)
+  if (!r.ok) voltar('erro', r.mensagem)
+  voltar('ok', r.novo ? 'Pedido enviado à Rio X7. Avisaremos quando a integração for liberada no seu plano.' : 'Esta integração já está liberada.')
+}
+

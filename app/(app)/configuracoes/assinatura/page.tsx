@@ -76,7 +76,7 @@ export default async function MinhaAssinaturaPage() {
           <Secao titulo="Limites e consumo" descricao="Uso atual em relação ao que o plano permite.">
             <div className="space-y-4">
               <Consumo rotulo="Usuários ativos" uso={Number(assinatura.usuarios_ativos)} limite={assinatura.limite_usuarios} />
-              <Consumo rotulo="Integrações" uso={assinatura.integracoes_em_uso} limite={assinatura.limite_integracoes} />
+              <Consumo rotulo="Fontes de captação" uso={assinatura.integracoes_em_uso} limite={assinatura.limite_integracoes} semLimite="(limite a definir pela Rio X7)" />
               <div className="border-t border-premium-borda-suave pt-4">
                 <p className="text-sm font-medium text-premium-texto">Recursos do plano</p>
                 <p className="mt-0.5 text-sm text-premium-secundario">
@@ -107,14 +107,14 @@ function Dado({ rotulo, valor, destaque }: { rotulo: string; valor: string; dest
   )
 }
 
-function Consumo({ rotulo, uso, limite }: { rotulo: string; uso: number; limite: number | null }) {
+function Consumo({ rotulo, uso, limite, semLimite = '(sem limite)' }: { rotulo: string; uso: number; limite: number | null; semLimite?: string }) {
   const fracao = limite ? Math.min(uso / limite, 1) : 0
   return (
     <div>
       <div className="flex justify-between text-sm">
         <span className="text-premium-texto">{rotulo}</span>
         <span className="tabular-nums text-premium-secundario">
-          {uso} {limite === null ? '(sem limite)' : `de ${limite}`}
+          {uso} {limite === null ? semLimite : `de ${limite}`}
         </span>
       </div>
       {limite !== null && (

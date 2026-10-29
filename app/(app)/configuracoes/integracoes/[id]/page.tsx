@@ -60,7 +60,7 @@ export default async function FontePage({ params, searchParams }: Props) {
   if (!fonte) notFound()
   // Conexão oficial (Google/Meta): gerenciada no painel próprio, nunca pelo formulário de token.
   if ((await listarIntegracoesOficiais()).some((o) => o.fonteId === fonte.id)) {
-    redirect(fonte.tipo === 'whatsapp_cloud' ? '/configuracoes/integracoes#whatsapp-oficial' : '/configuracoes/integracoes#google-sheets')
+    redirect(fonte.tipo === 'whatsapp_cloud' ? '/configuracoes/integracoes?abrir=whatsapp_oficial' : '/configuracoes/integracoes?abrir=google_sheets')
   }
   const [eventos, podeGerir, opcoes, responsaveis] = await Promise.all([
     listarEventos(id),

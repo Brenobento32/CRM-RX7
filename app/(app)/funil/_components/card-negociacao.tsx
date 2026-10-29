@@ -209,6 +209,22 @@ export function CardConteudo({
       {/* 7: proposta — só quando existir, nunca "adivinhada" (item 1.7). */}
       {proposta !== null && <p className="mt-1.5 font-semibold tabular-nums">Proposta: {formatarMoeda(proposta)}</p>}
 
+      {/* Respostas do formulário/planilha: só um resumo (a lista completa abre no lead). */}
+      {card.resumoRespostas && card.resumoRespostas.length > 0 && (
+        <dl className="mt-2 space-y-0.5 rounded-md bg-premium-bg/70 px-2 py-1.5 text-xs">
+          {card.resumoRespostas.map((r, i) => (
+            <div key={`${r.pergunta}-${i}`} className="flex gap-1">
+              <dt className="max-w-[55%] shrink-0 truncate text-premium-mudo" title={r.pergunta}>
+                {r.pergunta}:
+              </dt>
+              <dd className="truncate font-medium text-premium-texto" title={r.resposta}>
+                {r.resposta}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
       {/* 8/9: última atividade, depois próxima ação — só quando existirem (itens 1.8/1.9). */}
       {(card.ultimaAtividade || card.proximaAcao) && (
         <dl className="mt-2 space-y-1 text-xs text-premium-secundario">

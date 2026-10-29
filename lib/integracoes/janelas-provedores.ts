@@ -226,10 +226,11 @@ const ORIGENS_META = new Set(['https://www.facebook.com', 'https://web.facebook.
 
 /**
  * Abre o cadastro incorporado da Meta (v4: os produtos ficam na configuração do
- * Login do Facebook para Empresas; `extras` vazio). Não lança por cancelamento:
+ * Login do Facebook para Empresas). Com `coexistencia`, pede à Meta o fluxo do app
+ * WhatsApp Business (`featureType: whatsapp_business_app_onboarding`). Não lança por cancelamento:
  * devolve o motivo, para a tela dizer o que falta.
  */
-export async function cadastrarWhatsappNaMeta(cfg: ConfigMeta): Promise<ResultadoCadastroMeta> {
+export async function cadastrarWhatsappNaMeta(cfg: ConfigMeta, opcoes: { coexistencia?: boolean } = {}): Promise<ResultadoCadastroMeta> {
   let estado: EstadoCadastro = {}
   let janela: Window | null = null
   let origemOk: (o: string) => boolean = (o) => ORIGENS_META.has(o)
@@ -238,7 +239,9 @@ export async function cadastrarWhatsappNaMeta(cfg: ConfigMeta): Promise<Resultad
   if (cfg.simulado && cfg.urlCadastro) {
     const origem = new URL(cfg.urlCadastro).origin
     origemOk = (o) => o === origem
-    janela = popup(cfg.urlCadastro, 'cadastro-meta')
+    const url = new URL(cfg.urlCadastro)
+    if (opcoes.coexistencia) url.searchParams.set('preferencia', 'coexistencia')
+    janela = popup(url.toString(), 'cadastro-meta')
   } else {
     if (!cfg.appId || !cfg.configId) throw new Error('O app da Meta ainda não foi configurado na plataforma.')
     const w = window as JanelaComSdks
@@ -250,7 +253,9 @@ export async function cadastrarWhatsappNaMeta(cfg: ConfigMeta): Promise<Resultad
         config_id: cfg.configId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: {},
+        // Coexistência (app WhatsApp Business + Cloud API): a Meta mostra a opção de conectar o número do app;
+        // número novo continua possível na mesma janela. Sem a opção, o fluxo é o padrão (Cloud API).
+        extras: opcoes.coexistencia ? { featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' } : {},
       }),
     )
   }

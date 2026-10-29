@@ -126,8 +126,20 @@ export async function salvarPlanoAction(formData: FormData): Promise<void> {
   if (!parsed.success) redirect(comMensagem(destino, 'erro', parsed.error.issues[0]?.message ?? 'Dados inválidos.'))
 
   const r = await salvarPlano(parsed.data)
+  // Números de WhatsApp e funis (vazio = a definir: novas conexões/funis bloqueados até definir).
+  const inteiro = (campo: string, min: number) => {
+    const bruto = texto(formData, campo)
+    const n = bruto === '' ? null : Number(bruto)
+    return n !== null && (!Number.isInteger(n) || n < min || n > 1000) ? Number.NaN : n
+  }
+  const numeros = inteiro('limite_numeros_whatsapp', 0)
+  const funis = inteiro('limite_funis', 1)
+  if (Number.isNaN(numeros)) redirect(comMensagem(destino, 'erro', 'Números de WhatsApp: informe de 0 a 1000.'))
+  if (Number.isNaN(funis)) redirect(comMensagem(destino, 'erro', 'Funis: informe de 1 a 1000.'))
+  const { definirLimitesPlano } = await import('@/lib/dal/central-integracoes')
+  const rn = r.ok ? await definirLimitesPlano(parsed.data.codigo, { numeros, funis }) : r
   revalidatePath('/admin', 'layout')
-  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? `Plano ${parsed.data.nome} salvo.` : r.mensagem))
+  redirect(comMensagem(destino, rn.ok ? 'ok' : 'erro', rn.ok ? `Plano ${parsed.data.nome} salvo.` : rn.mensagem))
 }
 
 export async function definirAssinaturaAction(formData: FormData): Promise<void> {
@@ -233,4 +245,42 @@ export async function removerLogoPlataformaAction(formData: FormData): Promise<v
   const r = await removerLogoPlataforma(variante.data)
   revalidatePath('/', 'layout')
   redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? `Logo do modo ${variante.data} removida: voltou a logo oficial.` : r.mensagem))
+}
+
+// ------------------------------------------------------------------ Integrações por empresa
+const REGRAS_INTEGRACAO = ['plano', 'liberar', 'bloquear']
+const INTEGRACOES_EMPRESA = ['formularios', 'google_sheets', 'whatsapp_oficial', 'meta_conversoes']
+
+/** Exceção por empresa (liberar/bloquear) ou volta à regra do plano. O banco exige Super Admin e motivo, e audita. */
+export async function definirIntegracaoEmpresaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+  const integracao = texto(formData, 'integracao')
+  const regra = texto(formData, 'regra')
+  if (!INTEGRACOES_EMPRESA.includes(integracao) || !REGRAS_INTEGRACAO.includes(regra)) redirect(comMensagem(destino, 'erro', 'Escolha a integração e a regra.'))
+  const motivo = texto(formData, 'motivo').slice(0, 300)
+  if (regra !== 'plano' && !motivo) redirect(comMensagem(destino, 'erro', 'Informe o motivo da exceção.'))
+  const { definirIntegracaoEmpresa } = await import('@/lib/dal/central-integracoes')
+  const r = await definirIntegracaoEmpresa(id.data, integracao, regra, regra === 'plano' ? null : motivo)
+  revalidatePath('/admin', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Liberação da integração atualizada.' : r.mensagem))
+}
+
+/** Limite próprio da empresa (fontes de captação, números de WhatsApp ou funis). Vazio = volta ao limite do plano. */
+export async function definirLimiteEmpresaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+  const recurso = texto(formData, 'recurso')
+  if (!['fontes', 'numeros_whatsapp', 'funis'].includes(recurso)) redirect(comMensagem(destino, 'erro', 'Recurso inválido.'))
+  const bruto = texto(formData, 'limite')
+  const limite = bruto === '' ? null : Number(bruto)
+  if (limite !== null && (!Number.isInteger(limite) || limite < 0 || limite > 1000)) redirect(comMensagem(destino, 'erro', 'Limite inválido (0 a 1000).'))
+  const motivo = texto(formData, 'motivo').slice(0, 300)
+  if (limite !== null && !motivo) redirect(comMensagem(destino, 'erro', 'Informe o motivo do limite.'))
+  const { definirLimiteEmpresa } = await import('@/lib/dal/central-integracoes')
+  const r = await definirLimiteEmpresa(id.data, recurso, limite, limite === null ? null : motivo)
+  revalidatePath('/admin', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Limite da empresa atualizado.' : r.mensagem))
 }

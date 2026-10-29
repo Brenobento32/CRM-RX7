@@ -571,7 +571,8 @@ export async function obterDetalhesLeadNegociacao(id: string): Promise<DetalhesL
   }
 }
 
-export type RespostaLead = { pergunta: string; resposta: string }
+/** `envio`: rótulo do envio (origem e data) para as respostas dinâmicas de formulários e planilhas. */
+export type RespostaLead = { pergunta: string; resposta: string; envio?: string }
 
 /** Qualificação de um lead, legível (pergunta + resposta) — nunca JSON cru. */
 export async function listarRespostasLead(negociacaoId: string): Promise<RespostaLead[]> {
@@ -586,7 +587,7 @@ export async function listarRespostasLead(negociacaoId: string): Promise<Respost
     throw new Error('Não foi possível carregar a qualificação do lead.', { cause: error })
   }
 
-  return data
+  const cadastradas: RespostaLead[] = data
     .flatMap((r) =>
       r.pergunta
         ? [{ pergunta: r.pergunta.texto, resposta: r.resposta_texto ?? r.resposta_opcao ?? '', ordem: r.pergunta.ordem }]
@@ -594,6 +595,21 @@ export async function listarRespostasLead(negociacaoId: string): Promise<Respost
     )
     .sort((a, b) => a.ordem - b.ordem)
     .map(({ pergunta, resposta }) => ({ pergunta, resposta }))
+
+  // Todas as outras perguntas (planilhas e formulários por token), por envio, do mais recente.
+  // Sem a migration 20261104090000 aplicada, fica só a qualificação cadastrada.
+  const rpc = supabase.rpc.bind(supabase) as unknown as (nome: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>
+  const { data: dinamicas, error: erroDinamicas } = await rpc('respostas_da_negociacao', { p_negociacao: negociacaoId })
+  if (erroDinamicas || !Array.isArray(dinamicas)) return cadastradas
+  const quando = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })
+  return [
+    ...cadastradas,
+    ...(dinamicas as { pergunta: string; resposta: string; envio: string; recebida_em: string; origem: string }[]).map((r) => ({
+      pergunta: r.pergunta,
+      resposta: r.resposta,
+      envio: `${r.origem} · ${quando.format(new Date(r.recebida_em))}`,
+    })),
+  ]
 }
 
 function traduzirErro(error: PostgrestError): Extract<ResultadoNegociacao, { ok: false }> {

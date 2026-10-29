@@ -6,14 +6,15 @@ import { somenteDigitos } from '@/lib/utils/documentos'
 
 /** Validação dos formulários do Super Admin. O banco revalida tudo (permissão, arquivo, limites). */
 
-export const RECURSOS = ['funis_multiplos', 'metas', 'agenda_google', 'ingestao_leads', 'whatsapp', 'relatorios', 'meta_conversoes'] as const
+export const RECURSOS = ['funis_multiplos', 'metas', 'agenda_google', 'ingestao_leads', 'whatsapp', 'relatorios', 'meta_conversoes', 'formularios'] as const
 export type Recurso = (typeof RECURSOS)[number]
 
 export const ROTULO_RECURSO: Record<Recurso, string> = {
   funis_multiplos: 'Vários funis',
   metas: 'Metas',
   agenda_google: 'Agenda Google',
-  ingestao_leads: 'Webhook de leads',
+  ingestao_leads: 'Captação completa (formulários + Google Sheets)',
+  formularios: 'Captação só por formulário (sem Google Sheets)',
   whatsapp: 'WhatsApp',
   relatorios: 'Relatórios',
   meta_conversoes: 'Conversões Meta Ads (CRM)',
@@ -145,7 +146,7 @@ export const planoSchema = z.object({
   preco_mensal: numeroOpcional('Preço mensal', false, 0),
   preco_anual: numeroOpcional('Preço anual', false, 0),
   limite_usuarios: numeroOpcional('Limite de usuários', true, 1),
-  limite_integracoes: numeroOpcional('Limite de integrações', true, 0),
+  limite_integracoes: numeroOpcional('Limite de fontes de captação', true, 0),
   dias_teste: numeroOpcional('Dias de teste', true, 0),
   recursos: z.array(z.enum(RECURSOS)),
   status: z.enum(STATUS_PLANO),

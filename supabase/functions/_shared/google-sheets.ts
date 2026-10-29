@@ -261,6 +261,28 @@ export type LinhaLead = {
   email: string | null
   empresa: string | null
   meta_lead_id: string | null
+  /** Todas as outras perguntas da linha (cabeçalho → resposta), na ordem da planilha. Vazias ficam de fora. */
+  respostas: { pergunta: string; resposta: string }[]
+}
+
+/**
+ * Pergunta/resposta de uma linha: tudo que não virou nome/telefone/e-mail/
+ * empresa/ID do lead. Cabeçalho vazio vira "Coluna N"; cabeçalho repetido fica
+ * repetido (o banco numera e guarda os dois).
+ */
+export function respostasDaLinha(cabecalho: string[], valores: string[], m: Mapeamento): { pergunta: string; resposta: string }[] {
+  const contato = new Set([m.nome, m.telefone, m.email, m.empresa, m.meta_lead_id].filter((c): c is string => Boolean(c)))
+  const saida: { pergunta: string; resposta: string }[] = []
+  const total = Math.max(cabecalho.length, valores.length)
+  for (let i = 0; i < total && saida.length < 200; i++) {
+    const titulo = (cabecalho[i] ?? '').trim()
+    // A coluna mapeada é a primeira com esse título (a mesma regra de montarLeads).
+    if (titulo && contato.has(titulo) && cabecalho.indexOf(titulo) === i) continue
+    const resposta = (valores[i] ?? '').trim()
+    if (!resposta) continue
+    saida.push({ pergunta: (titulo || `Coluna ${i + 1}`).slice(0, 500), resposta: resposta.slice(0, 5000) })
+  }
+  return saida
 }
 
 /**
@@ -293,7 +315,16 @@ export async function montarLeads(
     const chave = id
       ? `id:${id.slice(0, 180)}`
       : `fp:${await sha256Hex([soDigitos(telefone ?? ''), (email ?? '').toLowerCase(), normalizar(nome ?? '')].join('|'))}`
-    leads.push({ chave, linha: l.numero, nome, telefone, email, empresa: valor(l.valores, ix.empresa), meta_lead_id: valor(l.valores, ix.metaLead) })
+    leads.push({
+      chave,
+      linha: l.numero,
+      nome,
+      telefone,
+      email,
+      empresa: valor(l.valores, ix.empresa),
+      meta_lead_id: valor(l.valores, ix.metaLead),
+      respostas: respostasDaLinha(cabecalho, l.valores, m),
+    })
   }
   // A mesma chave duas vezes na leitura: fica a primeira.
   const vistos = new Set<string>()

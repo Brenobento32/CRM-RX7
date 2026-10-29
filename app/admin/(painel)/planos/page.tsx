@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 
 import { botaoPrimarioClass, inputClass, cartaoClass } from '@/components/ui/estilos'
 import { salvarPlanoAction } from '@/lib/actions/super-admin'
+import { limitesDosPlanos, type LimitesNovosDoPlano } from '@/lib/dal/central-integracoes'
 import { listarPlanos, type PlanoAdmin } from '@/lib/dal/super-admin'
 import { RECURSOS_OCULTOS, RECURSOS_VISIVEIS, ROTULO_RECURSO, STATUS_PLANO } from '@/lib/validations/super-admin'
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
@@ -15,32 +16,33 @@ export const metadata: Metadata = {
 type Busca = Promise<Record<string, string | string[] | undefined>>
 
 /**
- * Planos do SaaS. Preço e limite vazios = ainda não definidos (sem limite).
+ * Planos do SaaS. Preço vazio = a definir. Limite de integrações ou de números vazio = a definir: novas
+ * conexões ficam bloqueadas até ser definido (o que já está em uso continua).
  * Os limites valem no banco: convidar usuário ou criar integração acima do
  * limite é recusado.
  */
 export default async function PlanosPage({ searchParams }: { searchParams: Busca }) {
-  const [planos, params] = await Promise.all([listarPlanos(), searchParams])
+  const [planos, params, limitesNovos] = await Promise.all([listarPlanos(), searchParams, limitesDosPlanos()])
 
   return (
     <div className="space-y-4">
       <PageHeaderPremium
         titulo="Planos"
-        subtitulo="Preço, limites e recursos de cada plano. Campos vazios ficam “a definir” (sem limite). Só planos ativos devem ser oferecidos a clientes novos."
+        subtitulo="Preço, limites e recursos de cada plano. Campos vazios ficam “a definir”: sem limite de fontes de captação, de números de WhatsApp ou de funis definido, novas conexões ficam bloqueadas. Número de WhatsApp não gasta a cota de fontes. Só planos ativos devem ser oferecidos a clientes novos."
       />
 
       <Aviso ok={params.ok} erro={params.erro} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {planos.map((p) => (
-          <FormPlano key={p.codigo} plano={p} />
+          <FormPlano key={p.codigo} plano={p} limites={limitesNovos[p.codigo] ?? { numeros: null, funis: null }} />
         ))}
       </div>
     </div>
   )
 }
 
-function FormPlano({ plano }: { plano: PlanoAdmin }) {
+function FormPlano({ plano, limites }: { plano: PlanoAdmin; limites: LimitesNovosDoPlano }) {
   const valor = (n: number | null) => (n === null ? '' : String(n))
   return (
     <form action={salvarPlanoAction} className={`${cartaoClass} space-y-3 p-5`}>
@@ -76,12 +78,30 @@ function FormPlano({ plano }: { plano: PlanoAdmin }) {
             className={inputClass}
           />
         </Campo>
-        <Campo rotulo="Limite de integrações">
+        <Campo rotulo="Fontes de captação (formulários e planilhas)">
           <input
             name="limite_integracoes"
             inputMode="numeric"
             defaultValue={valor(plano.limite_integracoes)}
-            placeholder="sem limite"
+            placeholder="a definir (bloqueia novas)"
+            className={inputClass}
+          />
+        </Campo>
+        <Campo rotulo="Números de WhatsApp">
+          <input
+            name="limite_numeros_whatsapp"
+            inputMode="numeric"
+            defaultValue={valor(limites.numeros)}
+            placeholder="a definir (bloqueia novas)"
+            className={inputClass}
+          />
+        </Campo>
+        <Campo rotulo="Funis">
+          <input
+            name="limite_funis"
+            inputMode="numeric"
+            defaultValue={valor(limites.funis)}
+            placeholder="a definir (só o 1º funil)"
             className={inputClass}
           />
         </Campo>

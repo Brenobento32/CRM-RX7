@@ -109,7 +109,8 @@ begin
   -- para testar só as integrações (limites de plano têm teste próprio).
   if to_regclass('public.planos') is not null then
     perform set_config('role', 'postgres', true);
-    update public.planos set recursos = public.recursos_validos(), limite_usuarios = null, limite_integracoes = null
+    -- Fontes: 1000 (com a Central, limite vazio é "a definir" e bloqueia fonte nova).
+    update public.planos set recursos = public.recursos_validos(), limite_usuarios = null, limite_integracoes = 1000
      where codigo = 'starter';
     perform set_config('role', 'authenticated', true);
   end if;

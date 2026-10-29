@@ -47,6 +47,8 @@ export type IntegracaoOficial = {
   limiteEnviosDia: number | null
   contaId: string | null
   planilhaId: string | null
+  /** WhatsApp: número novo (Cloud API) ou do app WhatsApp Business (coexistência). */
+  modo?: 'cloud_api' | 'coexistencia'
 }
 
 export type ContaGoogle = { id: string; email: string; conectadoEm: string; ativa: boolean; ultimoErro: string | null }
@@ -158,6 +160,9 @@ export async function listarIntegracoesOficiais(): Promise<IntegracaoOficial[]> 
   const { rpc } = await banco()
   const { data, error } = await rpc('integracoes_da_empresa')
   if (error) throw new Error('Não foi possível carregar as integrações.', { cause: error })
+  // Modo de cada número (migration 20261104090000); sem ela, fica sem a marca.
+  const { data: modos } = await rpc('whatsapp_modos_da_empresa')
+  const modoDo = new Map(((modos as { numero_id: string; modo: 'cloud_api' | 'coexistencia' }[] | null) ?? []).map((m) => [m.numero_id, m.modo]))
   return ((data as LinhaIntegracao[]) ?? []).map((l) => ({
     fonteId: l.fonte_id,
     tipo: l.tipo,
@@ -184,6 +189,7 @@ export async function listarIntegracoesOficiais(): Promise<IntegracaoOficial[]> 
     limiteEnviosDia: l.limite_envios_dia,
     contaId: l.conta_id,
     planilhaId: l.planilha_id,
+    modo: l.numero_id ? modoDo.get(l.numero_id) : undefined,
   }))
 }
 
@@ -384,3 +390,37 @@ export async function integracoesDaEmpresaNoPainel(tenantId: string): Promise<In
     ultimaAtividade: i.ultima_atividade,
   }))
 }
+
+/** Sincronização do app WhatsApp Business (coexistência): contatos e histórico. */
+export type SincronizacaoWhatsapp = {
+  numeroId: string
+  tipo: 'contatos' | 'historico'
+  situacao: 'pedida' | 'recebendo' | 'concluida' | 'recusada' | 'erro'
+  fase: number | null
+  progresso: number | null
+  mensagens: number
+  erro: string | null
+  atualizadaEm: string
+}
+
+export async function sincronizacoesWhatsapp(): Promise<SincronizacaoWhatsapp[]> {
+  if (!(await podeAdministrarIntegracoes())) return []
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('whatsapp_sincronizacoes_da_empresa')
+    if (error || !Array.isArray(data)) return []
+    return (data as { numero_id: string; tipo: SincronizacaoWhatsapp['tipo']; situacao: SincronizacaoWhatsapp['situacao']; fase: number | null; progresso: number | null; mensagens: number; erro: string | null; atualizada_em: string }[]).map((s) => ({
+      numeroId: s.numero_id,
+      tipo: s.tipo,
+      situacao: s.situacao,
+      fase: s.fase,
+      progresso: s.progresso,
+      mensagens: s.mensagens,
+      erro: s.erro,
+      atualizadaEm: s.atualizada_em,
+    }))
+  } catch {
+    return []
+  }
+}
+

@@ -138,6 +138,9 @@ export function DrawerNegociacao({
               <dl className="space-y-3 text-sm">
                 {respostas.map((r, i) => (
                   <div key={`${r.pergunta}-${i}`}>
+                    {r.envio && r.envio !== respostas[i - 1]?.envio && (
+                      <p className="mb-1.5 border-b border-premium-borda-suave pb-1 text-xs font-medium text-premium-secundario">{r.envio}</p>
+                    )}
                     <dt className="text-premium-mudo">{r.pergunta}</dt>
                     <dd className="mt-0.5 font-medium text-premium-texto">{r.resposta}</dd>
                   </div>

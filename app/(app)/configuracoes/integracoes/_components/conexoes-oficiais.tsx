@@ -13,7 +13,7 @@ import {
   desconectarGoogleAction,
   sincronizarAgoraAction,
 } from '@/lib/actions/integracoes-oficiais'
-import type { ConsumoWhatsapp, ContaGoogle, IntegracaoOficial, IntegracoesHabilitadas, MonitoramentoPlanilha } from '@/lib/dal/integracoes-oficiais'
+import type { ConsumoWhatsapp, ContaGoogle, IntegracaoOficial, MonitoramentoPlanilha, SincronizacaoWhatsapp } from '@/lib/dal/integracoes-oficiais'
 import type { ConexaoMetaAds, FranquiaWhatsapp } from '@/lib/dal/meta-conversoes'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
@@ -36,133 +36,181 @@ const SITUACAO: Record<string, { rotulo: string; tom: TomSelo }> = {
 
 const quando = (d: string | null) => (d ? formatarDataHoraCompleta(d) : '—')
 
+type PropsPainel = {
+  integracoes: IntegracaoOficial[]
+  opcoes: OpcoesDestino
+  responsaveis: { id: string; nome: string }[]
+  podeGerir: boolean
+}
+
 /**
- * Conexões oficiais da empresa: Google Sheets (OAuth) e WhatsApp Business
- * (Cloud API). Mostra só o que o banco devolve para o Administrador desta
- * empresa — nunca token, refresh token ou segredo.
+ * Painéis das conexões oficiais (cada um abre na sua janela da Central).
+ * Mostram só o que o banco devolve para o Administrador desta empresa —
+ * nunca token, refresh token ou segredo.
  */
-export function ConexoesOficiais({
+export function PainelGoogleSheets({
   integracoes,
   contas,
+  opcoes,
+  responsaveis,
+  podeGerir,
+  habilitada,
+  monitoramento = {},
+}: PropsPainel & { contas: ContaGoogle[]; habilitada: boolean; monitoramento?: Record<string, MonitoramentoPlanilha> }) {
+  const planilhas = integracoes.filter((i) => i.tipo === 'google_sheets' && i.status !== 'revogada')
+  return (
+    <Secao
+      id="google-sheets"
+      titulo="Google Sheets"
+      descricao="Cole o link da planilha, autorize o Google e pronto. Linhas novas entram no funil e na etapa de cada conexão, com todas as colunas guardadas no lead; reordenar, inserir ou apagar linhas não duplica leads."
+      acoes={
+        podeGerir &&
+        habilitada && (
+          <Link href="/configuracoes/integracoes/google-sheets" className={botaoPrimarioClass}>
+            Conectar planilha
+          </Link>
+        )
+      }
+    >
+      <div className="space-y-4 pb-5">
+        {!habilitada && <EmHomologacao />}
+        {contas.length > 0 && (
+          <ul className="flex flex-wrap gap-2 text-sm" aria-label="Contas Google conectadas">
+            {contas.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 rounded-lg border border-premium-borda px-3 py-1.5">
+                <span className="font-medium">{c.email}</span>
+                {c.ativa ? <Selo tom={c.ultimoErro ? 'vermelho' : 'verde'}>{c.ultimoErro ? 'Reconectar' : 'Conectada'}</Selo> : <Selo>Desconectada</Selo>}
+                {podeGerir && c.ativa && (
+                  <form action={desconectarGoogleAction}>
+                    <input type="hidden" name="conta" value={c.id} />
+                    <BotaoConfirmar
+                      pergunta={`Desconectar ${c.email}? O acesso do AVANTE é revogado no Google e as planilhas desta conta ficam pausadas. Os leads já importados continuam no CRM.`}
+                      className={botaoCompactoClass}
+                    >
+                      Desconectar
+                    </BotaoConfirmar>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {planilhas.length === 0 ? (
+          <EstadoVazio compacto titulo="Nenhuma planilha conectada" descricao={podeGerir ? 'Use "Conectar planilha": cole o link, autorize o Google e confirme o destino.' : 'Somente o Administrador conecta planilhas.'} />
+        ) : (
+          <ul className="divide-y divide-premium-borda-suave rounded-lg border border-premium-borda">
+            {planilhas.map((p) => (
+              <LinhaPlanilha key={p.fonteId} p={p} m={monitoramento[p.fonteId] ?? null} podeGerir={podeGerir} opcoes={opcoes} responsaveis={responsaveis} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </Secao>
+  )
+}
+
+export function PainelWhatsapp({
+  integracoes,
   consumo,
   opcoes,
   responsaveis,
   podeGerir,
   franquia,
-  metaAds,
-  habilitadas,
-  monitoramento = {},
-}: {
-  habilitadas: IntegracoesHabilitadas
-  monitoramento?: Record<string, MonitoramentoPlanilha>
-  integracoes: IntegracaoOficial[]
-  contas: ContaGoogle[]
+  habilitada,
+  sincronizacoes = [],
+  modo = 'cloud_api',
+}: PropsPainel & {
   consumo: ConsumoWhatsapp[]
   franquia: FranquiaWhatsapp[]
-  metaAds: ConexaoMetaAds | null
-  opcoes: OpcoesDestino
-  responsaveis: { id: string; nome: string }[]
-  podeGerir: boolean
+  habilitada: boolean
+  sincronizacoes?: SincronizacaoWhatsapp[]
+  /** Cartão: número novo (Cloud API) ou app existente (coexistência oficial). */
+  modo?: 'cloud_api' | 'coexistencia'
 }) {
-  const planilhas = integracoes.filter((i) => i.tipo === 'google_sheets' && i.status !== 'revogada')
-  const numeros = integracoes.filter((i) => i.tipo === 'whatsapp_cloud' && i.status !== 'revogada')
+  const app = modo === 'coexistencia'
+  const numeros = integracoes.filter((i) => i.tipo === 'whatsapp_cloud' && i.status !== 'revogada' && (i.modo ?? 'cloud_api') === modo)
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-
   return (
-    <div className="space-y-6">
-      <Secao
-        id="google-sheets"
-        titulo="Google Sheets"
-        descricao="Conta Google da empresa + planilha escolhida no seletor oficial do Google. Linhas novas entram no funil e na etapa de cada conexão; reordenar, inserir ou apagar linhas não duplica leads."
-        acoes={
-          podeGerir &&
-          habilitadas.googleSheets && (
-            <Link href="/configuracoes/integracoes/google-sheets" className={botaoPrimarioClass}>
-              Conectar planilha
-            </Link>
-          )
-        }
-      >
-        <div className="space-y-4 pb-5">
-          {!habilitadas.googleSheets && <EmHomologacao />}
-          {contas.length > 0 && (
-            <ul className="flex flex-wrap gap-2 text-sm" aria-label="Contas Google conectadas">
-              {contas.map((c) => (
-                <li key={c.id} className="flex items-center gap-2 rounded-lg border border-premium-borda px-3 py-1.5">
-                  <span className="font-medium">{c.email}</span>
-                  {c.ativa ? <Selo tom={c.ultimoErro ? 'vermelho' : 'verde'}>{c.ultimoErro ? 'Reconectar' : 'Conectada'}</Selo> : <Selo>Desconectada</Selo>}
-                  {podeGerir && c.ativa && (
-                    <form action={desconectarGoogleAction}>
-                      <input type="hidden" name="conta" value={c.id} />
-                      <BotaoConfirmar
-                        pergunta={`Desconectar ${c.email}? O acesso do AVANTE é revogado no Google e as planilhas desta conta ficam pausadas. Os leads já importados continuam no CRM.`}
-                        className={botaoCompactoClass}
-                      >
-                        Desconectar
-                      </BotaoConfirmar>
-                    </form>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {planilhas.length === 0 ? (
-            <EstadoVazio compacto titulo="Nenhuma planilha conectada" descricao={podeGerir ? 'Use "Conectar planilha" para escolher a conta, a planilha, a aba e o destino.' : 'Somente o Administrador conecta planilhas.'} />
-          ) : (
-            <ul className="divide-y divide-premium-borda-suave rounded-lg border border-premium-borda">
-              {planilhas.map((p) => (
-                <LinhaPlanilha key={p.fonteId} p={p} m={monitoramento[p.fonteId] ?? null} podeGerir={podeGerir} opcoes={opcoes} responsaveis={responsaveis} />
-              ))}
-            </ul>
-          )}
-        </div>
-      </Secao>
+    <Secao
+      id={app ? 'whatsapp-app' : 'whatsapp-oficial'}
+      titulo={app ? 'WhatsApp Business — aplicativo existente (coexistência oficial)' : 'WhatsApp Business (oficial)'}
+      descricao={
+        app
+          ? 'Coexistência oficial da Meta: o número continua no app WhatsApp Business do celular e as conversas também chegam ao AVANTE. A confirmação é feita no próprio app, pelo código ou QR Code que a janela oficial da Meta mostrar. Histórico e contatos só chegam se a Meta enviar e a empresa autorizar no app. Não usa WhatsApp Web nem conexão não oficial.'
+          : 'Número novo pela Cloud API da Meta, registrado com PIN. Quem escreve vira lead no destino do número; a equipe responde pela tela Conversas.'
+      }
+      acoes={
+        podeGerir &&
+        habilitada && (
+          <Link href={`/configuracoes/integracoes/whatsapp?modo=${app ? 'app' : 'novo'}`} className={botaoPrimarioClass}>
+            {app ? 'Conectar aplicativo' : 'Conectar número'}
+          </Link>
+        )
+      }
+    >
+      <div className="space-y-4 pb-5">
+        {!habilitada && <EmHomologacao />}
+        <Aviso tom="info">
+          Política de envio: <strong>Somente envios gratuitos</strong>. Desde 01/10/2026 a Meta dá a cada número 1.000 mensagens de serviço gratuitas por mês;
+          a partir daí, até as respostas dentro da janela de 24 h podem ser cobradas. O AVANTE reserva a capacidade antes de cada envio, confere o consumo com a
+          Meta e bloqueia novas respostas perto do limite (com margem de segurança) ou quando não consegue confirmar o consumo do mês. Modelos (templates),
+          marketing, automações e disparos em massa ficam desativados. O controle vale só para o que sai pelo AVANTE: outros sistemas e o app do celular ligados
+          ao mesmo número podem gerar cobrança por conta própria. As regras de preço são da Meta e podem mudar — o AVANTE reduz o risco, mas não garante custo zero.
+        </Aviso>
+        {numeros.length === 0 ? (
+          <EstadoVazio
+            compacto
+            titulo="Nenhum número conectado"
+            descricao={podeGerir ? `Use "${app ? 'Conectar aplicativo' : 'Conectar número'}" para abrir o cadastro oficial da Meta.` : 'Somente o Administrador conecta números.'}
+          />
+        ) : (
+          <ul className="divide-y divide-premium-borda-suave rounded-lg border border-premium-borda">
+            {numeros.map((n) => (
+              <LinhaNumero
+                key={n.fonteId}
+                n={n}
+                podeGerir={podeGerir}
+                opcoes={opcoes}
+                responsaveis={responsaveis}
+                consumo={consumo.filter((c) => c.numeroId === n.numeroId)}
+                franquia={franquia.find((x) => x.numeroId === n.numeroId) ?? null}
+                sincronizacoes={sincronizacoes.filter((s) => s.numeroId === n.numeroId)}
+                hoje={hoje}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </Secao>
+  )
+}
 
-      <Secao
-        id="whatsapp-oficial"
-        titulo="WhatsApp Business (oficial)"
-        descricao="Número próprio da empresa, conectado pelo cadastro oficial da Meta. Quem escreve vira lead no destino do número; a equipe responde pela tela Conversas."
-        acoes={
-          podeGerir &&
-          habilitadas.whatsappOficial && (
-            <Link href="/configuracoes/integracoes/whatsapp" className={botaoPrimarioClass}>
-              Conectar número
-            </Link>
-          )
-        }
-      >
-        <div className="space-y-4 pb-5">
-          {!habilitadas.whatsappOficial && <EmHomologacao />}
-          <Aviso tom="info">
-            Política de envio: <strong>Somente envios gratuitos</strong>. Desde 01/10/2026 a Meta dá a cada número 1.000 mensagens de serviço gratuitas por mês;
-            a partir daí, até as respostas dentro da janela de 24 h podem ser cobradas. O AVANTE reserva a capacidade antes de cada envio, confere o consumo com a
-            Meta e bloqueia novas respostas perto do limite (com margem de segurança) ou quando não consegue confirmar o consumo do mês. Modelos (templates),
-            marketing, automações e disparos em massa ficam desativados. O controle vale só para o que sai pelo AVANTE: outros sistemas ligados ao mesmo número
-            podem gerar cobrança por conta própria. As regras de preço são da Meta e podem mudar — o AVANTE reduz o risco, mas não garante custo zero.
-          </Aviso>
-          {numeros.length === 0 ? (
-            <EstadoVazio compacto titulo="Nenhum número conectado" descricao={podeGerir ? 'Use "Conectar número" para abrir o cadastro da Meta.' : 'Somente o Administrador conecta números.'} />
-          ) : (
-            <ul className="divide-y divide-premium-borda-suave rounded-lg border border-premium-borda">
-              {numeros.map((n) => (
-                <LinhaNumero
-                  key={n.fonteId}
-                  n={n}
-                  podeGerir={podeGerir}
-                  opcoes={opcoes}
-                  responsaveis={responsaveis}
-                  consumo={consumo.filter((c) => c.numeroId === n.numeroId)}
-                  franquia={franquia.find((x) => x.numeroId === n.numeroId) ?? null}
-                  hoje={hoje}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-      </Secao>
+export function PainelMetaAds({ metaAds, habilitada }: { metaAds: ConexaoMetaAds | null; habilitada: boolean }) {
+  if (!metaAds) return <EmHomologacao />
+  return <CartaoMetaAds c={metaAds} habilitada={habilitada} />
+}
 
-      {metaAds && <CartaoMetaAds c={metaAds} habilitada={habilitadas.metaConversoes} />}
-    </div>
+/** Situação da sincronização do app (coexistência): contatos e histórico, sem prometer o que a Meta não mandou. */
+function SincronizacaoApp({ s }: { s: SincronizacaoWhatsapp[] }) {
+  if (s.length === 0) return null
+  const rotulo: Record<string, string> = {
+    pedida: 'pedida à Meta',
+    recebendo: 'recebendo',
+    concluida: 'concluída',
+    recusada: 'não compartilhado pela empresa no app',
+    erro: 'falhou',
+  }
+  return (
+    <ul className="space-y-0.5 text-xs text-premium-secundario">
+      {s.map((x) => (
+        <li key={x.tipo}>
+          {x.tipo === 'historico' ? 'Histórico do app' : 'Contatos do app'}: {rotulo[x.situacao] ?? x.situacao}
+          {x.tipo === 'historico' && x.situacao === 'recebendo' && x.progresso !== null ? ` (${x.progresso}%)` : ''}
+          {x.tipo === 'historico' && x.mensagens > 0 ? ` · ${x.mensagens} mensagem(ns) importada(s)` : ''}
+          {x.erro ? ` · ${x.erro}` : ''}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -220,7 +268,7 @@ function EmHomologacao() {
 function CartaoMetaAds({ c, habilitada }: { c: ConexaoMetaAds; habilitada: boolean }) {
   if (!habilitada) {
     return (
-      <Secao id="meta-ads" titulo="Meta Ads — Conversões do CRM" descricao="Planos Pro e Business.">
+      <Secao id="meta-ads" titulo="Meta Ads — Conversões do CRM" descricao="Plano Business (outros planos só com liberação da Rio X7).">
         <div className="pb-5">
           <EmHomologacao />
         </div>
@@ -228,7 +276,7 @@ function CartaoMetaAds({ c, habilitada }: { c: ConexaoMetaAds; habilitada: boole
     )
   }
   const rotulo = !c.elegivel
-    ? { texto: 'Planos Pro e Business', tom: 'neutro' as TomSelo }
+    ? { texto: 'Plano Business', tom: 'neutro' as TomSelo }
     : !c.conexaoId
       ? { texto: 'Não conectada', tom: 'neutro' as TomSelo }
       : c.situacao === 'ativa'
@@ -405,6 +453,7 @@ function LinhaNumero({
   responsaveis,
   consumo,
   franquia,
+  sincronizacoes,
   hoje,
 }: {
   n: IntegracaoOficial
@@ -413,6 +462,7 @@ function LinhaNumero({
   responsaveis: { id: string; nome: string }[]
   consumo: ConsumoWhatsapp[]
   franquia: FranquiaWhatsapp | null
+  sincronizacoes: SincronizacaoWhatsapp[]
   hoje: string
 }) {
   const s = SITUACAO[n.situacao] ?? { rotulo: n.situacao, tom: 'neutro' as TomSelo }
@@ -433,6 +483,10 @@ function LinhaNumero({
         </div>
       </div>
       <Destino i={n} />
+      {n.modo === 'coexistencia' && (
+        <p className="text-xs text-premium-secundario">Coexistência: o número continua no app WhatsApp Business; mensagens enviadas pelo celular também aparecem no AVANTE.</p>
+      )}
+      <SincronizacaoApp s={sincronizacoes} />
       {n.bloqueadoPorCobranca && (
         <Aviso tom="erro">
           A Meta indicou cobrança em uma mensagem deste número. Os envios estão bloqueados até o Administrador revisar o aviso (o número continua em &quot;Somente envios

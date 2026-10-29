@@ -78,8 +78,9 @@ begin
   on conflict (id) do nothing;
   update public.profiles set ativo = true where id in (u_super, u_a, u_a2, u_ag, u_b);
   insert into public.super_admins (user_id) values (u_super);
-  -- plano com tudo liberado (limites têm teste próprio no fim)
-  update public.planos set recursos = public.recursos_validos(), limite_usuarios = null, limite_integracoes = null
+  -- plano com tudo liberado (limites têm teste próprio no fim). Fontes: 1000, porque com a
+  -- Central limite vazio é "a definir" (bloqueia fonte nova), não ilimitado.
+  update public.planos set recursos = public.recursos_validos(), limite_usuarios = null, limite_integracoes = 1000
    where codigo = 'starter';
 
   perform public._teste_como(u_super, null);

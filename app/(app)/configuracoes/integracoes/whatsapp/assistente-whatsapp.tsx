@@ -23,7 +23,15 @@ type Fim = { tipo: 'conexao'; conexao: SituacaoConexao } | Exclude<ResultadoCada
  * servidor. O navegador só recebe o código de uso único e os IDs públicos; a
  * troca pelo token, o registro do número e a gravação no cofre são no servidor.
  */
-export function AssistenteWhatsapp({ opcoes, responsaveis }: { opcoes: OpcoesDestino; responsaveis: { id: string; nome: string }[] }) {
+export function AssistenteWhatsapp({
+  opcoes,
+  responsaveis,
+  modoInicial = 'app',
+}: {
+  opcoes: OpcoesDestino
+  responsaveis: { id: string; nome: string }[]
+  modoInicial?: 'app' | 'novo'
+}) {
   const [destino, setDestino] = useState<Destino>({
     funilId: opcoes.funis[0]?.id ?? '',
     etapaId: opcoes.funis[0]?.etapas.find((e) => e.inicial)?.id ?? opcoes.funis[0]?.etapas[0]?.id ?? '',
@@ -32,6 +40,8 @@ export function AssistenteWhatsapp({ opcoes, responsaveis }: { opcoes: OpcoesDes
   const [nome, setNome] = useState('WhatsApp comercial')
   const [ciente, setCiente] = useState(false)
   const [pin, setPin] = useState('')
+  // Coexistência primeiro: o número continua no app WhatsApp Business do celular (quando a Meta aceitar o número).
+  const [tipoNumero, setTipoNumero] = useState<'app' | 'novo'>(modoInicial)
   const [erro, setErro] = useState<string | null>(null)
   const [fim, setFim] = useState<Fim | null>(null)
   const [pendente, iniciar] = useTransition()
@@ -42,7 +52,7 @@ export function AssistenteWhatsapp({ opcoes, responsaveis }: { opcoes: OpcoesDes
     configWhatsappAction().then(setCfg, () => setCfg({ ok: false, codigo: 'indisponivel', mensagem: 'O serviço de integrações não respondeu.' }))
   }, [])
 
-  const pinOk = pin === '' || pin.length === 6
+  const pinOk = tipoNumero === 'app' || pin === '' || pin.length === 6
   const pronto = Boolean(destino.funilId && destino.etapaId && destino.responsavelId && ciente && cfg && pinOk)
 
   const conectar = () =>
@@ -52,7 +62,7 @@ export function AssistenteWhatsapp({ opcoes, responsaveis }: { opcoes: OpcoesDes
         if (!cfg) return
         if (!cfg.ok) return setErro(cfg.mensagem)
         if (!cfg.disponivel) return setErro('O app oficial da Meta ainda não foi configurado na plataforma. Fale com o suporte da Rio X7.')
-        const r = await cadastrarWhatsappNaMeta(cfg)
+        const r = await cadastrarWhatsappNaMeta(cfg, { coexistencia: tipoNumero === 'app' })
         if (r.tipo !== 'concluido') return setFim(r)
         const c = await concluirWhatsappAction({
           ...r.cadastro,
@@ -109,15 +119,48 @@ export function AssistenteWhatsapp({ opcoes, responsaveis }: { opcoes: OpcoesDes
         </div>
       </Secao>
 
-      <Secao titulo="3. Verificação do número" descricao="A Meta exige registrar o número novo com um PIN de 6 números (verificação em duas etapas).">
-        <div className="space-y-3 pb-5">
-          <OrientacaoPin />
-          <CampoPin valor={pin} onChange={setPin} />
-          <p className="text-xs text-premium-mudo">
-            Vai conectar o número que já usa no app WhatsApp Business? Ele não precisa de PIN: a própria janela da Meta pede a confirmação pelo celular. Sem PIN, um número
-            novo fica como &quot;Falta registrar&quot; e você termina o registro depois, no painel.
-          </p>
-          {!pinOk && <p className="text-xs text-red-700 dark:text-red-300">O PIN tem 6 números.</p>}
+      <Secao titulo="3. Seu número" descricao="Conexão oficial da Meta. O AVANTE não usa QR de WhatsApp Web nem soluções não oficiais.">
+        <div className="space-y-3 pb-5 text-sm">
+          <fieldset className="grid gap-2 sm:grid-cols-2">
+            <legend className="sr-only">Tipo de número</legend>
+            <label className={`flex cursor-pointer gap-2 rounded-lg border p-3 ${tipoNumero === 'app' ? 'border-premium-acento bg-premium-acento/5' : 'border-premium-borda'}`}>
+              <input type="radio" name="tipo-numero" className="mt-1" checked={tipoNumero === 'app'} onChange={() => setTipoNumero('app')} />
+              <span>
+                <span className="font-medium text-premium-texto">Já uso no app WhatsApp Business</span>
+                <span className="block text-xs text-premium-secundario">
+                  Recomendado. O número continua no celular e as conversas novas também aparecem no AVANTE. A janela oficial da Meta pede o número e a confirmação
+                  é feita no próprio app, pelo código ou QR Code que a Meta mostrar. Exige o app WhatsApp Business 2.24.17 ou mais novo e depende de a Meta aceitar o número; se não aceitar, use
+                  &quot;Número novo&quot; (nada é migrado sem você escolher).
+                </span>
+              </span>
+            </label>
+            <label className={`flex cursor-pointer gap-2 rounded-lg border p-3 ${tipoNumero === 'novo' ? 'border-premium-acento bg-premium-acento/5' : 'border-premium-borda'}`}>
+              <input type="radio" name="tipo-numero" className="mt-1" checked={tipoNumero === 'novo'} onChange={() => setTipoNumero('novo')} />
+              <span>
+                <span className="font-medium text-premium-texto">Número novo, só para o AVANTE</span>
+                <span className="block text-xs text-premium-secundario">
+                  O número passa a funcionar só pela plataforma oficial (sai do app do celular). A Meta exige registrar com um PIN de 6 números.
+                </span>
+              </span>
+            </label>
+          </fieldset>
+          {tipoNumero === 'app' ? (
+            <ul className="list-disc space-y-1 pl-5 text-xs text-premium-secundario">
+              <li>Mensagens enviadas pelo celular também aparecem no AVANTE (como enviadas pelo app).</li>
+              <li>
+                Histórico: a Meta só envia conversas dos últimos 180 dias se você aceitar compartilhar no app. O AVANTE pede logo após a conexão (a Meta dá 24 h,
+                uma vez só). Conversas antigas entram no histórico, mas não criam negociações.
+              </li>
+              <li>Grupos não são sincronizados.</li>
+            </ul>
+          ) : (
+            <>
+              <OrientacaoPin />
+              <CampoPin valor={pin} onChange={setPin} />
+              <p className="text-xs text-premium-mudo">Sem PIN, o número fica como &quot;Falta registrar&quot; e você termina o registro depois, no painel.</p>
+              {!pinOk && <p className="text-xs text-red-700 dark:text-red-300">O PIN tem 6 números.</p>}
+            </>
+          )}
         </div>
       </Secao>
 
@@ -186,7 +229,7 @@ function Resultado({ fim, aoRecomecar, aoConectar }: { fim: Fim; aoRecomecar: ()
           </Aviso>
           <Etapas registrado={false} coexistencia={false} />
           <RegistrarNumero numeroId={c.numero} aoConectar={() => aoConectar({ ...c, situacao: 'conectado', pendencia: undefined })} />
-          <Link href="/configuracoes/integracoes#whatsapp-oficial" className={botaoSecundarioClass}>
+          <Link href="/configuracoes/integracoes?abrir=whatsapp_oficial" className={botaoSecundarioClass}>
             Terminar depois
           </Link>
         </div>
@@ -208,7 +251,7 @@ function Resultado({ fim, aoRecomecar, aoConectar }: { fim: Fim; aoRecomecar: ()
           . O AVANTE não cadastra pagamentos e continua bloqueando envios que podem ser cobrados.
         </Aviso>
         <div className="flex flex-wrap gap-2">
-          <Link href="/configuracoes/integracoes#whatsapp-oficial" className={botaoPrimarioClass}>
+          <Link href="/configuracoes/integracoes?abrir=whatsapp_oficial" className={botaoPrimarioClass}>
             Ver em Integrações
           </Link>
         </div>

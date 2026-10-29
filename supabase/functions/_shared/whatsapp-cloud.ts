@@ -240,6 +240,107 @@ export async function inscreverApp(buscar: Busca, cfg: Pick<ConfigMeta, 'graphUr
   })
 }
 
+/**
+ * Coexistência (app WhatsApp Business + Cloud API): depois da conexão, a Meta
+ * dá 24 h para pedir, UMA vez por tipo, a sincronização dos contatos
+ * (`smb_app_state_sync`) e do histórico (`history`). A resposta só confirma o
+ * pedido; o histórico só chega se a empresa aceitar compartilhar no app.
+ */
+export async function pedirSincronizacaoApp(
+  buscar: Busca,
+  cfg: Pick<ConfigMeta, 'graphUrl'>,
+  token: string,
+  phoneNumberId: string,
+  tipo: 'smb_app_state_sync' | 'history',
+): Promise<string | null> {
+  const r = await chamarGraph(buscar, `${cfg.graphUrl}/${encodeURIComponent(phoneNumberId)}/smb_app_data`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: tipo }),
+  })
+  return texto(r.request_id)?.slice(0, 120) ?? null
+}
+
+export type MensagemApp = { id: string; telefone: string; da_empresa: boolean; tipo: string; texto: string | null; em: string | null; status: string | null }
+export type EventosCoexistencia = {
+  ecos: { phoneNumberId: string; itens: MensagemApp[] }[]
+  historico: { phoneNumberId: string; fase: number | null; progresso: number | null; recusado: boolean; itens: MensagemApp[] }[]
+  contatos: { phoneNumberId: string; itens: { telefone: string; nome: string | null; acao: 'add' | 'remove' }[] }[]
+}
+
+const soDigitos = (v: string) => v.replace(/\D/g, '')
+const quando = (ts: string | null) => (ts && /^\d{9,11}$/.test(ts) ? new Date(Number(ts) * 1000).toISOString() : null)
+const numero = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : null)
+
+function mensagemApp(m: Obj, cliente: string, daEmpresa: boolean): MensagemApp | null {
+  const id = texto(m.id)
+  if (!id || !/^\d{8,15}$/.test(cliente)) return null
+  const tipo = (texto(m.type) ?? 'desconhecido').slice(0, 40)
+  return {
+    id: id.slice(0, 200),
+    telefone: cliente,
+    da_empresa: daEmpresa,
+    tipo,
+    texto: tipo === 'text' ? (texto(obj(m.text)?.body)?.slice(0, 4096) ?? null) : null,
+    em: quando(texto(m.timestamp)),
+    status: texto(obj(m.history_context)?.status),
+  }
+}
+
+/** Webhooks específicos da coexistência: ecos do app, histórico e contatos. */
+export function extrairEventosCoexistencia(corpo: unknown): EventosCoexistencia {
+  const saida: EventosCoexistencia = { ecos: [], historico: [], contatos: [] }
+  const raiz = obj(corpo)
+  if (raiz?.object !== 'whatsapp_business_account') return saida
+  for (const entrada of lista(raiz.entry)) {
+    for (const mudanca of lista(obj(entrada)?.changes)) {
+      const m = obj(mudanca)
+      const valor = obj(m?.value)
+      const meta = obj(valor?.metadata)
+      const phoneNumberId = texto(meta?.phone_number_id)
+      if (!m || !valor || !phoneNumberId || !/^[0-9]{5,30}$/.test(phoneNumberId)) continue
+      const empresa = soDigitos(texto(meta?.display_phone_number) ?? '')
+      if (m.field === 'smb_message_echoes') {
+        const itens = lista(valor.message_echoes)
+          .map(obj)
+          .flatMap((e) => (e ? [mensagemApp(e, soDigitos(texto(e.to) ?? ''), true)] : []))
+          .filter((x): x is MensagemApp => x !== null)
+        if (itens.length) saida.ecos.push({ phoneNumberId, itens })
+      } else if (m.field === 'history') {
+        for (const h of lista(valor.history).map(obj)) {
+          if (!h) continue
+          const recusado = lista(h.errors).some((e) => String(obj(e)?.code ?? '') === '2593109')
+          const md = obj(h.metadata)
+          const itens: MensagemApp[] = []
+          for (const t of lista(h.threads).map(obj)) {
+            const cliente = soDigitos(texto(t?.id) ?? '')
+            for (const msg of lista(t?.messages).map(obj)) {
+              if (!msg) continue
+              const de = soDigitos(texto(msg.from) ?? '')
+              // Quem mandou: comparar o remetente com o número da empresa (documentação da Meta).
+              const item = mensagemApp(msg, cliente, Boolean(empresa) && de === empresa)
+              if (item) itens.push(item)
+            }
+          }
+          saida.historico.push({ phoneNumberId, fase: numero(md?.phase), progresso: numero(md?.progress), recusado, itens })
+        }
+      } else if (m.field === 'smb_app_state_sync') {
+        const itens = lista(valor.state_sync)
+          .map(obj)
+          .flatMap((c) => {
+            const contato = obj(c?.contact)
+            const tel = soDigitos(texto(contato?.phone_number) ?? '')
+            if (!c || texto(c.type) !== 'contact' || !/^\d{8,15}$/.test(tel)) return []
+            const nome = (texto(contato?.full_name) ?? texto(contato?.first_name))?.slice(0, 200) ?? null
+            return [{ telefone: tel, nome, acao: texto(c.action) === 'remove' ? ('remove' as const) : ('add' as const) }]
+          })
+        if (itens.length) saida.contatos.push({ phoneNumberId, itens })
+      }
+    }
+  }
+  return saida
+}
+
 /** Número de telefone para a API (só dígitos, com DDI). */
 export function telefoneParaApi(telefone: string): string | null {
   const d = (telefone ?? '').replace(/\D/g, '')

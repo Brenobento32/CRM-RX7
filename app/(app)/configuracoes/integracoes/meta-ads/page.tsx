@@ -58,7 +58,7 @@ export default async function MetaAdsPage({ searchParams }: { searchParams: Prom
       <PageHeaderPremium
         titulo="Meta Ads — Conversões do CRM"
         subtitulo="Devolve para a Meta o andamento dos leads que vieram dos formulários nativos de anúncio (Lead Ads): recebido, qualificado, reunião, fechado. Ajuda a medir e otimizar as campanhas pela qualidade do lead. Não é o WhatsApp."
-        voltar={{ href: '/configuracoes/integracoes', rotulo: 'Integrações' }}
+        voltar={{ href: '/configuracoes/integracoes?abrir=meta_conversoes', rotulo: 'Integrações' }}
       />
       <AvisoDaUrl ok={params.ok} erro={params.erro} />
 
@@ -67,8 +67,8 @@ export default async function MetaAdsPage({ searchParams }: { searchParams: Prom
       ) : !podeGerir ? (
         <Aviso tom="info">Somente o Administrador da empresa configura as conversões do Meta Ads.</Aviso>
       ) : !elegivel ? (
-        <Aviso tom="info" titulo="Disponível nos planos Pro e Business">
-          Fale com a Rio X7 para incluir as Conversões do CRM no plano da empresa. Nada é enviado à Meta enquanto o recurso não estiver no plano.
+        <Aviso tom="info" titulo="Disponível no plano Business">
+          As Conversões do CRM fazem parte do plano Business; outros planos só com liberação da Rio X7 (peça na Central de Integrações). Nada é enviado à Meta enquanto o recurso não estiver liberado.
         </Aviso>
       ) : (
         <>

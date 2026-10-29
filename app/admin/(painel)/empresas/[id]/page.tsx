@@ -20,6 +20,7 @@ import {
   obterEmpresa,
   type CadastroEmpresa,
 } from '@/lib/dal/super-admin'
+import { centralDaEmpresaNoPainel, limitesDaEmpresa } from '@/lib/dal/central-integracoes'
 import { integracoesDaEmpresaNoPainel } from '@/lib/dal/integracoes-oficiais'
 import { formatarTelefone } from '@/lib/utils/documentos'
 import { formatarData, formatarDataHoraCompleta } from '@/lib/utils/formatacao'
@@ -27,6 +28,8 @@ import { CICLOS, ROTULO_STATUS_ASSINATURA, STATUS_ASSINATURA } from '@/lib/valid
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 
 import { Aviso, ROTULO_STATUS_EMPRESA, ROTULO_TIPO_EMPRESA } from '@/app/admin/_components/aviso'
+
+import { IntegracoesDaEmpresa } from './integracoes-empresa'
 
 export const metadata: Metadata = {
   title: 'Empresa',
@@ -52,12 +55,14 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
   if (!empresa) notFound()
 
   const assinante = empresa.tipo === 'assinante'
-  const [planos, historico, auditoria, cadastro, integracoes] = await Promise.all([
+  const [planos, historico, auditoria, cadastro, integracoes, central, limites] = await Promise.all([
     listarPlanos(),
     assinante ? historicoAssinatura(id) : Promise.resolve([]),
     listarAuditoria(id, 50),
     obterCadastroEmpresa(id),
     integracoesDaEmpresaNoPainel(id),
+    centralDaEmpresaNoPainel(id),
+    limitesDaEmpresa(id),
   ])
   const suspensa = empresa.status === 'suspenso'
 
@@ -122,9 +127,11 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Dado rotulo="Usuários ativos" valor={String(empresa.usuarios_ativos)} />
-        <Dado rotulo="Integrações em uso" valor={String(empresa.integracoes_em_uso)} />
+        <Dado rotulo="Fontes de captação em uso" valor={String(empresa.integracoes_em_uso)} />
         <Dado rotulo="Administradores" valor={empresa.administradores.join(', ') || '—'} />
       </section>
+
+      <IntegracoesDaEmpresa tenantId={id} linhas={central} limites={limites} />
 
       {/* Conexões oficiais (Google Sheets / WhatsApp): só situação, nunca credenciais. Para mexer, "Acessar CRM" (auditado). */}
       <section className={`${cartaoClass} space-y-3 p-5`}>
