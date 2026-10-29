@@ -279,8 +279,14 @@ export async function definirLimiteEmpresaAction(formData: FormData): Promise<vo
   if (limite !== null && (!Number.isInteger(limite) || limite < 0 || limite > 1000)) redirect(comMensagem(destino, 'erro', 'Limite inválido (0 a 1000).'))
   const motivo = texto(formData, 'motivo').slice(0, 300)
   if (limite !== null && !motivo) redirect(comMensagem(destino, 'erro', 'Informe o motivo do limite.'))
-  const { definirLimiteEmpresa } = await import('@/lib/dal/central-integracoes')
+  const { definirLimiteEmpresa, limitesDaEmpresa } = await import('@/lib/dal/central-integracoes')
   const r = await definirLimiteEmpresa(id.data, recurso, limite, limite === null ? null : motivo)
   revalidatePath('/admin', 'layout')
-  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Limite da empresa atualizado.' : r.mensagem))
+  if (!r.ok) redirect(comMensagem(destino, 'erro', r.mensagem))
+  // Limite abaixo do uso: nada é excluído; o aviso deixa isso claro para quem reduziu.
+  const cota = (await limitesDaEmpresa(id.data)).find((c) => c.recurso === recurso)
+  const acima = cota && cota.efetivoDefinido && cota.efetivo !== null && cota.uso > cota.efetivo
+  redirect(comMensagem(destino, 'ok', acima
+    ? `Limite salvo (${cota.efetivo}). A empresa já usa ${cota.uso}: nada foi excluído; novas criações ficam bloqueadas.`
+    : 'Limite da empresa atualizado.'))
 }

@@ -38,7 +38,28 @@ Três cotas independentes (uma não consome a outra):
 - Credencial de ingestão (Respondi via Apps Script) segue a permissão de
   formulários e a cota de fontes; vazio também é "a definir".
 - Exceção por empresa: `empresa_limites` com recurso `fontes`, `numeros_whatsapp`
-  ou `funis` (com motivo, auditada).
+  ou `funis` (0 a 1000, com motivo, auditada). Prevalece sobre o padrão enquanto
+  existir; vazio volta ao padrão do plano.
+- Limite abaixo do uso (reduzido pelo Super Admin): nada é excluído nem
+  desconectado; criações novas ficam barradas e o painel mostra o aviso.
+
+### Padrões aprovados pelo proprietário (29/10/2026)
+
+Gravados pela própria migration `20261104090000` (seção 5c), com registro
+`planos_padroes_aprovados` na auditoria:
+
+| Plano | Usuários | Fontes | Funis | Números WhatsApp | Meta Ads |
+|---|---|---|---|---|---|
+| Starter | 1 | 1 | 1 | 1 | não disponível (nem por exceção) |
+| Pro | 3 | 3 | 3 | 3 | só com liberação individual do Super Admin |
+| Business | 10 | 10 | 10 | 10 | incluído no plano |
+
+- Starter recebe `formularios` (captação básica, sem Google Sheets) e `whatsapp`;
+  Pro e Business recebem `whatsapp`; Business recebe `meta_conversoes`.
+- Cota disponível não liga nada: WhatsApp e Meta Ads continuam dependendo da
+  chave global (hoje desligada) e da homologação.
+- Produção hoje (29/10): Teste A (Pro) com 5 usuários e Teste B (Starter) com 2
+  já estão acima do limite de usuários (mesmo de antes): continuam, só não entram novos.
 - O que já está em uso continua (só conexões/funis NOVOS são barrados).
 - Empresa interna (Rio X7): sem limite de plano, como antes.
 - Os dois cartões de WhatsApp contam no MESMO limite de números; o mesmo número
@@ -76,11 +97,14 @@ cartão do funil; lista completa na ficha do lead.
 
 ## Testes locais
 
-- SQL: `central_integracoes_test.sql` (72, inclui L7–L10 das cotas separadas) +
+- SQL: `central_integracoes_test.sql` (96: L7–L10 cotas separadas, L11–L14 padrões,
+  Meta por plano, exceções e limite abaixo do uso) +
   registro 50, Sheets 75, franquia/CAPI 86, monitoramento 48.
 - Unitários: `lib/integracoes/central.test.ts`, `central-edge.test.ts`.
 - Ponta a ponta (emulador): `C:\Tools\avante-local\integracoes-e2e.mjs` (176).
-- Tela: `central-ui.mjs` (27), `integracoes-ui.mjs`, `paginas-publicas-ui.mjs`.
+- Tela: `central-ui.mjs` (29), `integracoes-ui.mjs`, `paginas-publicas-ui.mjs`.
+- Ensaio na cópia do backup de produção de 29/10: `20261103` → `20261104` sem
+  recusa da trava; empresas, usuários, funis, fontes e planilha idênticos.
 - Testes antigos `fontes_leads`, `superadmin_assinaturas` e `integracoes_multiempresa`
   param em "clientes legados" com ou sem a Central (falha anterior, sem relação).
 
@@ -90,8 +114,7 @@ cartão do funil; lista completa na ficha do lead.
    + ZIP `avante-1-paginas-publicas-99befc6`.
 2. Pacote 2 — WhatsApp + páginas (merge 34e0c76): migration `20261103090000`,
    deploy da Edge Function `integracoes`, ZIP `avante-2-whatsapp-com-paginas-34e0c76`.
-3. Pacote 3 — Central (sobre o pacote 2): Super Admin define os limites dos
-   planos ANTES (fontes, números e funis de cada plano; sem isso, novas conexões
-   ficam bloqueadas — as existentes continuam); migration `20261104090000` (recusa se alguma empresa com
+3. Pacote 3 — Central (sobre o pacote 2): a migration `20261104090000` já grava
+   os padrões aprovados dos planos (tabela acima) (recusa se alguma empresa com
    integração em uso perderia a permissão); deploy da `integracoes`; ZIP 3.
 4. Meta: assinar os campos de webhook da coexistência e homologar.

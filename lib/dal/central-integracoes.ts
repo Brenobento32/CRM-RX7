@@ -69,14 +69,40 @@ export async function definirLimitesPlano(codigo: string, limites: LimitesNovosD
   return error ? { ok: false, mensagem: error.message ?? 'Não foi possível salvar os limites do plano.' } : { ok: true }
 }
 
-export type LimiteEmpresa = { recurso: 'fontes' | 'numeros_whatsapp' | 'funis'; limite: number; motivo: string; definidoEm: string }
+/**
+ * Uma cota da empresa no painel do Super Admin: padrão do plano, exceção própria
+ * (com motivo, auditada — prevalece enquanto existir), limite que vale e uso atual.
+ * `efetivo` nulo com `efetivoDefinido` = sem limite (empresa interna); sem definido = a definir.
+ */
+export type LimiteEmpresa = {
+  recurso: 'fontes' | 'numeros_whatsapp' | 'funis'
+  padrao: number | null
+  padraoDefinido: boolean
+  excecao: number | null
+  motivo: string | null
+  definidoEm: string | null
+  efetivo: number | null
+  efetivoDefinido: boolean
+  uso: number
+}
 
 export async function limitesDaEmpresa(tenantId: string): Promise<LimiteEmpresa[]> {
   try {
     const { rpc } = await banco()
     const { data, error } = await (rpc as unknown as RpcSolta)('admin_limites_empresa', { p_tenant: tenantId })
     if (error || !Array.isArray(data)) return []
-    return (data as { recurso: LimiteEmpresa['recurso']; limite: number; motivo: string; definido_em: string }[]).map((l) => ({ recurso: l.recurso, limite: l.limite, motivo: l.motivo, definidoEm: l.definido_em }))
+    const n = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+    return (data as Record<string, unknown>[]).map((l) => ({
+      recurso: l.recurso as LimiteEmpresa['recurso'],
+      padrao: n(l.padrao),
+      padraoDefinido: l.padrao_definido === true,
+      excecao: n(l.excecao),
+      motivo: typeof l.motivo === 'string' ? l.motivo : null,
+      definidoEm: typeof l.definido_em === 'string' ? l.definido_em : null,
+      efetivo: n(l.efetivo),
+      efetivoDefinido: l.efetivo_definido === true,
+      uso: Number(l.uso ?? 0) || 0,
+    }))
   } catch {
     return []
   }

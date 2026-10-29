@@ -2,7 +2,7 @@ import { botaoSecundarioClass, cartaoClass, inputClass, legendaClass } from '@/c
 import { Selo } from '@/components/ui/selo'
 import { definirIntegracaoEmpresaAction, definirLimiteEmpresaAction } from '@/lib/actions/super-admin'
 import type { LimiteEmpresa, LinhaCentralAdmin } from '@/lib/dal/central-integracoes'
-import { INFO, textoDeUso, textoDoLimite } from '@/lib/integracoes/central'
+import { INFO, NOME_COTA, textoDaCota, textoDeUso, textoDoLimite } from '@/lib/integracoes/central'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
 /**
@@ -24,14 +24,17 @@ export function IntegracoesDaEmpresa({ tenantId, linhas, limites }: { tenantId: 
       <div className="grid gap-3 sm:grid-cols-3">
         {(['fontes', 'numeros_whatsapp', 'funis'] as const).map((recurso) => {
           const atual = limites.find((l) => l.recurso === recurso)
+          const texto = atual ? textoDaCota(atual) : null
           return (
             <form key={recurso} action={definirLimiteEmpresaAction} className="space-y-2 rounded-lg border border-premium-borda-suave p-3 text-sm">
               <input type="hidden" name="tenant_id" value={tenantId} />
               <input type="hidden" name="recurso" value={recurso} />
-              <p className="font-medium">{recurso === 'fontes' ? 'Fontes de captação desta empresa (formulários, Respondi, webhook, planilhas)' : recurso === 'funis' ? 'Funis desta empresa' : 'Números de WhatsApp desta empresa (API oficial + app existente)'}</p>
-              <p className="text-xs text-premium-mudo">{atual ? `Exceção: ${atual.limite} · ${atual.motivo}` : 'Segue o plano (vazio no plano = a definir: novas conexões bloqueadas).'}</p>
+              <p className="font-medium">{NOME_COTA[recurso]}</p>
+              <p className="text-xs text-premium-mudo">{texto?.resumo ?? 'Segue o plano (vazio no plano = a definir: novas conexões bloqueadas).'}</p>
+              {texto?.aviso && <p role="status" className="text-xs font-medium text-amber-600 dark:text-amber-400">{texto.aviso}</p>}
+              <p className="text-xs text-premium-mudo">Exceção: qualquer número de 0 a 1000 (0 bloqueia criações novas), com motivo. Vazio volta ao padrão do plano.</p>
               <div className="flex flex-wrap gap-2">
-                <input name="limite" inputMode="numeric" defaultValue={atual ? String(atual.limite) : ''} placeholder="do plano" aria-label="Limite" className={`${inputClass} w-24`} />
+                <input name="limite" inputMode="numeric" defaultValue={atual?.excecao !== null && atual?.excecao !== undefined ? String(atual.excecao) : ''} placeholder="do plano" aria-label="Limite" className={`${inputClass} w-24`} />
                 <input name="motivo" maxLength={300} placeholder="Motivo" aria-label="Motivo do limite" className={`${inputClass} min-w-32 flex-1`} />
                 <button type="submit" className={botaoSecundarioClass}>Salvar</button>
               </div>

@@ -138,6 +138,21 @@ begin
 end;
 $$;
 
+-- Regra comercial aprovada: Meta Ads (conversões) não existe para o Starter,
+-- nem por exceção do Super Admin. Pro só com liberação individual; Business no plano.
+create function public.integracao_vedada_no_plano(p_integracao text, p_tenant uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p_integracao = 'meta_conversoes'
+     and coalesce((select p.codigo = 'starter' from public.assinaturas a join public.planos p on p.id = a.plano_id
+                    where a.tenant_id = p_tenant), false)
+$$;
+revoke all on function public.integracao_vedada_no_plano(text, uuid) from public, anon, authenticated;
+
 -- Permissão final da empresa (sem olhar o lançamento): exceção do Super Admin > plano.
 create function public.integracao_permitida(p_integracao text, p_tenant uuid)
 returns boolean
@@ -149,6 +164,7 @@ as $$
   select case
     when p_tenant is null or not (p_integracao = any (public.integracoes_central())) then false
     when exists (select 1 from public.tenants t where t.id = p_tenant and t.tipo = 'arquivo') then false
+    when public.integracao_vedada_no_plano(p_integracao, p_tenant) then false
     else coalesce((select r.regra = 'liberar' from public.empresa_integracoes_regras r
                     where r.tenant_id = p_tenant and r.integracao = p_integracao),
                   public.integracao_no_plano(p_integracao, p_tenant))
@@ -573,6 +589,9 @@ begin
   end if;
   if p_regra <> 'plano' and nullif(btrim(coalesce(p_motivo, '')), '') is null then
     raise exception 'Informe o motivo da exceção.' using errcode = '22023';
+  end if;
+  if p_regra = 'liberar' and public.integracao_vedada_no_plano(p_integracao, p_tenant) then
+    raise exception 'Meta Ads (conversões) não está disponível no plano Starter, nem por exceção.' using errcode = 'RX003';
   end if;
   if p_regra = 'plano' then
     delete from public.empresa_integracoes_regras where tenant_id = p_tenant and integracao = p_integracao;
@@ -1298,17 +1317,34 @@ $$;
 revoke all on function public.admin_limites_planos() from public, anon;
 grant execute on function public.admin_limites_planos() to authenticated;
 
--- Limites próprios de uma empresa (para o painel do Super Admin).
+-- Painel do Super Admin: para cada cota, o padrão do plano, a exceção da empresa
+-- (se houver), o limite que vale e o uso atual. Uso acima do limite (limite
+-- reduzido pelo Super Admin) não apaga nada: só barra criações novas.
 create function public.admin_limites_empresa(p_tenant uuid)
-returns table (recurso text, limite integer, motivo text, definido_em timestamptz)
+returns table (recurso text, padrao integer, padrao_definido boolean, excecao integer, motivo text, definido_em timestamptz,
+               efetivo integer, efetivo_definido boolean, uso integer)
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_p public.planos;
 begin
   perform public.exigir_super_admin();
-  return query select l.recurso, l.limite, l.motivo, l.definido_em from public.empresa_limites l where l.tenant_id = p_tenant;
+  v_p := public.plano_da_empresa(p_tenant);
+  return query
+    select r.recurso,
+           case r.recurso when 'fontes' then v_p.limite_integracoes when 'numeros_whatsapp' then v_p.limite_numeros_whatsapp else v_p.limite_funis end,
+           (case r.recurso when 'fontes' then v_p.limite_integracoes when 'numeros_whatsapp' then v_p.limite_numeros_whatsapp else v_p.limite_funis end) is not null,
+           l.limite, l.motivo, l.definido_em, e.limite, e.definido,
+           case r.recurso when 'fontes' then public.uso_fontes(p_tenant)
+                          when 'numeros_whatsapp' then public.uso_numeros_whatsapp(p_tenant)
+                          else (select count(*) from public.funis f where f.tenant_id = p_tenant and f.ativo)::integer end
+      from unnest(array['fontes', 'numeros_whatsapp', 'funis']) with ordinality as r (recurso, ordem)
+      left join public.empresa_limites l on l.tenant_id = p_tenant and l.recurso = r.recurso
+      cross join lateral public.limite_efetivo(p_tenant, r.recurso) e
+     order by r.ordem;
 end;
 $$;
 revoke all on function public.admin_limites_empresa(uuid) from public, anon;
@@ -1336,6 +1372,44 @@ end;
 $$;
 revoke all on function public.admin_definir_limite_empresa(uuid, text, integer, text) from public, anon;
 grant execute on function public.admin_definir_limite_empresa(uuid, text, integer, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5c. Padrões dos planos aprovados pelo proprietário (29/10/2026)
+--
+--   Plano     usuários  fontes  funis  números WhatsApp  Meta Ads
+--   Starter       1       1       1          1           não disponível
+--   Pro           3       3       3          3           só com liberação individual
+--   Business     10      10      10         10           incluído
+--
+-- Starter: captação básica por formulário (`formularios`), sem Google Sheets.
+-- WhatsApp no plano de todos (cota de números), mas a chave global continua
+-- DESLIGADA: limite disponível não liga integração nenhuma. Exceções por
+-- empresa (Super Admin, com motivo e auditoria) prevalecem sobre o padrão.
+-- O que já existe acima de uma cota é preservado: só criações novas são barradas.
+-- ---------------------------------------------------------------------------
+create function pg_temp.recursos_com(p_atual text[], p_incluir text[], p_tirar text[])
+returns text[] language sql immutable as $$
+  select array(select x from unnest(p_atual || array(select y from unnest(p_incluir) y where not (y = any (p_atual)))) with ordinality u (x, o)
+                where not (x = any (p_tirar)) order by o)
+$$;
+
+update public.planos set limite_usuarios = 1, limite_integracoes = 1, limite_funis = 1, limite_numeros_whatsapp = 1,
+       recursos = pg_temp.recursos_com(recursos, array['formularios', 'whatsapp'], array['meta_conversoes'])
+ where codigo = 'starter';
+update public.planos set limite_usuarios = 3, limite_integracoes = 3, limite_funis = 3, limite_numeros_whatsapp = 3,
+       recursos = pg_temp.recursos_com(recursos, array['whatsapp'], array['meta_conversoes'])
+ where codigo = 'pro';
+update public.planos set limite_usuarios = 10, limite_integracoes = 10, limite_funis = 10, limite_numeros_whatsapp = 10,
+       recursos = pg_temp.recursos_com(recursos, array['whatsapp', 'meta_conversoes'], array[]::text[])
+ where codigo = 'business';
+
+insert into public.admin_auditoria (ator_id, acao, tenant_id, detalhes)
+select null, 'planos_padroes_aprovados', null,
+       jsonb_build_object('origem', 'migration 20261104090000', 'aprovado_em', '2026-10-29',
+                          'planos', jsonb_agg(jsonb_build_object('codigo', p.codigo, 'usuarios', p.limite_usuarios, 'fontes', p.limite_integracoes,
+                                                                 'funis', p.limite_funis, 'numeros_whatsapp', p.limite_numeros_whatsapp,
+                                                                 'recursos', p.recursos) order by p.ordem))
+  from public.planos p where p.codigo in ('starter', 'pro', 'business');
 
 -- ---------------------------------------------------------------------------
 -- 6. Trava de aplicação: nenhuma integração em uso pode perder a permissão.

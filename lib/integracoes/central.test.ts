@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { INFO, INTEGRACOES, cartoesWhatsapp, estadoDoCartao, grupoDoCartao, infoDoCartao, lerLinhasCentral, limiteAtingido, textoDoLimite, type LinhaCentral } from './central'
+import { INFO, INTEGRACOES, cartoesWhatsapp, estadoDoCartao, grupoDoCartao, infoDoCartao, lerLinhasCentral, limiteAtingido, textoDaCota, textoDoLimite, type CotaEmpresa, type LinhaCentral } from './central'
 
 const base: LinhaCentral = {
   integracao: 'google_sheets',
@@ -82,6 +82,25 @@ describe('Central de Integrações — limites reais (ausência não é ilimitad
       'Sem plano vinculado: 3 fonte(s) de captação em uso (sem limite de plano); 1 número(s) de WhatsApp em uso (sem limite de plano).',
     )
     expect(textoDoLimite({ ...base, usoFontes: 3, usoNumeros: 1 })).toBe('Plano Business: 3 de 5 fonte(s) de captação; 1 de 2 número(s) de WhatsApp.')
+  })
+})
+
+describe('Central de Integrações — cotas no painel do Super Admin', () => {
+  const cota: CotaEmpresa = { recurso: 'fontes', padrao: 10, padraoDefinido: true, excecao: null, motivo: null, efetivo: 10, efetivoDefinido: true, uso: 2 }
+  it('segue o plano: mostra padrão, regra, limite que vale e uso, sem aviso', () => {
+    expect(textoDaCota(cota)).toEqual({ resumo: 'Padrão do plano: 10 · segue o plano · vale: 10 · em uso: 2', aviso: null })
+  })
+  it('exceção prevalece sobre o padrão (inclusive 0) e aparece com o motivo', () => {
+    const t = textoDaCota({ ...cota, excecao: 0, motivo: 'suspensão', efetivo: 0 })
+    expect(t.resumo).toBe('Padrão do plano: 10 · exceção desta empresa: 0 (suspensão) · vale: 0 · em uso: 2')
+    expect(t.aviso).toMatch(/acima do limite \(0\): nada foi excluído; novas criações ficam bloqueadas/)
+  })
+  it('limite igual ao uso: atingido; sem limite definido: a definir (não é ilimitado)', () => {
+    expect(textoDaCota({ ...cota, efetivo: 2 }).aviso).toMatch(/Limite atingido/)
+    expect(textoDaCota({ ...cota, padrao: null, padraoDefinido: false, efetivo: null, efetivoDefinido: false }).aviso).toMatch(/nenhuma criação nova/)
+  })
+  it('Central da empresa avisa quando o uso passa do limite reduzido', () => {
+    expect(textoDoLimite({ ...base, usoFontes: 4, limiteFontes: 2, usoNumeros: 0 })).toContain('4 de 2 fonte(s) de captação (acima do limite: o que já existe continua; novas conexões bloqueadas)')
   })
 })
 

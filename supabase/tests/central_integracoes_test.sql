@@ -11,6 +11,7 @@ set client_encoding = 'UTF8'; -- arquivo em UTF-8 (acentos das mensagens)
 --  C12–C15 coexistência: eco do app, histórico (sem criar lead), recusa, contatos, isolamento
 --  L1–L6   limites reais: números (os dois cartões somam), funis e permissões de quem define
 --  L7–L10  cotas separadas: número de WhatsApp não gasta fontes; Starter só com formulários; credenciais
+--  L11–L14 padrões aprovados dos planos, Meta Ads por plano, exceções do Super Admin (0, mais, menos), limite abaixo do uso
 -- ===========================================================================
 begin;
 
@@ -92,6 +93,13 @@ begin
   delete from public.empresa_limites where tenant_id in (t_a, t_b, t_g);
   insert into public.empresa_limites (tenant_id, recurso, limite, motivo)
   select t, r, 100, 'ambiente local de teste' from unnest(array[t_a, t_b, t_g]) t cross join unnest(array['fontes', 'numeros_whatsapp', 'funis']) r;
+  -- Padrões que a migration gravou nos planos (conferidos em L11). Os cenários C1–C10
+  -- partem de um Starter SEM recursos, para provar as regras de permissão.
+  create temp table _padroes on commit drop as
+    select codigo, limite_usuarios, limite_integracoes, limite_funis, limite_numeros_whatsapp, recursos from public.planos;
+  update public.planos set recursos = array['metas'] where codigo = 'starter';
+  -- L1–L10 testam "limite a definir" (nulo no plano): números e funis começam sem quantidade.
+  update public.planos set limite_numeros_whatsapp = null, limite_funis = null;
 
   -- ================================================================= C1–C2 plano
   perform public._ok(public.integracao_permitida('google_sheets', t_a) and public.integracao_permitida('whatsapp_oficial', t_a)
@@ -370,6 +378,92 @@ begin
   v_r := public._recusa(format('select public.admin_definir_limite_empresa(%L, %L, 3, %L)', t_a, 'integracoes', 'nome antigo'));
   perform public._ok(v_r like '22023:%', 'L10 recurso de limite só aceita fontes, numeros_whatsapp ou funis');
   perform public._como(null, null);
+
+  -- ================================================================= L11–L14 padrões aprovados e exceções do Super Admin
+  perform public._ok((select limite_usuarios = 1 and limite_integracoes = 1 and limite_funis = 1 and limite_numeros_whatsapp = 1
+                             and recursos @> array['formularios', 'whatsapp'] and not (recursos && array['ingestao_leads', 'meta_conversoes'])
+                        from _padroes where codigo = 'starter'), 'L11 Starter: 1 usuário, 1 fonte, 1 funil, 1 número; formulário básico sem Google Sheets; sem Meta Ads');
+  perform public._ok((select limite_usuarios = 3 and limite_integracoes = 3 and limite_funis = 3 and limite_numeros_whatsapp = 3
+                             and recursos @> array['ingestao_leads', 'whatsapp'] and not ('meta_conversoes' = any (recursos))
+                        from _padroes where codigo = 'pro'), 'L11 Pro: 3/3/3/3; Meta Ads fora do plano (só liberação individual)');
+  perform public._ok((select limite_usuarios = 10 and limite_integracoes = 10 and limite_funis = 10 and limite_numeros_whatsapp = 10
+                             and recursos @> array['ingestao_leads', 'whatsapp', 'meta_conversoes']
+                        from _padroes where codigo = 'business'), 'L11 Business: 10/10/10/10 com Meta Ads no plano');
+  perform public._ok(exists (select 1 from public.admin_auditoria where acao = 'planos_padroes_aprovados'), 'L11 definição dos padrões registrada na auditoria');
+  update public.planos p set limite_usuarios = d.limite_usuarios, limite_integracoes = d.limite_integracoes, limite_funis = d.limite_funis,
+         limite_numeros_whatsapp = d.limite_numeros_whatsapp, recursos = d.recursos from _padroes d where d.codigo = p.codigo;
+  perform public._ok(public.integracao_permitida('whatsapp_oficial', t_g) and public.integracao_permitida('formularios', t_g)
+                     and not public.integracao_permitida('google_sheets', t_g), 'L11 Starter com os padrões: WhatsApp e formulário no plano, Google Sheets não');
+  update public.plataforma_integracoes set whatsapp_oficial = false;
+  perform public._ok(not public.integracao_habilitada('whatsapp_oficial', t_g) and not public.integracao_habilitada('whatsapp_oficial', t_a),
+                     'L11 cota disponível não liga nada: com a chave global desligada, WhatsApp fica indisponível para todos');
+  update public.plataforma_integracoes set whatsapp_oficial = true;
+
+  -- Meta Ads: Starter nunca (nem por exceção); Pro só com liberação individual; Business no plano.
+  delete from public.empresa_integracoes_regras where tenant_id in (t_a, t_g);
+  perform public._como(sa, null);
+  v_r := public._recusa(format('select public.admin_definir_integracao_empresa(%L, %L, %L, %L)', t_g, 'meta_conversoes', 'liberar', 'pedido do cliente'));
+  perform public._ok(v_r like 'RX003:%Starter%', 'L12 Super Admin não consegue liberar Meta Ads para empresa Starter');
+  perform public._como(null, null);
+  insert into public.empresa_integracoes_regras (tenant_id, integracao, regra, motivo) values (t_g, 'meta_conversoes', 'liberar', 'forçado direto no banco');
+  perform public._ok(not public.integracao_permitida('meta_conversoes', t_g) and not public.meta_conversoes_elegivel(t_g),
+                     'L12 ...nem uma regra gravada direto no banco libera Meta para Starter');
+  delete from public.empresa_integracoes_regras where tenant_id = t_g;
+  update public.assinaturas set plano_id = (select id from public.planos where codigo = 'pro') where tenant_id = t_g;
+  perform public._ok(not public.integracao_permitida('meta_conversoes', t_g), 'L12 Pro sem liberação: Meta Ads indisponível');
+  perform public._como(sa, null);
+  perform public.admin_definir_integracao_empresa(t_g, 'meta_conversoes', 'liberar', 'liberação individual aprovada (teste)');
+  perform public._como(null, null);
+  perform public._ok(public.integracao_permitida('meta_conversoes', t_g), 'L12 Pro com liberação individual do Super Admin: Meta Ads permitido');
+  perform public._ok(public.integracao_permitida('meta_conversoes', t_a), 'L12 Business: Meta Ads incluído no plano');
+  delete from public.empresa_integracoes_regras where tenant_id = t_g;
+  update public.assinaturas set plano_id = (select id from public.planos where codigo = 'starter') where tenant_id = t_g;
+
+  -- Exceção individual prevalece sobre o padrão; 0 é aceito; vazio volta ao padrão.
+  delete from public.empresa_limites where tenant_id = t_a;
+  perform public._como(sa, null);
+  perform public._ok((select count(*) = 3 and bool_and(padrao = 10 and excecao is null and efetivo = 10 and efetivo_definido)
+                        from public.admin_limites_empresa(t_a)), 'L13 sem exceção: as 3 cotas valem o padrão do plano (Business 10)');
+  perform public.admin_definir_limite_empresa(t_a, 'fontes', 0, 'fontes suspensas (teste)');
+  perform public._ok((select excecao = 0 and efetivo = 0 and padrao = 10 from public.admin_limites_empresa(t_a) where recurso = 'fontes'),
+                     'L13 exceção 0 aceita e prevalece sobre o padrão');
+  perform public._como(null, null);
+  v_uso := public.uso_fontes(t_a);
+  v_r := public._recusa(format($q$insert into public.fontes_leads (tenant_id, tipo, nome, status, funil_id, etapa_id, responsavel_id)
+                                 values (%L, 'webhook', 'Webhook L13', 'ativa', %L, %L, %L)$q$, t_a, fa1, ea1, g_a));
+  perform public._ok(v_r like 'RX002:%atingido (0)%', 'L13 ...fonte nova barrada');
+  perform public._ok(public.uso_fontes(t_a) = v_uso and v_uso > 0, 'L13 ...e as fontes que já existiam continuam ativas (nada excluído)');
+  perform public._como(sa, null);
+  perform public.admin_definir_limite_empresa(t_a, 'fontes', 25, 'campanha (teste)');
+  perform public._ok((select efetivo = 25 from public.admin_limites_empresa(t_a) where recurso = 'fontes'), 'L13 exceção também aumenta acima do padrão');
+  perform public.admin_definir_limite_empresa(t_a, 'fontes', null, null);
+  perform public._ok((select excecao is null and efetivo = 10 from public.admin_limites_empresa(t_a) where recurso = 'fontes'), 'L13 vazio remove a exceção: volta ao padrão');
+  perform public._como(null, null);
+  perform public._ok((select count(*) >= 3 from public.admin_auditoria where tenant_id = t_a and acao in ('limite_empresa_definido', 'limite_empresa_removido')
+                        and detalhes ->> 'recurso' = 'fontes'), 'L13 cada mudança individual auditada');
+
+  -- Reduzir abaixo do uso: preserva números e funis, só barra os novos.
+  perform public._como(null, null);
+  v_uso := public.uso_numeros_whatsapp(t_a);
+  perform public._ok(v_uso >= 1, 'L14 preparo: a empresa tem número(s) conectado(s)');
+  perform public._como(sa, null);
+  perform public.admin_definir_limite_empresa(t_a, 'numeros_whatsapp', 0, 'redução comercial (teste)');
+  perform public._ok((select uso = v_uso and efetivo = 0 from public.admin_limites_empresa(t_a) where recurso = 'numeros_whatsapp'),
+                     'L14 painel mostra uso acima do limite (para o aviso)');
+  perform public._como(null, null);
+  perform public._ok(public.uso_numeros_whatsapp(t_a) = v_uso, 'L14 números conectados continuam (nada desconectado ou excluído)');
+  perform public._servico();
+  v_r := public._recusa(format($q$select public.whatsapp_salvar_numero(%L, %L, '530000000000086', '630000000000086', '+55 11 4300-0086', 'Alfa', 'tok-l14', 'WA L14', %L, %L, %L)$q$, t_a, g_a, fa1, ea1, c_a));
+  perform public._ok(v_r like 'RX002:%números de WhatsApp%', 'L14 ...número novo barrado');
+  perform public._como(null, null);
+  v_uso := (select count(*) from public.funis where tenant_id = t_a and ativo);
+  perform public._como(sa, null);
+  perform public.admin_definir_limite_empresa(t_a, 'funis', 1, 'redução (teste)');
+  perform public._como(g_a, 'teste-alfa');
+  v_r := public._recusa(format('select public.duplicar_funil(%L, %L)', fa1, 'Funil L14'));
+  perform public._ok(v_r like 'RX002:%funis%', 'L14 funil novo barrado com o limite reduzido');
+  perform public._como(null, null);
+  perform public._ok((select count(*) from public.funis where tenant_id = t_a and ativo) = v_uso and v_uso > 1, 'L14 ...e os funis existentes continuam ativos');
 
   raise notice 'central_integracoes_test.sql: todas as asserções passaram.';
 end;

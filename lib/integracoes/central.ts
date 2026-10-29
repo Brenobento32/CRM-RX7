@@ -148,7 +148,44 @@ export function textoDeUso(l: LinhaCentral): string {
 function parteDoLimite(uso: number, limite: number | null, definido: boolean, nome: string): string {
   if (!definido) return `${uso} ${nome} em uso (limite a definir pela Rio X7: novas conexões bloqueadas)`
   if (limite === null) return `${uso} ${nome} em uso (sem limite de plano)`
+  if (uso > limite) return `${uso} de ${limite} ${nome} (acima do limite: o que já existe continua; novas conexões bloqueadas)`
   return `${uso} de ${limite} ${nome}`
+}
+
+/** Cota de uma empresa no painel do Super Admin (mesmo formato de `LimiteEmpresa` do DAL). */
+export type CotaEmpresa = {
+  recurso: 'fontes' | 'numeros_whatsapp' | 'funis'
+  padrao: number | null
+  padraoDefinido: boolean
+  excecao: number | null
+  motivo: string | null
+  efetivo: number | null
+  efetivoDefinido: boolean
+  uso: number
+}
+
+export const NOME_COTA: Record<CotaEmpresa['recurso'], string> = {
+  fontes: 'Fontes de captação desta empresa (formulários, Respondi, webhook, planilhas)',
+  numeros_whatsapp: 'Números de WhatsApp desta empresa (API oficial + app existente)',
+  funis: 'Funis desta empresa',
+}
+
+/**
+ * Resumo e aviso de uma cota. Limite abaixo do uso (reduzido pelo Super Admin)
+ * nunca apaga nada: o aviso deixa claro que só as criações novas ficam barradas.
+ */
+export function textoDaCota(c: CotaEmpresa): { resumo: string; aviso: string | null } {
+  const padrao = c.padraoDefinido && c.padrao !== null ? `Padrão do plano: ${c.padrao}` : 'Padrão do plano: a definir'
+  const regra = c.excecao !== null ? `exceção desta empresa: ${c.excecao}${c.motivo ? ` (${c.motivo})` : ''}` : 'segue o plano'
+  const vale = !c.efetivoDefinido ? 'a definir' : c.efetivo === null ? 'sem limite' : String(c.efetivo)
+  const resumo = `${padrao} · ${regra} · vale: ${vale} · em uso: ${c.uso}`
+  if (!c.efetivoDefinido) return { resumo, aviso: 'Sem limite definido: nenhuma criação nova até a Rio X7 definir (o que já existe continua).' }
+  if (c.efetivo === null) return { resumo, aviso: null }
+  if (c.uso > c.efetivo) {
+    return { resumo, aviso: `Uso atual (${c.uso}) acima do limite (${c.efetivo}): nada foi excluído; novas criações ficam bloqueadas até o uso voltar ao limite ou o limite subir.` }
+  }
+  if (c.uso === c.efetivo) return { resumo, aviso: 'Limite atingido: novas criações ficam bloqueadas.' }
+  return { resumo, aviso: null }
 }
 
 export function textoDoLimite(
