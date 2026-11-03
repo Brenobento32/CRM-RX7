@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useState } from 'react'
 
 import { botaoFantasmaClass } from '@/components/ui/estilos'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 import { arquivarNegociacaoAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
 
@@ -75,6 +76,8 @@ export function ModalDesqualificar({ card, onCancelar, onConcluido }: Props) {
           />
           <ErroCampo id="motivo-desqualificar-erro" mensagem={erro} />
         </div>
+
+        <ResumoErros campos={estado?.campos} erro={estado?.erro} />
 
         <div className="flex justify-end gap-3 border-t border-premium-borda pt-5">
           <button

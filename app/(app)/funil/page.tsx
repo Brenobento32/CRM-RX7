@@ -8,6 +8,8 @@ import { listarEtapas } from '@/lib/dal/etapas'
 import { DIAS_VISIVEIS_ENCERRADOS, listarCardsFunil } from '@/lib/dal/funil'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { obterPermissoesFunil } from '@/lib/dal/permissoes'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
+import { obterRegrasEtapas } from '@/lib/dal/regras-etapas'
 import { listarServicosAtivos } from '@/lib/dal/servicos'
 import { dentroDoFiltroEntrada, resolverFiltroEntrada } from '@/lib/utils/filtro-entrada'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
@@ -41,10 +43,12 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
     )
   }
 
-  const [cards, etapas, servicos] = await Promise.all([
+  const [cards, etapas, servicos, regras, regrasEtapas] = await Promise.all([
     listarCardsFunil(funilSelecionado.id),
     listarEtapas(funilSelecionado.id),
     listarServicosAtivos(),
+    obterRegrasComerciais(),
+    obterRegrasEtapas(),
   ])
   const permissoes = await obterPermissoesFunil(
     funilSelecionado.id,
@@ -113,6 +117,8 @@ export default async function FunilPage({ searchParams }: PageProps<'/funil'>) {
         papel={usuario.role}
         etapasMovimentaveis={usuario.role === 'gerente' ? null : [...permissoes.etapasMovimentaveis]}
         servicos={servicos}
+        regrasFechamento={{ tiposVenda: regras.tiposVenda, campos: regras.campos }}
+        regrasEtapas={regrasEtapas}
         whatsappHabilitado={funilSelecionado.whatsappHabilitado}
         meuId={usuario.id}
       />

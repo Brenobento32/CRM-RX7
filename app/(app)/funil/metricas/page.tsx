@@ -9,9 +9,12 @@ import { CARGOS_POR_AREA } from '@/lib/validations/usuario'
 import { obterMetricasFunil, obterRealizadoFunil } from '@/lib/dal/funil-metricas'
 import { listarFunis, resolverFunilSelecionado } from '@/lib/dal/funis'
 import { obterProgressoMetas, obterProgressoMetasFunis } from '@/lib/dal/metas'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
 import { formatarData, hojeSaoPaulo } from '@/lib/utils/formatacao'
 import { chavePeriodoFunil, lerMes, resolverPeriodoFunil } from '@/lib/utils/periodo'
 import { COOKIE_FUNIL } from '@/lib/utils/preferencia-funil'
+import { tiposVisiveis } from '@/lib/utils/regras-comerciais'
+import { TIPOS_META } from '@/lib/validations/meta'
 
 import { SeletorMes } from '../../metas/_components/seletor-mes'
 import { ContextoFunilSelecionado } from '../_components/contexto-funil'
@@ -36,7 +39,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
   const mes = lerMes(mesMeta)
 
   const funilSelecionado = await resolverFunilSelecionado(funilParam, cookieStore.get(COOKIE_FUNIL)?.value)
-  const funis = await listarFunis()
+  const [funis, regras] = await Promise.all([listarFunis(), obterRegrasComerciais()])
 
   if (!funilSelecionado) {
     return (
@@ -65,6 +68,14 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
     Promise.all(funis.map((f) => obterMetricasFunil(periodo, f.id))),
     obterRealizadoFunil(periodo, funilSelecionado.id),
   ])
+
+  // Tipos liberados para a empresa + os que já têm meta ou venda (histórico nunca some).
+  const comDados = TIPOS_META.filter(
+    (t) =>
+      [progressoMes.empresa, ...progressoFunisMes].some((x) => x && (x[t].valorMeta !== null || x[t].realizado > 0)) ||
+      realizadoFunilPeriodo[t] > 0,
+  )
+  const tipos = tiposVisiveis(regras.tiposVenda, comDados)
 
   const indiceFunilSelecionado = funis.findIndex((f) => f.id === funilSelecionado.id)
   const metricasSelecionado = metricasPorFunil[indiceFunilSelecionado]
@@ -141,19 +152,23 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
           de container, acima do limiar. Segunda coluna com piso de 320px
           (`minmax(320px,...)`) pra nunca espremer o donut, primeira com
           1.15fr (um pouco mais larga — é o painel principal da tela). */}
-      <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+      <div className={regras.metasAtivo ? 'grid grid-cols-1 gap-4 @2xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]' : 'grid grid-cols-1 gap-4'}>
         <div className="flex min-h-[460px] flex-col rounded-2xl border border-premium-borda bg-premium-card p-5">
           <FunilVisual metricas={metricasSelecionado} funis={funis} funilId={funilSelecionado.id} />
         </div>
-        <DonutMetaMensal progresso={progressoMes.empresa} mes={mes} />
+        {/* Menu Metas desligado para a empresa: a tela não mostra meta nenhuma. */}
+        {regras.metasAtivo && <DonutMetaMensal progresso={progressoMes.empresa} mes={mes} tipos={tipos} />}
       </div>
 
-      <MetaMensal
-        mes={mes}
-        progressoEmpresa={progressoMes.empresa}
-        progressoFunis={progressoFunisMes}
-        seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" variant="premium" />}
-      />
+      {regras.metasAtivo && (
+        <MetaMensal
+          mes={mes}
+          progressoEmpresa={progressoMes.empresa}
+          progressoFunis={progressoFunisMes}
+          tipos={tipos}
+          seletorMes={<SeletorMes mes={mes} caminhoBase={caminhoBaseMetaMes} nomeParametro="mesMeta" variant="premium" />}
+        />
+      )}
 
       <details className={`${cartaoClass} space-y-6 p-5`}>
         <summary className="cursor-pointer rounded-md text-sm font-semibold text-premium-secundario transition hover:text-premium-texto">
@@ -161,7 +176,7 @@ export default async function MetricasFunilPage({ searchParams }: PageProps<'/fu
         </summary>
 
         <div className="mt-4 space-y-6">
-          <ContextoFunilSelecionado realizadoFunil={realizadoFunilPeriodo} funilNome={funilSelecionado.nome} />
+          <ContextoFunilSelecionado realizadoFunil={realizadoFunilPeriodo} funilNome={funilSelecionado.nome} tipos={tipos} />
 
           <TaxaPorFunil
             resumos={funis.map((f, i) => ({ funilId: f.id, nome: f.nome, metricas: metricasPorFunil[i] }))}

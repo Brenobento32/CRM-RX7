@@ -9,9 +9,12 @@ import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { atualizarFechamentoAction, salvarNegociacaoAction } from '@/lib/actions/negociacoes'
 import { listarHistoricoDaNegociacao } from '@/lib/dal/historico'
 import { NEGOCIACAO_ENCERRADA, obterNegociacaoParaEdicao, type FechamentoEdicao, type NegociacaoEdicao } from '@/lib/dal/negociacoes'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
+import { obterRegrasEtapas } from '@/lib/dal/regras-etapas'
 import { listarServicosAtivos, ordenarServicos } from '@/lib/dal/servicos'
 import { formatarDia, formatarMoeda } from '@/lib/utils/formatacao'
 import { montarHistorico } from '@/lib/utils/historico'
+import { CAMPOS_ETAPA, camposVisiveis } from '@/lib/utils/regras-etapas'
 import { ROTULO_FORMA_PAGAMENTO, ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 import { EditarFechamentoForm } from './_components/editar-fechamento-form'
@@ -100,7 +103,8 @@ export default async function EditarNegociacaoPage({ params }: PageProps<'/negoc
 
 async function Formulario({ negociacao, voltar }: { negociacao: NegociacaoEdicao; voltar: string }) {
   // Desativados só aparecem se já estão nesta negociação.
-  const ativos = await listarServicosAtivos()
+  const [ativos, regrasEtapas] = await Promise.all([listarServicosAtivos(), obterRegrasEtapas()])
+  const visiveis = camposVisiveis(regrasEtapas[negociacao.etapaId])
   const idsAtivos = new Set(ativos.map((s) => s.id))
   const servicos = ordenarServicos([...ativos, ...negociacao.servicos.filter((s) => !idsAtivos.has(s.id))])
 
@@ -109,6 +113,7 @@ async function Formulario({ negociacao, voltar }: { negociacao: NegociacaoEdicao
       action={salvarNegociacaoAction.bind(null, negociacao.id, negociacao.clienteId)}
       servicos={servicos}
       cancelarHref={voltar}
+      ocultos={CAMPOS_ETAPA.filter((c) => !visiveis.has(c))}
       valoresIniciais={{
         valor_estimado: valorParaCampo(negociacao.valorEstimado),
         temperatura: negociacao.temperatura ?? '',
@@ -133,7 +138,7 @@ async function EditarFechamento({
   voltar: string
 }) {
   // Mesmo padrão de Formulario: desativados só aparecem se já vinculados.
-  const ativos = await listarServicosAtivos()
+  const [ativos, regras] = await Promise.all([listarServicosAtivos(), obterRegrasComerciais()])
   const idsAtivos = new Set(ativos.map((s) => s.id))
   const servicos = ordenarServicos([...ativos, ...negociacao.servicos.filter((s) => !idsAtivos.has(s.id))])
 
@@ -143,6 +148,7 @@ async function EditarFechamento({
       fechamento={fechamento}
       servicoIdsAtuais={negociacao.servicos.map((s) => s.id)}
       servicos={servicos}
+      regras={regras}
       cancelarHref={voltar}
     />
   )

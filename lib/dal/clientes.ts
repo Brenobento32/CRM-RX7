@@ -53,6 +53,8 @@ export type ClienteDetalhe = ClienteResumo & {
 
 export type NegociacaoDoCliente = {
   id: string
+  /** Etapa atual (id real): campos "Não usar" nela não aparecem no resumo. */
+  etapa_id: string
   etapa: EtapaVisual & { tipo: TipoEtapa }
   created_at: string
   valor_estimado: number | null
@@ -254,7 +256,7 @@ export const obterCliente = cache(async (id: string): Promise<ClienteDetalhe | n
        responsavel, cargo, instagram, observacoes, owner_id, created_at, updated_at,
        dono:profiles!clientes_owner_id_fkey(nome),
        negociacoes!negociacoes_cliente_id_tenant_fkey(
-         id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento, origem,
+         id, etapa_id, created_at, valor_estimado, temperatura, valor_proposta, forma_pagamento, origem,
          etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
          funil:funis!negociacoes_funil_id_tenant_fkey(nome),
          vinculos:negociacao_servicos!negociacao_servicos_negociacao_id_tenant_fkey(servico:servicos!negociacao_servicos_servico_id_tenant_fkey(nome, ativo))

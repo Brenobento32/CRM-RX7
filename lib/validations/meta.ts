@@ -10,6 +10,7 @@ export const ALVO_EMPRESA = 'empresa'
 /** `tipo_venda` no banco — mesmo enum que classifica uma venda (fechamentos.tipo_venda); fonte única em `lib/validations/funil.ts`. */
 export const TIPOS_META = TIPOS_VENDA
 export const ROTULO_TIPO_META = ROTULO_TIPO_VENDA
+export type TipoMetaRotulo = (typeof TIPOS_META)[number]
 
 const valorMeta = valorEmReais.pipe(
   z
@@ -19,7 +20,7 @@ const valorMeta = valorEmReais.pipe(
 
 export const criarMetaSchema = z.object({
   alvo: z.union([z.literal(ALVO_EMPRESA), z.uuid()], 'Escolha para quem é a meta.'),
-  tipo_meta: z.enum(TIPOS_META, 'Escolha TCV ou MRR.'),
+  tipo_meta: z.enum(TIPOS_META, 'Escolha o tipo da meta.'),
   mes: z.string().refine(mesValido, 'Mês inválido.'),
   valor_meta: valorMeta,
 })

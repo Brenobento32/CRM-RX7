@@ -1,6 +1,7 @@
 import type { RealizadoFunil } from '@/lib/dal/funil-metricas'
 import { ticketMedio } from '@/lib/utils/financeiro-periodo'
 import { formatarMoeda } from '@/lib/utils/formatacao'
+import { ROTULO_TIPO_META, type TipoMetaRotulo } from '@/lib/validations/meta'
 
 /**
  * "Contexto do funil selecionado" — vendido e ticket médio só DESTE funil,
@@ -13,14 +14,15 @@ import { formatarMoeda } from '@/lib/utils/formatacao'
 export function ContextoFunilSelecionado({
   realizadoFunil,
   funilNome,
+  tipos,
 }: {
   realizadoFunil: RealizadoFunil
   funilNome: string
+  /** Tipos visíveis para a empresa. */
+  tipos: readonly TipoMetaRotulo[]
 }) {
-  const linhas = [
-    { chave: 'tcv' as const, titulo: 'TCV', realizado: realizadoFunil.tcv, qtd: realizadoFunil.tcvQtd },
-    { chave: 'mrr' as const, titulo: 'MRR', realizado: realizadoFunil.mrr, qtd: realizadoFunil.mrrQtd },
-  ]
+  const qtd: Record<TipoMetaRotulo, number> = { tcv: realizadoFunil.tcvQtd, mrr: realizadoFunil.mrrQtd, venda: realizadoFunil.vendaQtd }
+  const linhas = tipos.map((t) => ({ chave: t, titulo: ROTULO_TIPO_META[t], realizado: realizadoFunil[t], qtd: qtd[t] }))
 
   return (
     <section className="space-y-2 rounded-lg border border-dashed border-premium-borda p-4">

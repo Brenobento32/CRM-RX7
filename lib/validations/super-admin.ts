@@ -1,8 +1,18 @@
 import { z } from 'zod'
 
+import { CAMPOS_ETAPA, problemaNoChecklist, USOS_CAMPO_ETAPA, type CampoEtapa, type UsoCampoEtapa } from '@/lib/utils/regras-etapas'
+
 import { slugDeEmpresa } from '@/lib/empresa/rota'
 import { Constants } from '@/lib/types/database'
 import { somenteDigitos } from '@/lib/utils/documentos'
+import {
+  CAMPOS_FECHAMENTO,
+  problemaNasRegras,
+  REGRAS_CAMPO,
+  TIPOS_VENDA_REGRAS,
+  type CampoFechamento,
+  type RegraCampo,
+} from '@/lib/utils/regras-comerciais'
 
 /** Validação dos formulários do Super Admin. O banco revalida tudo (permissão, arquivo, limites). */
 
@@ -179,3 +189,54 @@ export const contatoEmpresaSchema = z.object({
   responsavel_nome: responsavelEmpresa,
 })
 export type ContatoEmpresaInput = z.infer<typeof contatoEmpresaSchema>
+
+// ---------------------------------------------------------------------------
+// Regras comerciais por empresa (Super Admin)
+// ---------------------------------------------------------------------------
+export const regrasComerciaisSchema = z
+  .object({
+    perfil: z.enum(['generico', 'agencia'], 'Escolha o perfil da empresa.'),
+    metasAtivo: z.boolean(),
+    tiposVenda: z.array(z.enum(TIPOS_VENDA_REGRAS)).min(1, 'Escolha ao menos um tipo de venda/meta (TCV, MRR ou Venda comum).'),
+    campos: z.object(
+      Object.fromEntries(CAMPOS_FECHAMENTO.map((c) => [c, z.enum(REGRAS_CAMPO, 'Regra inválida.')])) as Record<
+        CampoFechamento,
+        z.ZodEnum<{ [K in RegraCampo]: K }>
+      >,
+    ),
+    motivo: z.string().trim().min(3, 'Informe o motivo da alteração.').max(500),
+  })
+  .superRefine((r, ctx) => {
+    const problema = problemaNasRegras(r.campos, r.tiposVenda)
+    if (problema) ctx.addIssue({ code: 'custom', path: ['campos'], message: problema })
+  })
+export type RegrasComerciaisInput = z.output<typeof regrasComerciaisSchema>
+
+export const exclusaoEmpresaSchema = z.object({
+  confirmacao: z.string().trim().min(1, 'Digite o endereço da empresa para confirmar.'),
+  motivo: z.string().trim().min(3, 'Informe o motivo da exclusão.').max(500),
+})
+
+/** Exigências de uma etapa (Super Admin). O banco confere de novo (admin_definir_regras_etapa). */
+export const regrasEtapaSchema = z
+  .object({
+    etapaId: z.uuid('Etapa inválida.'),
+    campos: z.object(
+      Object.fromEntries(CAMPOS_ETAPA.map((c) => [c, z.enum(USOS_CAMPO_ETAPA, 'Uso inválido.')])) as Record<
+        CampoEtapa,
+        z.ZodEnum<{ [K in UsoCampoEtapa]: K }>
+      >,
+    ),
+    checklist: z.array(z.string()),
+    motivo: z.string().trim().min(3, 'Informe o motivo da alteração.').max(500),
+  })
+  .superRefine((r, ctx) => {
+    const problema = problemaNoChecklist(r.checklist)
+    if (problema) ctx.addIssue({ code: 'custom', path: ['checklist'], message: problema })
+  })
+export type RegrasEtapaInput = z.output<typeof regrasEtapaSchema>
+
+/** Reativação: vazio = volta ao estado de antes da inativação; senão, a escolha explícita (auditada). */
+export const statusReativacaoSchema = z
+  .enum(['', 'ativa', 'teste', 'vencida'], 'Escolha como a empresa volta.')
+  .transform((v) => (v === '' ? null : v))

@@ -82,6 +82,10 @@ begin
   perform set_config('role', 'postgres', true);
   perform public.garantir_estrutura_inicial(t_a, g_a);
   perform public.garantir_estrutura_inicial(t_b, g_b);
+  -- Empresa nova nasce "genérica" (Venda comum) desde 20261109090100; este teste usa metas TCV de agência.
+  if to_regclass('public.empresa_regras_comerciais') is not null then
+    execute $x$insert into public.empresa_regras_comerciais (tenant_id, perfil, tipos_venda) values ($1, 'agencia', '{tcv,mrr}'), ($2, 'agencia', '{tcv,mrr}')$x$ using t_a, t_b;
+  end if;
   insert into public.tenant_memberships (tenant_id, user_id, papel) values
     (t_a, g2_a, 'gerente'), (t_a, sdr_a, 'sdr'), (t_a, clo_a, 'closer'), (t_a, ven_a, 'vendedor'),
     (t_a, ate_a, 'atendente'), (t_b, clo_b, 'closer');

@@ -4,19 +4,14 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
-import { botaoPrimarioClass, inputClass, botaoFantasmaClass, opcaoClass, caixaErroClass, caixaAlertaClass } from '@/components/ui/estilos'
+import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass, caixaAlertaClass } from '@/components/ui/estilos'
 import type { EstadoFormFechamento } from '@/lib/actions/negociacoes'
 import type { FechamentoEdicao } from '@/lib/dal/negociacoes'
 import type { Servico } from '@/lib/dal/servicos'
+import { CampoTipoVenda, CamposComplementaresFechamento, ROTULOS_CAMPOS_FECHAMENTO, valoresIniciaisFechamento } from '@/components/funil/campos-fechamento'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 import { hojeSaoPaulo } from '@/lib/utils/formatacao'
-import {
-  ROTULO_STATUS_ONBOARDING,
-  ROTULO_STATUS_PAGAMENTO,
-  ROTULO_TIPO_VENDA,
-  STATUS_ONBOARDING,
-  STATUS_PAGAMENTO_FECHAMENTO,
-  TIPOS_VENDA,
-} from '@/lib/validations/funil'
+import type { RegrasFechamento } from '@/lib/validations/funil'
 
 type Props = {
   action: (estado: EstadoFormFechamento | undefined, formData: FormData) => Promise<EstadoFormFechamento>
@@ -24,6 +19,8 @@ type Props = {
   /** Serviços já vinculados à negociação (`negociacao_servicos`), pra pré-marcar. */
   servicoIdsAtuais: string[]
   servicos: Servico[]
+  /** Regras comerciais da empresa (tipos de venda e itens do fechamento). */
+  regras: RegrasFechamento
   cancelarHref: string
 }
 
@@ -38,12 +35,12 @@ export function EditarFechamentoForm({
   fechamento,
   servicoIdsAtuais,
   servicos,
+  regras,
   cancelarHref,
 }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores
   const erro = (campo: string) => estado?.campos?.[campo]?.[0]
-  const marcados = new Set(valores?.servico_ids ?? servicoIdsAtuais)
   const hoje = hojeSaoPaulo()
 
   if (fechamento.anuladoEm) {
@@ -76,29 +73,7 @@ export function EditarFechamentoForm({
       )}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="tipo_venda" className="mb-1.5 block text-sm font-medium">
-            Tipo da venda
-          </label>
-          <select
-            id="tipo_venda"
-            name="tipo_venda"
-            defaultValue={valores?.tipo_venda ?? ''}
-            aria-invalid={erro('tipo_venda') ? true : undefined}
-            aria-describedby="tipo_venda-erro"
-            className={inputClass}
-          >
-            <option value="">
-              {fechamento.tipoVenda ? `Manter (${ROTULO_TIPO_VENDA[fechamento.tipoVenda]})` : 'Manter (não classificado)'}
-            </option>
-            {TIPOS_VENDA.map((t) => (
-              <option key={t} value={t}>
-                {ROTULO_TIPO_VENDA[t]}
-              </option>
-            ))}
-          </select>
-          <ErroCampo id="tipo_venda-erro" mensagem={erro('tipo_venda')} />
-        </div>
+        <CampoTipoVenda regras={regras} modo="edicao" tipoAtual={fechamento.tipoVenda} valor={valores?.tipo_venda} erro={erro('tipo_venda')} />
 
         <div>
           <label htmlFor="valor_vendido" className="mb-1.5 block text-sm font-medium">
@@ -140,124 +115,15 @@ export function EditarFechamentoForm({
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SimNao
-          nome="contrato_enviado"
-          rotulo="Contrato enviado?"
-          valorInicial={valores?.contrato_enviado ?? (fechamento.contratoEnviado ? 'sim' : 'nao')}
-          erro={erro('contrato_enviado')}
-        />
-        <SimNao
-          nome="contrato_assinado"
-          rotulo="Contrato assinado?"
-          valorInicial={valores?.contrato_assinado ?? (fechamento.contratoAssinado ? 'sim' : 'nao')}
-          erro={erro('contrato_assinado')}
-        />
-      </div>
+      <CamposComplementaresFechamento
+        regras={regras}
+        valores={valoresIniciaisFechamento(fechamento, valores)}
+        servicos={servicos}
+        servicoIdsAtuais={servicoIdsAtuais}
+        erro={erro}
+      />
 
-      <div>
-        <label htmlFor="link_contrato" className="mb-1.5 block text-sm font-medium">
-          Link do contrato <span className="font-normal text-premium-mudo">(opcional)</span>
-        </label>
-        <input
-          id="link_contrato"
-          name="link_contrato"
-          type="url"
-          placeholder="https://"
-          defaultValue={valores?.link_contrato ?? fechamento.linkContrato ?? ''}
-          aria-invalid={erro('link_contrato') ? true : undefined}
-          aria-describedby="link_contrato-erro"
-          className={inputClass}
-        />
-        <ErroCampo id="link_contrato-erro" mensagem={erro('link_contrato')} />
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="status_pagamento" className="mb-1.5 block text-sm font-medium">
-            Status do pagamento
-          </label>
-          <select
-            id="status_pagamento"
-            name="status_pagamento"
-            defaultValue={valores?.status_pagamento ?? fechamento.statusPagamento}
-            aria-invalid={erro('status_pagamento') ? true : undefined}
-            aria-describedby="status_pagamento-erro"
-            className={inputClass}
-          >
-            {STATUS_PAGAMENTO_FECHAMENTO.map((s) => (
-              <option key={s} value={s}>
-                {ROTULO_STATUS_PAGAMENTO[s]}
-              </option>
-            ))}
-          </select>
-          <ErroCampo id="status_pagamento-erro" mensagem={erro('status_pagamento')} />
-        </div>
-
-        <div>
-          <label htmlFor="status_onboarding" className="mb-1.5 block text-sm font-medium">
-            Status do onboarding
-          </label>
-          <select
-            id="status_onboarding"
-            name="status_onboarding"
-            defaultValue={valores?.status_onboarding ?? fechamento.statusOnboarding}
-            aria-invalid={erro('status_onboarding') ? true : undefined}
-            aria-describedby="status_onboarding-erro"
-            className={inputClass}
-          >
-            {STATUS_ONBOARDING.map((s) => (
-              <option key={s} value={s}>
-                {ROTULO_STATUS_ONBOARDING[s]}
-              </option>
-            ))}
-          </select>
-          <ErroCampo id="status_onboarding-erro" mensagem={erro('status_onboarding')} />
-        </div>
-      </div>
-
-      <fieldset aria-describedby={erro('servico_ids') ? 'servicos-erro' : undefined}>
-        <legend className="mb-1.5 block text-sm font-medium">Serviços contratados</legend>
-        {servicos.length === 0 ? (
-          <p className="text-sm text-premium-mudo">Nenhum serviço cadastrado. O administrador cadastra em Configurações → Serviços.</p>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {servicos.map((s) => (
-              <label
-                key={s.id}
-                className={opcaoClass}
-              >
-                <input
-                  type="checkbox"
-                  name="servico_ids"
-                  value={s.id}
-                  defaultChecked={marcados.has(s.id)}
-                  className="size-4 accent-zinc-900 dark:accent-zinc-100"
-                />
-                <span className="flex-1">{s.nome}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        <ErroCampo id="servicos-erro" mensagem={erro('servico_ids')} />
-      </fieldset>
-
-      <div>
-        <label htmlFor="observacoes" className="mb-1.5 block text-sm font-medium">
-          Observações <span className="font-normal text-premium-mudo">(opcional)</span>
-        </label>
-        <textarea
-          id="observacoes"
-          name="observacoes"
-          rows={3}
-          maxLength={2000}
-          defaultValue={valores?.observacoes ?? fechamento.observacoes ?? ''}
-          aria-invalid={erro('observacoes') ? true : undefined}
-          aria-describedby="observacoes-erro"
-          className={inputClass}
-        />
-        <ErroCampo id="observacoes-erro" mensagem={erro('observacoes')} />
-      </div>
+      <ResumoErros campos={estado?.campos} rotulos={ROTULOS_CAMPOS_FECHAMENTO} erro={estado?.erro} />
 
       <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
@@ -271,42 +137,5 @@ export function EditarFechamentoForm({
         </Link>
       </div>
     </form>
-  )
-}
-
-/** Sim/Não com o valor atual pré-marcado (diferente do modal de fechamento novo, que nunca tem valor prévio). */
-function SimNao({
-  nome,
-  rotulo,
-  valorInicial,
-  erro,
-}: {
-  nome: string
-  rotulo: string
-  valorInicial: string
-  erro?: string
-}) {
-  return (
-    <fieldset aria-describedby={`${nome}-erro`}>
-      <legend className="mb-1.5 text-sm font-medium">{rotulo}</legend>
-      <div className="flex gap-2">
-        {(['sim', 'nao'] as const).map((v) => (
-          <label
-            key={v}
-            className={`${opcaoClass} flex-1 justify-center`}
-          >
-            <input
-              type="radio"
-              name={nome}
-              value={v}
-              defaultChecked={valorInicial === v}
-              className="sr-only"
-            />
-            {v === 'sim' ? 'Sim' : 'Não'}
-          </label>
-        ))}
-      </div>
-      <ErroCampo id={`${nome}-erro`} mensagem={erro} />
-    </fieldset>
   )
 }

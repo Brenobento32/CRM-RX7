@@ -37,6 +37,7 @@ import {
   type EtapaKanban,
 } from '@/lib/utils/etapas'
 import { formatarMoedaCompacta } from '@/lib/utils/formatacao'
+import { CAMPOS_ETAPA, usoDoCampo, type RegraEtapa, type RegrasEtapas, type RequisitosEtapa } from '@/lib/utils/regras-etapas'
 import type { Cargo as Papel } from '@/lib/validations/usuario'
 
 /**
@@ -51,6 +52,7 @@ import { CardArrastavel, CardConteudo } from './card-negociacao'
 import { DrawerNegociacao } from './drawer-negociacao'
 import { ModalDesqualificar } from './modal-desqualificar'
 import { ModalEdicaoRapida } from './modal-edicao-rapida'
+import type { RegrasFechamento } from '@/lib/validations/funil'
 import { ModalFechamento } from './modal-fechamento'
 import { ModalFichaCliente } from './modal-ficha-cliente'
 import { ModalObservacoes } from './modal-observacoes'
@@ -63,11 +65,16 @@ type Colunas = Record<string, CardFunil[]>
 
 type MovimentoPendente = {
   card: CardFunil
-  /** Qual modal abrir: fechamento (ganha) ou motivo (perdida). */
-  tipo: 'ganha' | 'perdida'
+  /**
+   * Qual modal abrir: fechamento (ganha), motivo (perdida) ou o formulário
+   * das exigências da etapa de destino (o banco recusou o movimento: RX101).
+   */
+  tipo: 'ganha' | 'perdida' | 'exigencias'
   posicao: number
   /** Estado do quadro antes do arraste, para desfazer se o modal for cancelado. */
   antes: Colunas
+  /** Só em `exigencias`: o que falta, segundo o banco. */
+  requisitos?: RequisitosEtapa
 }
 
 /** Mesma ordem da consulta (`posicao`, depois `id`), para empates não trocarem de lugar. */
@@ -148,6 +155,8 @@ export function Kanban({
   papel,
   etapasMovimentaveis,
   servicos,
+  regrasFechamento,
+  regrasEtapas,
   whatsappHabilitado,
   meuId,
 }: {
@@ -165,6 +174,10 @@ export function Kanban({
    */
   etapasMovimentaveis: string[] | null
   servicos: Servico[]
+  /** Regras comerciais da empresa para o fechamento (tipos de venda e itens exigidos). */
+  regrasFechamento: RegrasFechamento
+  /** Exigências por etapa (Super Admin): o que mostrar/esconder e o que pedir ao entrar. */
+  regrasEtapas: RegrasEtapas
   whatsappHabilitado: boolean
 }) {
   const dndId = useId()
@@ -358,6 +371,12 @@ export function Kanban({
     startTransition(async () => {
       const resultado = await moverNegociacaoAction({ id: card.id, etapaId, posicao, reposicionar })
       if (!resultado.ok) {
+        if (resultado.requisitos && resultado.requisitos.etapaId === etapaId) {
+          // A etapa de destino exige dados ou confirmações: o movimento não foi gravado.
+          // O card espera na coluna enquanto o formulário está aberto; cancelar desfaz.
+          setPendente({ card, tipo: 'exigencias', posicao, antes, requisitos: resultado.requisitos })
+          return
+        }
         setColunas(antes)
         setErro(resultado.mensagem)
       }
@@ -443,6 +462,7 @@ export function Kanban({
               <Coluna
                 key={etapa.id}
                 etapa={etapa}
+                regra={regrasEtapas[etapa.id]}
                 etapasPermitidas={etapasPermitidas}
                 cards={colunas[etapa.id] ?? []}
                 aviso={alemDoHandoffSdr ? 'Somente CLOSER' : semPermissaoNestaEtapa ? 'Sem permissão' : null}
@@ -456,7 +476,7 @@ export function Kanban({
           })}
         </div>
 
-        <DragOverlay>{ativo && <CardConteudo card={ativo} flutuando />}</DragOverlay>
+        <DragOverlay>{ativo && <CardConteudo card={ativo} regra={regrasEtapas[ativo.etapaId]} flutuando />}</DragOverlay>
       </DndContext>
 
       {pendente?.tipo === 'ganha' && (
@@ -464,6 +484,18 @@ export function Kanban({
           card={pendente.card}
           posicao={pendente.posicao}
           servicos={servicos}
+          regras={regrasFechamento}
+          onCancelar={cancelarModal}
+          onConcluido={() => setPendente(null)}
+        />
+      )}
+      {pendente?.tipo === 'exigencias' && pendente.requisitos && (
+        <ModalEdicaoRapida
+          card={pendente.card}
+          servicosAtivos={servicos}
+          regras={regrasFechamento}
+          regrasEtapas={regrasEtapas}
+          destino={{ posicao: pendente.posicao, requisitos: pendente.requisitos }}
           onCancelar={cancelarModal}
           onConcluido={() => setPendente(null)}
         />
@@ -481,6 +513,8 @@ export function Kanban({
         <ModalEdicaoRapida
           card={edicaoRapida}
           servicosAtivos={servicos}
+          regras={regrasFechamento}
+          regrasEtapas={regrasEtapas}
           onCancelar={() => setEdicaoRapida(null)}
           onConcluido={() => setEdicaoRapida(null)}
         />
@@ -489,6 +523,7 @@ export function Kanban({
       {drawer && (
         <DrawerNegociacao
           card={drawer}
+          regra={regrasEtapas[drawer.etapaId]}
           etapas={etapasPermitidas(drawer.etapaId, drawer)}
           whatsappHabilitado={whatsappHabilitado}
           onFechar={() => setDrawer(null)}
@@ -510,6 +545,7 @@ export function Kanban({
           // (pode_mover_etapa). GERENTE sempre pode; SDR/CLOSER só se a
           // etapa atual do card estiver em `etapasMovimentaveis`.
           podeTrabalharCard={papel === 'gerente' || podeMoverEtapa(ficha.etapaId)}
+          ocultos={CAMPOS_ETAPA.filter((c) => usoDoCampo(regrasEtapas[ficha.etapaId], c) === 'oculto')}
           onFechar={() => setFicha(null)}
         />
       )}
@@ -542,6 +578,7 @@ export function Kanban({
 
 function Coluna({
   etapa,
+  regra,
   etapasPermitidas,
   cards,
   aviso,
@@ -552,6 +589,8 @@ function Coluna({
   onAbrirObservacoes,
 }: {
   etapa: EtapaKanban
+  /** Exigências desta etapa: campo "Não usar" some dos cards e do total da coluna. */
+  regra?: RegraEtapa
   /** Destinos válidos a partir desta coluna — ver `etapasPermitidas` em `Kanban`. Com o card, considera também a carteira do Atendente. */
   etapasPermitidas: (etapaOrigemId: string, card?: CardFunil) => EtapaKanban[]
   cards: CardFunil[]
@@ -565,8 +604,10 @@ function Coluna({
   onAbrirObservacoes: (card: CardFunil) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.id })
+  // Valor estimado "Não usar" nesta etapa: sem total (os valores continuam gravados).
+  const somaEstimado = usoDoCampo(regra, 'valor_estimado') !== 'oculto'
   const total = cards.reduce(
-    (soma, c) => soma + ((etapa.tipo === 'ganha' ? c.valorVendido : c.valorEstimado) ?? 0),
+    (soma, c) => soma + ((etapa.tipo === 'ganha' ? c.valorVendido : somaEstimado ? c.valorEstimado : null) ?? 0),
     0,
   )
 
@@ -610,6 +651,7 @@ function Coluna({
             <CardArrastavel
               key={card.id}
               card={card}
+              regra={regra}
               etapas={etapasPermitidas(etapa.id, card)}
               travado={travada || etapasPermitidas(etapa.id, card).length <= 1}
               onMover={onMover}

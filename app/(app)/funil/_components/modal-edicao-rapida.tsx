@@ -6,22 +6,30 @@ import { botaoPrimarioClass, opcaoClass, caixaAlertaClass } from '@/components/u
 import {
   atualizarFechamentoRapidoAction,
   obterNegociacaoEdicaoAction,
+  salvarEMoverNegociacaoAction,
   salvarNegociacaoRapidaAction,
   type EstadoEdicaoRapidaFechamento,
-  type EstadoEdicaoRapidaNegociacao,
+  type EstadoSalvarEMover,
 } from '@/lib/actions/negociacoes'
 import type { CardFunil } from '@/lib/dal/funil'
 import type { FechamentoEdicao, NegociacaoEdicao } from '@/lib/dal/negociacoes'
 import type { Servico } from '@/lib/dal/servicos'
+import { CampoTipoVenda, CamposComplementaresFechamento, ROTULOS_CAMPOS_FECHAMENTO, valoresIniciaisFechamento } from '@/components/funil/campos-fechamento'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 import { formatarDia, formatarMoeda, hojeSaoPaulo } from '@/lib/utils/formatacao'
 import {
-  ROTULO_STATUS_ONBOARDING,
-  ROTULO_STATUS_PAGAMENTO,
-  ROTULO_TIPO_VENDA,
-  STATUS_ONBOARDING,
-  STATUS_PAGAMENTO_FECHAMENTO,
-  TIPOS_VENDA,
-} from '@/lib/validations/funil'
+  CAMPO_FORMULARIO,
+  CAMPOS_ETAPA,
+  ROTULO_CAMPO_ETAPA,
+  camposObrigatorios,
+  camposVisiveis,
+  descreverRequisitos,
+  type CampoEtapa,
+  type RegraEtapa,
+  type RegrasEtapas,
+  type RequisitosEtapa,
+} from '@/lib/utils/regras-etapas'
+import type { RegrasFechamento } from '@/lib/validations/funil'
 import {
   FORMAS_PAGAMENTO,
   ROTULO_FORMA_PAGAMENTO,
@@ -35,6 +43,12 @@ import { BotoesModal, ErroCampo, ErroGeral, inputClass, Modal } from './modal'
 /** Mesma frase de `NEGOCIACAO_ENCERRADA` em lib/dal/negociacoes.ts — esse arquivo é server-only, não dá pra importar valores dele aqui. */
 const NEGOCIACAO_ENCERRADA_MSG = 'Negociação encerrada: dados comerciais não podem ser alterados.'
 
+/** Nomes no aviso perto do botão (sem o "· obrigatório nesta etapa" do rótulo). */
+const ROTULOS_RESUMO: Record<string, string> = {
+  ...Object.fromEntries(CAMPOS_ETAPA.map((c) => [CAMPO_FORMULARIO[c], ROTULO_CAMPO_ETAPA[c]])),
+  checklist: 'Confirmações',
+}
+
 function valorParaCampo(valor: number | null): string {
   return valor === null ? '' : valor.toFixed(2).replace('.', ',')
 }
@@ -43,6 +57,15 @@ type Props = {
   card: CardFunil
   /** Catálogo ativo; os desativados que já estão nesta negociação entram depois de carregar os dados. */
   servicosAtivos: Servico[]
+  /** Regras comerciais da empresa (tipos de venda e itens do fechamento). */
+  regras: RegrasFechamento
+  /** Exigências por etapa: campos "Não usar" ficam fora do formulário (o valor gravado fica). */
+  regrasEtapas: RegrasEtapas
+  /**
+   * Movimento recusado pelas exigências da etapa de destino: o formulário
+   * pede o que falta e "Salvar e mover" grava tudo numa transação só.
+   */
+  destino?: { posicao: number; requisitos: RequisitosEtapa }
   onCancelar: () => void
   onConcluido: () => void
 }
@@ -52,7 +75,7 @@ type Props = {
  * certo pra etapa dela, sem sair do Kanban — mesmo padrão de `ModalFechamento`
  * e `ModalPerda`, mas com um fetch antes do formulário aparecer.
  */
-export function ModalEdicaoRapida({ card, servicosAtivos, onCancelar, onConcluido }: Props) {
+export function ModalEdicaoRapida({ card, servicosAtivos, regras, regrasEtapas, destino, onCancelar, onConcluido }: Props) {
   const [dados, setDados] = useState<NegociacaoEdicao | null>(null)
   const [erroCarregar, setErroCarregar] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -66,8 +89,9 @@ export function ModalEdicaoRapida({ card, servicosAtivos, onCancelar, onConcluid
     })
   }, [card.id])
 
-  const titulo =
-    dados?.etapa.tipo === 'ganha'
+  const titulo = destino
+    ? `Para mover para "${destino.requisitos.etapaNome}"`
+    : dados?.etapa.tipo === 'ganha'
       ? 'Editar fechamento'
       : dados?.etapa.tipo === 'perdida'
         ? 'Negociação'
@@ -100,20 +124,40 @@ export function ModalEdicaoRapida({ card, servicosAtivos, onCancelar, onConcluid
       )}
 
       {dados && dados.etapa.tipo === 'aberta' && (
-        <FormularioAberta dados={dados} servicos={servicos} onCancelar={onCancelar} onConcluido={onConcluido} />
-      )}
-
-      {dados && dados.etapa.tipo === 'ganha' && dados.fechamento && (
-        <FormularioFechamento
+        <FormularioAberta
           dados={dados}
-          fechamento={dados.fechamento}
           servicos={servicos}
+          regraAtual={regrasEtapas[dados.etapaId]}
+          regraDestino={destino ? regrasEtapas[destino.requisitos.etapaId] : undefined}
+          destino={destino}
           onCancelar={onCancelar}
           onConcluido={onConcluido}
         />
       )}
 
-      {dados && dados.etapa.tipo === 'perdida' && <ResumoSomenteLeitura dados={dados} onFechar={onCancelar} />}
+      {dados && destino && dados.etapa.tipo !== 'aberta' && (
+        <div className="space-y-5">
+          <ErroGeral
+            mensagem={`${descreverRequisitos(destino.requisitos)} A negociação está encerrada e os dados comerciais não mudam aqui: reabra numa etapa sem exigências, preencha e depois mova.`}
+          />
+          <div className="flex justify-end border-t border-premium-borda pt-5">
+            <BotaoFechar onClick={onCancelar} />
+          </div>
+        </div>
+      )}
+
+      {dados && !destino && dados.etapa.tipo === 'ganha' && dados.fechamento && (
+        <FormularioFechamento
+          dados={dados}
+          fechamento={dados.fechamento}
+          servicos={servicos}
+          regras={regras}
+          onCancelar={onCancelar}
+          onConcluido={onConcluido}
+        />
+      )}
+
+      {dados && !destino && dados.etapa.tipo === 'perdida' && <ResumoSomenteLeitura dados={dados} onFechar={onCancelar} />}
     </Modal>
   )
 }
@@ -130,30 +174,68 @@ function BotaoFechar({ onClick }: { onClick: () => void }) {
   )
 }
 
-/** Etapa aberta: qualificação, proposta e serviços — mesmos campos de `NegociacaoForm`, sem navegar. */
+/**
+ * Etapa aberta: qualificação, proposta e serviços — mesmos campos de `NegociacaoForm`, sem navegar.
+ * Com `destino`, é o formulário das exigências da etapa para onde o card foi
+ * arrastado: mostra os campos conforme a regra do destino, marca os
+ * obrigatórios, pede o checklist e "Salvar e mover" grava tudo de uma vez.
+ * Campos "Não usar" não aparecem; o valor gravado deles fica.
+ */
 function FormularioAberta({
   dados,
   servicos,
+  regraAtual,
+  regraDestino,
+  destino,
   onCancelar,
   onConcluido,
 }: {
   dados: NegociacaoEdicao
   servicos: Servico[]
+  regraAtual?: RegraEtapa
+  regraDestino?: RegraEtapa
+  destino?: { posicao: number; requisitos: RequisitosEtapa }
   onCancelar: () => void
   onConcluido: () => void
 }) {
+  // Ao abrir pelo movimento recusado, os campos que faltam já aparecem em vermelho.
+  const inicial: EstadoSalvarEMover | undefined = destino
+    ? {
+        erro: descreverRequisitos(destino.requisitos),
+        campos: Object.fromEntries([
+          ...destino.requisitos.campos.map((c) => [CAMPO_FORMULARIO[c], ['Obrigatório para entrar nesta etapa.']]),
+          ...(destino.requisitos.checklist.length > 0 ? [['checklist', ['Confirme todos os itens para entrar nesta etapa.']]] : []),
+        ]),
+      }
+    : undefined
+
   const [estado, action, pendente] = useActionState(
-    async (anterior: EstadoEdicaoRapidaNegociacao | undefined, formData: FormData) => {
-      const resultado = await salvarNegociacaoRapidaAction(dados.id, anterior, formData)
+    async (anterior: EstadoSalvarEMover | undefined, formData: FormData): Promise<EstadoSalvarEMover> => {
+      const resultado = destino
+        ? await salvarEMoverNegociacaoAction(dados.id, { etapaId: destino.requisitos.etapaId, posicao: destino.posicao }, anterior, formData)
+        : await salvarNegociacaoRapidaAction(dados.id, anterior, formData)
       if (resultado.ok) onConcluido()
       return resultado
     },
-    undefined,
+    inicial,
   )
 
   const valores = estado?.valores
   const erro = (campo: CampoEdicaoNegociacao) => estado?.campos?.[campo]?.[0]
   const marcados = new Set(valores?.servico_ids ?? dados.servicos.map((s) => s.id))
+  const visiveis = camposVisiveis(regraAtual, destino ? regraDestino : undefined)
+  const obrigatorios = new Set(destino ? camposObrigatorios(regraDestino) : [])
+  const usa = (c: CampoEtapa) => visiveis.has(c)
+  const rotulo = (c: CampoEtapa, texto: string) => (
+    <>
+      {texto}
+      {obrigatorios.has(c) && <span className="ml-1 text-xs font-normal text-red-700 dark:text-red-400">· obrigatório nesta etapa</span>}
+    </>
+  )
+  // Itens a confirmar: os que o banco disse que faltam (os já confirmados numa entrada anterior não voltam).
+  const itens = destino?.requisitos.checklist ?? []
+  const confirmados = new Set(estado?.confirmados ?? [])
+  const primeiro = CAMPOS_ETAPA.find((c) => usa(c) && c !== 'servicos')
 
   return (
     <form
@@ -165,137 +247,207 @@ function FormularioAberta({
         startTransition(() => action(formData))
       }}
     >
-      <ErroGeral mensagem={estado?.erro} />
+      {!destino && <ErroGeral mensagem={estado?.erro} />}
+      {destino && (
+        <p role="note" className={caixaAlertaClass}>
+          O card só entra em &quot;{destino.requisitos.etapaNome}&quot; com estes dados. Preencha e clique em Salvar e mover; se cancelar,
+          ele volta para onde estava e nada é gravado.
+        </p>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="valor_estimado" className="mb-1.5 block text-sm font-medium">
-            Valor estimado (R$)
-          </label>
-          <input
-            id="valor_estimado"
-            name="valor_estimado"
-            inputMode="decimal"
-            placeholder="15.000,00"
-            defaultValue={valores?.valor_estimado ?? valorParaCampo(dados.valorEstimado)}
-            aria-invalid={erro('valor_estimado') ? true : undefined}
-            aria-describedby="valor_estimado-erro"
-            className={inputClass}
-            autoFocus
-          />
-          <ErroCampo id="valor_estimado-erro" mensagem={erro('valor_estimado')} />
-        </div>
+        {usa('valor_estimado') && (
+          <div>
+            <label htmlFor="valor_estimado" className="mb-1.5 block text-sm font-medium">
+              {rotulo('valor_estimado', 'Valor estimado (R$)')}
+            </label>
+            <input
+              id="valor_estimado"
+              name="valor_estimado"
+              inputMode="decimal"
+              placeholder="15.000,00"
+              defaultValue={valores?.valor_estimado ?? valorParaCampo(dados.valorEstimado)}
+              aria-invalid={erro('valor_estimado') ? true : undefined}
+              aria-required={obrigatorios.has('valor_estimado') || undefined}
+              aria-describedby="valor_estimado-erro"
+              className={inputClass}
+              autoFocus={primeiro === 'valor_estimado'}
+            />
+            <ErroCampo id="valor_estimado-erro" mensagem={erro('valor_estimado')} />
+          </div>
+        )}
 
-        <div>
-          <label htmlFor="temperatura" className="mb-1.5 block text-sm font-medium">
-            Temperatura
-          </label>
-          <select
-            id="temperatura"
-            name="temperatura"
-            defaultValue={valores?.temperatura ?? dados.temperatura ?? ''}
-            className={inputClass}
-          >
-            <option value="">Não avaliada</option>
-            {TEMPERATURAS.map((t) => (
-              <option key={t} value={t}>
-                {ROTULO_TEMPERATURA[t]}
-              </option>
-            ))}
-          </select>
-        </div>
+        {usa('temperatura') && (
+          <div>
+            <label htmlFor="temperatura" className="mb-1.5 block text-sm font-medium">
+              {rotulo('temperatura', 'Temperatura')}
+            </label>
+            <select
+              id="temperatura"
+              name="temperatura"
+              defaultValue={valores?.temperatura ?? dados.temperatura ?? ''}
+              aria-invalid={erro('temperatura') ? true : undefined}
+              aria-required={obrigatorios.has('temperatura') || undefined}
+              aria-describedby="temperatura-erro"
+              className={inputClass}
+              autoFocus={primeiro === 'temperatura'}
+            >
+              <option value="">Não avaliada</option>
+              {TEMPERATURAS.map((t) => (
+                <option key={t} value={t}>
+                  {ROTULO_TEMPERATURA[t]}
+                </option>
+              ))}
+            </select>
+            <ErroCampo id="temperatura-erro" mensagem={erro('temperatura')} />
+          </div>
+        )}
 
-        <div>
-          <label htmlFor="data_primeira_reuniao" className="mb-1.5 block text-sm font-medium">
-            Primeira reunião
-          </label>
-          <input
-            id="data_primeira_reuniao"
-            name="data_primeira_reuniao"
-            type="date"
-            defaultValue={valores?.data_primeira_reuniao ?? dados.dataPrimeiraReuniao ?? ''}
-            aria-invalid={erro('data_primeira_reuniao') ? true : undefined}
-            aria-describedby="data_primeira_reuniao-erro"
-            className={inputClass}
-          />
-          <ErroCampo id="data_primeira_reuniao-erro" mensagem={erro('data_primeira_reuniao')} />
-        </div>
+        {usa('data_primeira_reuniao') && (
+          <div>
+            <label htmlFor="data_primeira_reuniao" className="mb-1.5 block text-sm font-medium">
+              {rotulo('data_primeira_reuniao', 'Primeira reunião')}
+            </label>
+            <input
+              id="data_primeira_reuniao"
+              name="data_primeira_reuniao"
+              type="date"
+              defaultValue={valores?.data_primeira_reuniao ?? dados.dataPrimeiraReuniao ?? ''}
+              aria-invalid={erro('data_primeira_reuniao') ? true : undefined}
+              aria-required={obrigatorios.has('data_primeira_reuniao') || undefined}
+              aria-describedby="data_primeira_reuniao-erro"
+              className={inputClass}
+              autoFocus={primeiro === 'data_primeira_reuniao'}
+            />
+            <ErroCampo id="data_primeira_reuniao-erro" mensagem={erro('data_primeira_reuniao')} />
+          </div>
+        )}
 
-        <div>
-          <label htmlFor="data_proposta" className="mb-1.5 block text-sm font-medium">
-            Data da proposta
-          </label>
-          <input
-            id="data_proposta"
-            name="data_proposta"
-            type="date"
-            defaultValue={valores?.data_proposta ?? dados.dataProposta ?? ''}
-            aria-invalid={erro('data_proposta') ? true : undefined}
-            aria-describedby="data_proposta-erro"
-            className={inputClass}
-          />
-          <ErroCampo id="data_proposta-erro" mensagem={erro('data_proposta')} />
-        </div>
+        {usa('data_proposta') && (
+          <div>
+            <label htmlFor="data_proposta" className="mb-1.5 block text-sm font-medium">
+              {rotulo('data_proposta', 'Data da proposta')}
+            </label>
+            <input
+              id="data_proposta"
+              name="data_proposta"
+              type="date"
+              defaultValue={valores?.data_proposta ?? dados.dataProposta ?? ''}
+              aria-invalid={erro('data_proposta') ? true : undefined}
+              aria-required={obrigatorios.has('data_proposta') || undefined}
+              aria-describedby="data_proposta-erro"
+              className={inputClass}
+              autoFocus={primeiro === 'data_proposta'}
+            />
+            <ErroCampo id="data_proposta-erro" mensagem={erro('data_proposta')} />
+          </div>
+        )}
       </div>
 
-      <div>
-        <label htmlFor="objecao_principal" className="mb-1.5 block text-sm font-medium">
-          Objeção principal
-        </label>
-        <textarea
-          id="objecao_principal"
-          name="objecao_principal"
-          rows={2}
-          maxLength={2000}
-          defaultValue={valores?.objecao_principal ?? dados.objecaoPrincipal ?? ''}
-          aria-invalid={erro('objecao_principal') ? true : undefined}
-          aria-describedby="objecao_principal-erro"
-          className={inputClass}
+      {usa('objecao_principal') && (
+        <div>
+          <label htmlFor="objecao_principal" className="mb-1.5 block text-sm font-medium">
+            {rotulo('objecao_principal', 'Objeção principal')}
+          </label>
+          <textarea
+            id="objecao_principal"
+            name="objecao_principal"
+            rows={2}
+            maxLength={2000}
+            defaultValue={valores?.objecao_principal ?? dados.objecaoPrincipal ?? ''}
+            aria-invalid={erro('objecao_principal') ? true : undefined}
+            aria-required={obrigatorios.has('objecao_principal') || undefined}
+            aria-describedby="objecao_principal-erro"
+            className={inputClass}
+            autoFocus={primeiro === 'objecao_principal'}
+          />
+          <ErroCampo id="objecao_principal-erro" mensagem={erro('objecao_principal')} />
+        </div>
+      )}
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        {usa('valor_proposta') && (
+          <div>
+            <label htmlFor="valor_proposta" className="mb-1.5 block text-sm font-medium">
+              {rotulo('valor_proposta', 'Valor da proposta (R$)')}
+            </label>
+            <input
+              id="valor_proposta"
+              name="valor_proposta"
+              inputMode="decimal"
+              placeholder="12.000,00"
+              defaultValue={valores?.valor_proposta ?? valorParaCampo(dados.valorProposta)}
+              aria-invalid={erro('valor_proposta') ? true : undefined}
+              aria-required={obrigatorios.has('valor_proposta') || undefined}
+              aria-describedby="valor_proposta-erro"
+              className={inputClass}
+              autoFocus={primeiro === 'valor_proposta'}
+            />
+            <ErroCampo id="valor_proposta-erro" mensagem={erro('valor_proposta')} />
+          </div>
+        )}
+
+        {usa('forma_pagamento') && (
+          <div>
+            <label htmlFor="forma_pagamento" className="mb-1.5 block text-sm font-medium">
+              {rotulo('forma_pagamento', 'Forma de pagamento')}
+            </label>
+            <select
+              id="forma_pagamento"
+              name="forma_pagamento"
+              defaultValue={valores?.forma_pagamento ?? dados.formaPagamento ?? ''}
+              aria-invalid={erro('forma_pagamento') ? true : undefined}
+              aria-required={obrigatorios.has('forma_pagamento') || undefined}
+              aria-describedby="forma_pagamento-erro"
+              className={inputClass}
+              autoFocus={primeiro === 'forma_pagamento'}
+            >
+              <option value="">Não definida</option>
+              {FORMAS_PAGAMENTO.map((f) => (
+                <option key={f} value={f}>
+                  {ROTULO_FORMA_PAGAMENTO[f]}
+                </option>
+              ))}
+            </select>
+            <ErroCampo id="forma_pagamento-erro" mensagem={erro('forma_pagamento')} />
+          </div>
+        )}
+      </div>
+
+      {usa('servicos') && (
+        <ListaServicos
+          servicos={servicos}
+          marcados={marcados}
+          erro={erro('servico_ids')}
+          legenda={obrigatorios.has('servicos') ? 'Serviços · obrigatório nesta etapa' : 'Serviços'}
         />
-        <ErroCampo id="objecao_principal-erro" mensagem={erro('objecao_principal')} />
-      </div>
+      )}
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="valor_proposta" className="mb-1.5 block text-sm font-medium">
-            Valor da proposta (R$)
-          </label>
-          <input
-            id="valor_proposta"
-            name="valor_proposta"
-            inputMode="decimal"
-            placeholder="12.000,00"
-            defaultValue={valores?.valor_proposta ?? valorParaCampo(dados.valorProposta)}
-            aria-invalid={erro('valor_proposta') ? true : undefined}
-            aria-describedby="valor_proposta-erro"
-            className={inputClass}
-          />
-          <ErroCampo id="valor_proposta-erro" mensagem={erro('valor_proposta')} />
-        </div>
+      {itens.length > 0 && (
+        <fieldset id="checklist" aria-describedby="checklist-erro" className="space-y-2">
+          <legend className="mb-1.5 block text-sm font-medium">Confirmações para entrar nesta etapa</legend>
+          {itens.map((i) => (
+            <label key={i.id} className={opcaoClass}>
+              <input
+                type="checkbox"
+                name="confirmacao"
+                value={i.id}
+                defaultChecked={confirmados.has(i.id)}
+                className="size-4 accent-zinc-900 dark:accent-zinc-100"
+              />
+              <span className="flex-1">{i.texto}</span>
+            </label>
+          ))}
+          <ErroCampo id="checklist-erro" mensagem={estado?.campos?.checklist?.[0]} />
+        </fieldset>
+      )}
 
-        <div>
-          <label htmlFor="forma_pagamento" className="mb-1.5 block text-sm font-medium">
-            Forma de pagamento
-          </label>
-          <select
-            id="forma_pagamento"
-            name="forma_pagamento"
-            defaultValue={valores?.forma_pagamento ?? dados.formaPagamento ?? ''}
-            className={inputClass}
-          >
-            <option value="">Não definida</option>
-            {FORMAS_PAGAMENTO.map((f) => (
-              <option key={f} value={f}>
-                {ROTULO_FORMA_PAGAMENTO[f]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <ListaServicos servicos={servicos} marcados={marcados} erro={erro('servico_ids')} />
-
-      <BotoesModal pendente={pendente} rotulo="Salvar" onCancelar={onCancelar} />
+      <BotoesModal
+        pendente={pendente}
+        rotulo={destino ? 'Salvar e mover' : 'Salvar'}
+        onCancelar={onCancelar}
+        resumo={<ResumoErros campos={estado?.campos} rotulos={ROTULOS_RESUMO} erro={estado?.erro} />}
+      />
     </form>
   )
 }
@@ -305,12 +457,14 @@ function FormularioFechamento({
   dados,
   fechamento,
   servicos,
+  regras,
   onCancelar,
   onConcluido,
 }: {
   dados: NegociacaoEdicao
   fechamento: FechamentoEdicao
   servicos: Servico[]
+  regras: RegrasFechamento
   onCancelar: () => void
   onConcluido: () => void
 }) {
@@ -325,7 +479,6 @@ function FormularioFechamento({
 
   const valores = estado?.valores
   const erro = (campo: string) => estado?.campos?.[campo]?.[0]
-  const marcados = new Set(valores?.servico_ids ?? dados.servicos.map((s) => s.id))
   const hoje = hojeSaoPaulo()
 
   return (
@@ -341,29 +494,7 @@ function FormularioFechamento({
       <ErroGeral mensagem={estado?.erro} />
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="tipo_venda" className="mb-1.5 block text-sm font-medium">
-            Tipo da venda
-          </label>
-          <select
-            id="tipo_venda"
-            name="tipo_venda"
-            defaultValue={valores?.tipo_venda ?? ''}
-            aria-invalid={erro('tipo_venda') ? true : undefined}
-            aria-describedby="tipo_venda-erro"
-            className={inputClass}
-          >
-            <option value="">
-              {fechamento.tipoVenda ? `Manter (${ROTULO_TIPO_VENDA[fechamento.tipoVenda]})` : 'Manter (não classificado)'}
-            </option>
-            {TIPOS_VENDA.map((t) => (
-              <option key={t} value={t}>
-                {ROTULO_TIPO_VENDA[t]}
-              </option>
-            ))}
-          </select>
-          <ErroCampo id="tipo_venda-erro" mensagem={erro('tipo_venda')} />
-        </div>
+        <CampoTipoVenda regras={regras} modo="edicao" tipoAtual={fechamento.tipoVenda} valor={valores?.tipo_venda} erro={erro('tipo_venda')} />
 
         <div>
           <label htmlFor="valor_vendido" className="mb-1.5 block text-sm font-medium">
@@ -405,98 +536,20 @@ function FormularioFechamento({
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SimNao
-          nome="contrato_enviado"
-          rotulo="Contrato enviado?"
-          valorInicial={valores?.contrato_enviado ?? (fechamento.contratoEnviado ? 'sim' : 'nao')}
-          erro={erro('contrato_enviado')}
-        />
-        <SimNao
-          nome="contrato_assinado"
-          rotulo="Contrato assinado?"
-          valorInicial={valores?.contrato_assinado ?? (fechamento.contratoAssinado ? 'sim' : 'nao')}
-          erro={erro('contrato_assinado')}
-        />
-      </div>
+      <CamposComplementaresFechamento
+        regras={regras}
+        valores={valoresIniciaisFechamento(fechamento, valores)}
+        servicos={servicos}
+        servicoIdsAtuais={dados.servicos.map((s) => s.id)}
+        erro={erro}
+      />
 
-      <div>
-        <label htmlFor="link_contrato" className="mb-1.5 block text-sm font-medium">
-          Link do contrato <span className="font-normal text-premium-mudo">(opcional)</span>
-        </label>
-        <input
-          id="link_contrato"
-          name="link_contrato"
-          type="url"
-          placeholder="https://"
-          defaultValue={valores?.link_contrato ?? fechamento.linkContrato ?? ''}
-          aria-invalid={erro('link_contrato') ? true : undefined}
-          aria-describedby="link_contrato-erro"
-          className={inputClass}
-        />
-        <ErroCampo id="link_contrato-erro" mensagem={erro('link_contrato')} />
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="status_pagamento" className="mb-1.5 block text-sm font-medium">
-            Status do pagamento
-          </label>
-          <select
-            id="status_pagamento"
-            name="status_pagamento"
-            defaultValue={valores?.status_pagamento ?? fechamento.statusPagamento}
-            className={inputClass}
-          >
-            {STATUS_PAGAMENTO_FECHAMENTO.map((s) => (
-              <option key={s} value={s}>
-                {ROTULO_STATUS_PAGAMENTO[s]}
-              </option>
-            ))}
-          </select>
-          <ErroCampo id="status_pagamento-erro" mensagem={erro('status_pagamento')} />
-        </div>
-
-        <div>
-          <label htmlFor="status_onboarding" className="mb-1.5 block text-sm font-medium">
-            Status do onboarding
-          </label>
-          <select
-            id="status_onboarding"
-            name="status_onboarding"
-            defaultValue={valores?.status_onboarding ?? fechamento.statusOnboarding}
-            className={inputClass}
-          >
-            {STATUS_ONBOARDING.map((s) => (
-              <option key={s} value={s}>
-                {ROTULO_STATUS_ONBOARDING[s]}
-              </option>
-            ))}
-          </select>
-          <ErroCampo id="status_onboarding-erro" mensagem={erro('status_onboarding')} />
-        </div>
-      </div>
-
-      <ListaServicos servicos={servicos} marcados={marcados} erro={erro('servico_ids')} legenda="Serviços contratados" />
-
-      <div>
-        <label htmlFor="observacoes" className="mb-1.5 block text-sm font-medium">
-          Observações <span className="font-normal text-premium-mudo">(opcional)</span>
-        </label>
-        <textarea
-          id="observacoes"
-          name="observacoes"
-          rows={3}
-          maxLength={2000}
-          defaultValue={valores?.observacoes ?? fechamento.observacoes ?? ''}
-          aria-invalid={erro('observacoes') ? true : undefined}
-          aria-describedby="observacoes-erro"
-          className={inputClass}
-        />
-        <ErroCampo id="observacoes-erro" mensagem={erro('observacoes')} />
-      </div>
-
-      <BotoesModal pendente={pendente} rotulo="Salvar" onCancelar={onCancelar} />
+      <BotoesModal
+        pendente={pendente}
+        rotulo="Salvar"
+        onCancelar={onCancelar}
+        resumo={<ResumoErros campos={estado?.campos} rotulos={ROTULOS_CAMPOS_FECHAMENTO} erro={estado?.erro} />}
+      />
     </form>
   )
 }
@@ -583,39 +636,3 @@ function ListaServicos({
   )
 }
 
-/** Sim/Não com o valor atual pré-marcado — igual ao de `EditarFechamentoForm`. */
-function SimNao({
-  nome,
-  rotulo,
-  valorInicial,
-  erro,
-}: {
-  nome: string
-  rotulo: string
-  valorInicial: string
-  erro?: string
-}) {
-  return (
-    <fieldset aria-describedby={`${nome}-erro`}>
-      <legend className="mb-1.5 text-sm font-medium">{rotulo}</legend>
-      <div className="flex gap-2">
-        {(['sim', 'nao'] as const).map((v) => (
-          <label
-            key={v}
-            className={`${opcaoClass} flex-1 justify-center`}
-          >
-            <input
-              type="radio"
-              name={nome}
-              value={v}
-              defaultChecked={valorInicial === v}
-              className="sr-only"
-            />
-            {v === 'sim' ? 'Sim' : 'Não'}
-          </label>
-        ))}
-      </div>
-      <ErroCampo id={`${nome}-erro`} mensagem={erro} />
-    </fieldset>
-  )
-}

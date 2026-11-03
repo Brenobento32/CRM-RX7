@@ -8,6 +8,7 @@ import { PontoEtapa } from '@/components/ui/ponto-etapa'
 import { obterClienteParaFichaAction } from '@/lib/actions/clientes'
 import { listarNichosAtivosAction, obterRespostasLeadAction, salvarFichaAction } from '@/lib/actions/funil'
 import type { ClienteDetalhe } from '@/lib/dal/clientes'
+import type { CampoEtapa } from '@/lib/utils/regras-etapas'
 import type { CardFunil } from '@/lib/dal/funil'
 import type { Nicho } from '@/lib/dal/nichos'
 import type { RespostaLead } from '@/lib/dal/negociacoes'
@@ -21,6 +22,8 @@ import { ErroCampo } from './modal'
 
 type Props = {
   card: CardFunil
+  /** Campos "Não usar" na etapa atual (exigências por etapa): não aparecem; o valor gravado vai sem mudança. */
+  ocultos?: CampoEtapa[]
   etapas: EtapaKanban[]
   /**
    * GERENTE sempre `true`; SDR/CLOSER só quando `pode_mover` está
@@ -58,7 +61,7 @@ function valorParaCampo(valor: number | null): string {
  * (`ModalObservacoes`, em `kanban.tsx`) — duas telas fazendo a mesma coisa
  * (mesma fonte, `atividades`) só confundiria sobre onde registrar.
  */
-export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }: Props) {
+export function ModalFichaCliente({ card, etapas, podeTrabalharCard, ocultos = [], onFechar }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const [cliente, setCliente] = useState<ClienteDetalhe | null | undefined>(undefined)
   const [respostas, setRespostas] = useState<RespostaLead[] | null>(null)
@@ -125,6 +128,7 @@ export function ModalFichaCliente({ card, etapas, podeTrabalharCard, onFechar }:
               nichos={nichos}
               cliente={cliente}
               podeTrabalharCard={podeTrabalharCard}
+              ocultos={ocultos}
             />
 
             <SecaoAtribuicao card={card} />
@@ -173,12 +177,14 @@ function SecaoEdicao({
   nichos,
   cliente,
   podeTrabalharCard,
+  ocultos,
 }: {
   card: CardFunil
   etapa: EtapaKanban | undefined
   nichos: Nicho[]
   cliente: ClienteDetalhe
   podeTrabalharCard: boolean
+  ocultos: CampoEtapa[]
 }) {
   const encerrada = card.etapaTipo !== 'aberta'
   const bloqueadoComercial = encerrada || !podeTrabalharCard
@@ -265,6 +271,9 @@ function SecaoEdicao({
             )}
           </div>
 
+          {ocultos.includes('temperatura') ? (
+            <input type="hidden" name="temperatura" value={card.temperatura ?? ''} />
+          ) : (
           <div>
             <label htmlFor="temperatura" className="mb-1.5 block text-sm font-medium">
               Temperatura
@@ -293,7 +302,11 @@ function SecaoEdicao({
               </select>
             )}
           </div>
+          )}
 
+          {ocultos.includes('valor_estimado') ? (
+            <input type="hidden" name="valor_estimado" value={valorParaCampo(card.valorEstimado)} />
+          ) : (
           <div>
             <label htmlFor="valor_estimado" className="mb-1.5 block text-sm font-medium">
               Proposta (R$)
@@ -321,6 +334,7 @@ function SecaoEdicao({
               </>
             )}
           </div>
+          )}
         </div>
 
         {encerrada ? (

@@ -11,6 +11,8 @@ import { formatarTelefone } from '@/lib/utils/documentos'
 import { formatarData } from '@/lib/utils/formatacao'
 import { ROTULO_ORIGEM, rotuloDaOrigem } from '@/lib/validations/funil'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
+import { obterRegrasEtapas } from '@/lib/dal/regras-etapas'
+import { mostraCampo, type RegrasEtapas } from '@/lib/utils/regras-etapas'
 
 import { AcoesLeadArquivado } from './_components/acoes-lead-arquivado'
 import { SeletorFunilLeads } from './_components/seletor-funil-leads'
@@ -40,9 +42,10 @@ export default async function LeadsPage({ searchParams }: PageProps<'/funil/lead
   const aba: Aba = params.aba === 'arquivados' ? 'arquivados' : 'ativos'
   const funilId = typeof params.funil === 'string' && params.funil !== '' ? params.funil : null
 
-  const [funis, leads] = await Promise.all([
+  const [funis, leads, regrasEtapas] = await Promise.all([
     listarFunis(),
     aba === 'arquivados' ? listarNegociacoesArquivadas(funilId) : listarLeadsAtivos(funilId),
+    obterRegrasEtapas(),
   ])
 
   const hrefAba = (valor: Aba) => {
@@ -79,7 +82,7 @@ export default async function LeadsPage({ searchParams }: PageProps<'/funil/lead
       </div>
 
       {aba === 'ativos' ? (
-        <TabelaAtivos leads={leads as CardFunil[]} mostrarFunil={!funilId} />
+        <TabelaAtivos leads={leads as CardFunil[]} mostrarFunil={!funilId} regras={regrasEtapas} />
       ) : (
         <TabelaArquivados leads={leads as NegociacaoArquivada[]} />
       )}
@@ -87,7 +90,7 @@ export default async function LeadsPage({ searchParams }: PageProps<'/funil/lead
   )
 }
 
-function TabelaAtivos({ leads, mostrarFunil }: { leads: CardFunil[]; mostrarFunil: boolean }) {
+function TabelaAtivos({ leads, mostrarFunil, regras }: { leads: CardFunil[]; mostrarFunil: boolean; regras: RegrasEtapas }) {
   return (
     <div className={tabelaCaixaClass}>
       <table className="w-full text-left text-sm">
@@ -114,7 +117,10 @@ function TabelaAtivos({ leads, mostrarFunil }: { leads: CardFunil[]; mostrarFuni
               <td className="px-4 py-3 text-premium-secundario">{l.clienteEmpresa ?? '—'}</td>
               <td className="px-4 py-3 text-premium-secundario">{l.nichoNome ?? 'Outros'}</td>
               <td className="px-4 py-3 text-premium-secundario">{rotuloDaOrigem(l.origem, l.atribuicao)}</td>
-              <td className="px-4 py-3 text-premium-secundario">{l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}</td>
+              {/* Temperatura "Não usar" na etapa do lead: não aparece (o valor continua gravado). */}
+              <td className="px-4 py-3 text-premium-secundario">
+                {mostraCampo(regras, l.etapaId, 'temperatura') && l.temperatura ? ROTULO_TEMPERATURA[l.temperatura] : '—'}
+              </td>
               <td className="px-4 py-3 text-premium-secundario">{l.clienteTelefone ? formatarTelefone(l.clienteTelefone) : '—'}</td>
               <td className="px-4 py-3 text-premium-secundario">{l.responsavel ?? '—'}</td>
               {mostrarFunil && <td className="px-4 py-3 text-premium-secundario">{l.funilNome ?? '—'}</td>}

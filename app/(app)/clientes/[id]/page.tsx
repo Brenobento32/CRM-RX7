@@ -35,6 +35,8 @@ import { ROTULO_TIPO_ATIVIDADE } from '@/lib/validations/atividade'
 import { ROTULO_TIPO_CLIENTE } from '@/lib/validations/cliente'
 import { ROTULO_ORIGEM } from '@/lib/validations/funil'
 import { ROTULO_FORMA_PAGAMENTO, ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
+import { obterRegrasEtapas } from '@/lib/dal/regras-etapas'
+import { mostraCampo, type RegrasEtapas } from '@/lib/utils/regras-etapas'
 
 import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
 
@@ -61,10 +63,11 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
   const usuario = await getUsuarioAtual()
   const { id } = await params
   const cliente = await carregar(id)
-  const [timeline, proximasAcoes, eventos] = await Promise.all([
+  const [timeline, proximasAcoes, eventos, regrasEtapas] = await Promise.all([
     listarTimeline(cliente.id),
     listarProximasAcoes(cliente.id),
     listarEventosDoCliente(cliente.id),
+    obterRegrasEtapas(),
   ])
 
   const data = formatarDataHoraCompleta
@@ -167,7 +170,7 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
                         </span>
                         <span className="text-premium-mudo">Aberta em {data(n.created_at)}</span>
                       </p>
-                      <ResumoNegociacao negociacao={n} />
+                      <ResumoNegociacao negociacao={n} regras={regrasEtapas} />
                     </div>
                     <Link href={`/negociacoes/${n.id}/editar`} className={botaoSecundarioClass}>
                       {n.etapa.tipo === 'aberta' ? 'Editar' : 'Ver'}
@@ -325,28 +328,35 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
   )
 }
 
-/** Valores, proposta e serviços de uma negociação; some quando não há nada. */
-function ResumoNegociacao({ negociacao: n }: { negociacao: NegociacaoDoCliente }) {
+/**
+ * Valores, proposta e serviços de uma negociação; some quando não há nada.
+ * Campo "Não usar" na etapa atual (exigências por etapa) não aparece; o valor continua gravado.
+ */
+function ResumoNegociacao({ negociacao: n, regras }: { negociacao: NegociacaoDoCliente; regras: RegrasEtapas }) {
+  const usa = (c: Parameters<typeof mostraCampo>[2]) => mostraCampo(regras, n.etapa_id, c)
+  const valorProposta = usa('valor_proposta') ? n.valor_proposta : null
+  const formaPagamento = usa('forma_pagamento') ? n.forma_pagamento : null
+  const servicos = usa('servicos') ? n.servicos : []
   const dados = [
-    n.valor_estimado !== null && `Estimado ${formatarMoeda(n.valor_estimado)}`,
-    n.temperatura && ROTULO_TEMPERATURA[n.temperatura],
-    (n.valor_proposta !== null || n.forma_pagamento) &&
+    usa('valor_estimado') && n.valor_estimado !== null && `Estimado ${formatarMoeda(n.valor_estimado)}`,
+    usa('temperatura') && n.temperatura && ROTULO_TEMPERATURA[n.temperatura],
+    (valorProposta !== null || formaPagamento) &&
       `Proposta ${[
-        n.valor_proposta !== null && formatarMoeda(n.valor_proposta),
-        n.forma_pagamento && ROTULO_FORMA_PAGAMENTO[n.forma_pagamento],
+        valorProposta !== null && formatarMoeda(valorProposta),
+        formaPagamento && ROTULO_FORMA_PAGAMENTO[formaPagamento],
       ]
         .filter(Boolean)
         .join(' · ')}`,
   ].filter(Boolean)
 
-  if (dados.length === 0 && n.servicos.length === 0) return null
+  if (dados.length === 0 && servicos.length === 0) return null
 
   return (
     <>
       {dados.length > 0 && <p className="text-premium-secundario">{dados.join(' · ')}</p>}
-      {n.servicos.length > 0 && (
+      {servicos.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Serviços">
-          {n.servicos.map((s) => (
+          {servicos.map((s) => (
             <li
               key={s.nome}
               className="rounded bg-premium-bg px-1.5 py-0.5 text-xs text-premium-secundario"

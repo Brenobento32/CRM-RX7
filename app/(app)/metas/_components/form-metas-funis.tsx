@@ -1,6 +1,7 @@
 import { salvarMetasFunisAction } from '@/lib/actions/metas'
 import type { ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda } from '@/lib/utils/formatacao'
+import { ROTULO_TIPO_META, type TipoMetaRotulo } from '@/lib/validations/meta'
 import { inputClass, botaoPrimarioClass, cartaoClass } from '@/components/ui/estilos'
 
 const inputPremiumClass = inputClass
@@ -19,9 +20,12 @@ const botaoPremiumClass = botaoPrimarioClass
 export function FormMetasFunis({
   mes,
   progresso,
+  tipos,
 }: {
   mes: string
   progresso: ProgressoFunilMeta[]
+  /** Tipos de meta liberados para a empresa. */
+  tipos: readonly TipoMetaRotulo[]
 }) {
   if (progresso.length === 0) return null
 
@@ -34,31 +38,20 @@ export function FormMetasFunis({
           <fieldset key={p.funilId} className={`${cartaoClass} space-y-3 p-5`}>
             <legend className="px-1 font-medium text-premium-texto">{p.funilNome}</legend>
 
-            <div>
-              <label htmlFor={`tcv_${p.funilId}`} className="mb-1 block text-xs text-premium-mudo">
-                Meta TCV mensal {p.tcv.valorMeta !== null && `(atual: ${formatarMoeda(p.tcv.valorMeta)})`}
-              </label>
-              <input
-                id={`tcv_${p.funilId}`}
-                name={`tcv_${p.funilId}`}
-                inputMode="decimal"
-                placeholder="R$ 0,00"
-                className={inputPremiumClass}
-              />
-            </div>
-
-            <div>
-              <label htmlFor={`mrr_${p.funilId}`} className="mb-1 block text-xs text-premium-mudo">
-                Meta MRR mensal {p.mrr.valorMeta !== null && `(atual: ${formatarMoeda(p.mrr.valorMeta)})`}
-              </label>
-              <input
-                id={`mrr_${p.funilId}`}
-                name={`mrr_${p.funilId}`}
-                inputMode="decimal"
-                placeholder="R$ 0,00"
-                className={inputPremiumClass}
-              />
-            </div>
+            {tipos.map((tipo) => (
+              <div key={tipo}>
+                <label htmlFor={`${tipo}_${p.funilId}`} className="mb-1 block text-xs text-premium-mudo">
+                  Meta {ROTULO_TIPO_META[tipo]} mensal {p[tipo].valorMeta !== null && `(atual: ${formatarMoeda(p[tipo].valorMeta)})`}
+                </label>
+                <input
+                  id={`${tipo}_${p.funilId}`}
+                  name={`${tipo}_${p.funilId}`}
+                  inputMode="decimal"
+                  placeholder="R$ 0,00"
+                  className={inputPremiumClass}
+                />
+              </div>
+            ))}
           </fieldset>
         ))}
       </div>

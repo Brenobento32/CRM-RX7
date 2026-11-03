@@ -5,6 +5,7 @@ import { CORES_PROGRESSO, IconBadge, PremiumCard, ProgressBarPremium, StatValue,
 import type { ProgressoEmpresa, ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda, formatarPercentual } from '@/lib/utils/formatacao'
 import { rotuloMes } from '@/lib/utils/periodo'
+import { ROTULO_TIPO_META, type TipoMetaRotulo } from '@/lib/validations/meta'
 
 import { IconeFunil, IconeMoeda, IconeTrofeu } from './icones-metricas'
 
@@ -33,6 +34,7 @@ export function MetaMensal({
   progressoEmpresa,
   progressoFunis,
   seletorMes,
+  tipos,
 }: {
   /** AAAA-MM do mês de referência — o que `seletorMes` tem selecionado agora. */
   mes: string
@@ -40,8 +42,10 @@ export function MetaMensal({
   progressoFunis: ProgressoFunilMeta[]
   /** `<SeletorMes caminhoBase="/funil/metricas?...&" nomeParametro="mesMeta" mes={mes} />` — próprio, nunca o período operacional. */
   seletorMes: React.ReactNode
+  /** Tipos visíveis para a empresa (liberados ou com dados no mês). */
+  tipos: readonly TipoMetaRotulo[]
 }) {
-  const somaMetasFunis = (tipo: 'tcv' | 'mrr') =>
+  const somaMetasFunis = (tipo: TipoMetaRotulo) =>
     progressoFunis.reduce((soma, f) => soma + (f[tipo].valorMeta ?? 0), 0)
 
   return (
@@ -70,8 +74,9 @@ export function MetaMensal({
 
       {progressoEmpresa && progressoFunis.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <AvisoDivergencia totalMeta={progressoEmpresa.tcv.valorMeta} somaMetasFunis={somaMetasFunis('tcv')} rotulo="TCV" />
-          <AvisoDivergencia totalMeta={progressoEmpresa.mrr.valorMeta} somaMetasFunis={somaMetasFunis('mrr')} rotulo="MRR" />
+          {tipos.map((t) => (
+            <AvisoDivergencia key={t} totalMeta={progressoEmpresa[t].valorMeta} somaMetasFunis={somaMetasFunis(t)} rotulo={ROTULO_TIPO_META[t]} />
+          ))}
         </div>
       )}
 
@@ -81,12 +86,13 @@ export function MetaMensal({
         <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2 @5xl:grid-cols-4">
           {progressoEmpresa && (
             <>
-              <CardMetaGeral titulo="TCV geral" dados={progressoEmpresa.tcv} cor={CORES_PROGRESSO.verde} />
-              <CardMetaGeral titulo="MRR geral" dados={progressoEmpresa.mrr} cor={CORES_PROGRESSO.azul} />
+              {tipos.map((t) => (
+                <CardMetaGeral key={t} titulo={`${ROTULO_TIPO_META[t]} geral`} dados={progressoEmpresa[t]} cor={COR_TIPO[t]} />
+              ))}
             </>
           )}
           {progressoFunis.map((p, i) => (
-            <CardMetaFunilPremium key={p.funilId} progresso={p} cor={PALETA_FUNIL_PREMIUM[i % PALETA_FUNIL_PREMIUM.length]} />
+            <CardMetaFunilPremium key={p.funilId} progresso={p} tipos={tipos} cor={PALETA_FUNIL_PREMIUM[i % PALETA_FUNIL_PREMIUM.length]} />
           ))}
         </div>
       ) : (
@@ -95,6 +101,9 @@ export function MetaMensal({
     </section>
   )
 }
+
+/** Cor fixa por tipo de meta (a mesma da rosca da meta mensal). */
+const COR_TIPO: Record<TipoMetaRotulo, CorProgresso> = { tcv: CORES_PROGRESSO.verde, mrr: CORES_PROGRESSO.azul, venda: CORES_PROGRESSO.ambar }
 
 /** Paleta por POSIÇÃO (ciclo) dos cards de funil — nunca pelo nome do funil, um funil novo recicla a partir do início. */
 const PALETA_FUNIL_PREMIUM: CorProgresso[] = [
@@ -143,7 +152,7 @@ function CardMetaGeral({ titulo, dados, cor }: { titulo: string; dados: Progress
  * (nunca somadas, mesma regra de `/metas`), mesmos dados de
  * `ProgressoFunilMeta` (RPC `metas_funis_progresso`).
  */
-function CardMetaFunilPremium({ progresso, cor }: { progresso: ProgressoFunilMeta; cor: CorProgresso }) {
+function CardMetaFunilPremium({ progresso, tipos, cor }: { progresso: ProgressoFunilMeta; tipos: readonly TipoMetaRotulo[]; cor: CorProgresso }) {
   return (
     <PremiumCard className="flex min-h-[180px] flex-col justify-center gap-3 bg-premium-bg/40 p-4">
       <div className="flex items-center justify-between">
@@ -153,8 +162,9 @@ function CardMetaFunilPremium({ progresso, cor }: { progresso: ProgressoFunilMet
         </p>
         <span className="text-premium-mudo">›</span>
       </div>
-      <LinhaMetaFunilPremium titulo="TCV" dados={progresso.tcv} cor={cor} />
-      <LinhaMetaFunilPremium titulo="MRR" dados={progresso.mrr} cor={cor} />
+      {tipos.map((t) => (
+        <LinhaMetaFunilPremium key={t} titulo={ROTULO_TIPO_META[t]} dados={progresso[t]} cor={cor} />
+      ))}
     </PremiumCard>
   )
 }

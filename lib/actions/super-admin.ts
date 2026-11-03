@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { caminhoDaEmpresa } from '@/lib/empresa/rota'
+import { CAMPOS_ETAPA } from '@/lib/utils/regras-etapas'
 import { getEmpresaAtual } from '@/lib/dal/empresa'
 import {
   acessarEmpresa,
@@ -19,10 +20,18 @@ import {
   reativarEmpresa,
   salvarPlano,
   suspenderEmpresa,
+  arquivarEmpresa,
+  definirRegrasComerciais,
+  definirRegrasEtapa,
+  excluirEmpresa,
 } from '@/lib/dal/super-admin'
 import {
   assinaturaSchema,
   cadastroEmpresaAdminSchema,
+  exclusaoEmpresaSchema,
+  regrasComerciaisSchema,
+  regrasEtapaSchema,
+  statusReativacaoSchema,
   motivoSchema,
   novaEmpresaSchema,
   planoSchema,
@@ -167,17 +176,21 @@ export async function definirAssinaturaAction(formData: FormData): Promise<void>
 export async function alterarSituacaoEmpresaAction(formData: FormData): Promise<void> {
   const id = uuid.safeParse(texto(formData, 'tenant_id'))
   if (!id.success) redirect('/admin')
-  const destino = `/admin/empresas/${id.data}`
+  // Da lista de empresas, volta para a lista; da tela da empresa, para ela.
+  const destino = texto(formData, 'voltar') === 'lista' ? '/admin' : `/admin/empresas/${id.data}`
 
   const motivo = motivoSchema.safeParse(texto(formData, 'motivo'))
   if (!motivo.success) redirect(comMensagem(destino, 'erro', motivo.error.issues[0]?.message ?? 'Informe o motivo.'))
 
   const acao = texto(formData, 'acao')
+  // Reativar: vazio = estado de antes da inativação; escolha explícita fica auditada como tal.
+  const status = statusReativacaoSchema.safeParse(texto(formData, 'status_assinatura'))
+  if (!status.success) redirect(comMensagem(destino, 'erro', status.error.issues[0]?.message ?? 'Escolha como a empresa volta.'))
   const r =
     acao === 'suspender'
       ? await suspenderEmpresa(id.data, motivo.data)
       : acao === 'reativar'
-        ? await reativarEmpresa(id.data, motivo.data)
+        ? await reativarEmpresa(id.data, motivo.data, status.data)
         : ({ ok: false, mensagem: 'Ação desconhecida.' } as const)
 
   revalidatePath('/admin', 'layout')
@@ -289,4 +302,72 @@ export async function definirLimiteEmpresaAction(formData: FormData): Promise<vo
   redirect(comMensagem(destino, 'ok', acima
     ? `Limite salvo (${cota.efetivo}). A empresa já usa ${cota.uso}: nada foi excluído; novas criações ficam bloqueadas.`
     : 'Limite da empresa atualizado.'))
+}
+
+/** Regras comerciais da empresa (menu Metas, tipos de venda/meta, itens do fechamento). Auditado no banco. */
+export async function definirRegrasComerciaisAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+  const parsed = regrasComerciaisSchema.safeParse({
+    perfil: texto(formData, 'perfil'),
+    metasAtivo: texto(formData, 'metas_ativo') === 'sim',
+    tiposVenda: formData.getAll('tipos_venda').map(String),
+    campos: {
+      contrato_enviado: texto(formData, 'campo_contrato_enviado'),
+      contrato_assinado: texto(formData, 'campo_contrato_assinado'),
+      link_contrato: texto(formData, 'campo_link_contrato'),
+      status_pagamento: texto(formData, 'campo_status_pagamento'),
+      status_onboarding: texto(formData, 'campo_status_onboarding'),
+      servicos: texto(formData, 'campo_servicos'),
+      observacoes: texto(formData, 'campo_observacoes'),
+    },
+    motivo: texto(formData, 'motivo'),
+  })
+  if (!parsed.success) redirect(comMensagem(`${destino}#regras-comerciais`, 'erro', parsed.error.issues[0]?.message ?? 'Confira as regras.'))
+  const r = await definirRegrasComerciais(id.data, parsed.data)
+  revalidatePath('/admin', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Regras comerciais salvas.' : r.mensagem))
+}
+
+/** Exigências de uma etapa (campos e checklist para entrar nela). Só o Super Admin; o banco confere e audita. */
+export async function definirRegrasEtapaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+  const parsed = regrasEtapaSchema.safeParse({
+    etapaId: texto(formData, 'etapa_id'),
+    campos: Object.fromEntries(CAMPOS_ETAPA.map((c) => [c, texto(formData, `campo_${c}`) || 'opcional'])),
+    checklist: texto(formData, 'checklist').split(/\r?\n/),
+    motivo: texto(formData, 'motivo'),
+  })
+  if (!parsed.success) redirect(comMensagem(destino, 'erro', parsed.error.issues[0]?.message ?? 'Confira as exigências.'))
+  const r = await definirRegrasEtapa(id.data, parsed.data)
+  revalidatePath('/admin', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Exigências da etapa salvas.' : r.mensagem))
+}
+
+/** Arquivar: somente leitura, todos os dados preservados. Volta por "Reativar". */
+export async function arquivarEmpresaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+  const motivo = motivoSchema.safeParse(texto(formData, 'motivo'))
+  if (!motivo.success) redirect(comMensagem(destino, 'erro', motivo.error.issues[0]?.message ?? 'Informe o motivo.'))
+  const r = await arquivarEmpresa(id.data, motivo.data)
+  revalidatePath('/admin', 'layout')
+  redirect(comMensagem(destino, r.ok ? 'ok' : 'erro', r.ok ? 'Empresa arquivada: somente leitura, dados preservados.' : r.mensagem))
+}
+
+/** Exclusão definitiva: só cadastro sem dados comerciais, já inativo, com o endereço digitado. */
+export async function excluirEmpresaAction(formData: FormData): Promise<void> {
+  const id = uuid.safeParse(texto(formData, 'tenant_id'))
+  if (!id.success) redirect('/admin')
+  const destino = `/admin/empresas/${id.data}`
+  const parsed = exclusaoEmpresaSchema.safeParse({ confirmacao: texto(formData, 'confirmacao'), motivo: texto(formData, 'motivo') })
+  if (!parsed.success) redirect(comMensagem(destino, 'erro', parsed.error.issues[0]?.message ?? 'Confirme a exclusão.'))
+  const r = await excluirEmpresa(id.data, parsed.data.confirmacao, parsed.data.motivo)
+  revalidatePath('/admin', 'layout')
+  if (!r.ok) redirect(comMensagem(destino, 'erro', r.mensagem))
+  redirect(comMensagem('/admin', 'ok', 'Empresa excluída definitivamente. A auditoria foi preservada.'))
 }

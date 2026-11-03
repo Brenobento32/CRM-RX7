@@ -9,7 +9,9 @@ import {
   acessarEmpresaAction,
   alterarSituacaoEmpresaAction,
   alterarSlugEmpresaAction,
+  arquivarEmpresaAction,
   definirAssinaturaAction,
+  excluirEmpresaAction,
   salvarCadastroEmpresaAction,
 } from '@/lib/actions/super-admin'
 import {
@@ -18,7 +20,14 @@ import {
   listarPlanos,
   obterCadastroEmpresa,
   obterEmpresa,
+  previaReativacao,
+  regrasComerciaisDaEmpresa,
+  regrasEtapasDaEmpresa,
+  situacaoExclusaoEmpresa,
   type CadastroEmpresa,
+  type EmpresaAdmin,
+  type PreviaReativacao,
+  type SituacaoExclusao,
 } from '@/lib/dal/super-admin'
 import { centralDaEmpresaNoPainel, limitesDaEmpresa } from '@/lib/dal/central-integracoes'
 import { integracoesDaEmpresaNoPainel } from '@/lib/dal/integracoes-oficiais'
@@ -30,6 +39,8 @@ import { PageHeaderPremium } from '@/components/layout/page-header-premium'
 import { Aviso, ROTULO_STATUS_EMPRESA, ROTULO_TIPO_EMPRESA } from '@/app/admin/_components/aviso'
 
 import { IntegracoesDaEmpresa } from './integracoes-empresa'
+import { RegrasComerciaisEmpresa } from './regras-comerciais'
+import { RegrasEtapasEmpresa } from './regras-etapas'
 
 export const metadata: Metadata = {
   title: 'Empresa',
@@ -55,7 +66,8 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
   if (!empresa) notFound()
 
   const assinante = empresa.tipo === 'assinante'
-  const [planos, historico, auditoria, cadastro, integracoes, central, limites] = await Promise.all([
+  const inativa = empresa.status === 'suspenso' || empresa.status === 'cancelado'
+  const [planos, historico, auditoria, cadastro, integracoes, central, limites, regras, exclusao, regrasEtapas, previa] = await Promise.all([
     listarPlanos(),
     assinante ? historicoAssinatura(id) : Promise.resolve([]),
     listarAuditoria(id, 50),
@@ -63,8 +75,11 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
     integracoesDaEmpresaNoPainel(id),
     centralDaEmpresaNoPainel(id),
     limitesDaEmpresa(id),
+    empresa.tipo === 'arquivo' ? Promise.resolve(null) : regrasComerciaisDaEmpresa(id),
+    assinante ? situacaoExclusaoEmpresa(id) : Promise.resolve(null),
+    empresa.tipo === 'arquivo' ? Promise.resolve(null) : regrasEtapasDaEmpresa(id),
+    assinante && inativa ? previaReativacao(id) : Promise.resolve(null),
   ])
-  const suspensa = empresa.status === 'suspenso'
 
   return (
     <div className="space-y-6">
@@ -101,35 +116,15 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
 
       {cadastro && <FormCadastro cadastro={cadastro} />}
 
-      {empresa.tipo !== 'arquivo' && (
-        <form action={alterarSlugEmpresaAction} className={`${cartaoClass} space-y-3 p-5`}>
-          <input type="hidden" name="tenant_id" value={empresa.id} />
-          <h2 className={legendaClass}>Endereço da empresa</h2>
-          <p className="text-xs text-premium-mudo">
-            Atual: /{empresa.slug}. O endereço antigo continua levando à empresa (só para quem é membro dela) e nunca poderá ser usado por
-            outra empresa. A troca fica registrada na auditoria.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className={labelClass}>Novo endereço</span>
-              <input name="slug" required maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" className={inputClass} />
-            </label>
-            <label className="block text-sm">
-              <span className={labelClass}>Motivo</span>
-              <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
-            </label>
-          </div>
-          <button type="submit" className={botaoSecundarioClass}>
-            Trocar endereço
-          </button>
-        </form>
-      )}
-
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Dado rotulo="Usuários ativos" valor={String(empresa.usuarios_ativos)} />
         <Dado rotulo="Fontes de captação em uso" valor={String(empresa.integracoes_em_uso)} />
         <Dado rotulo="Administradores" valor={empresa.administradores.join(', ') || '—'} />
       </section>
+
+      {regras && <RegrasComerciaisEmpresa tenantId={id} regras={regras} uso={regras.uso} />}
+
+      {regrasEtapas && <RegrasEtapasEmpresa tenantId={id} funis={regrasEtapas} />}
 
       <IntegracoesDaEmpresa tenantId={id} linhas={central} limites={limites} />
 
@@ -159,10 +154,10 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
       </section>
 
       {!assinante ? (
-        <AvisoTom tom="info" titulo={empresa.tipo === 'arquivo' ? 'Empresa de arquivo' : 'Empresa interna'}>
+        <AvisoTom tom="info" titulo={empresa.tipo === 'arquivo' ? 'Empresa de arquivo: sem plano' : 'Empresa interna: sem plano comercial'}>
           {empresa.tipo === 'arquivo'
-            ? 'Somente leitura, sem assinatura. Não pode ser suspensa, reativada ou excluída.'
-            : 'Empresa da Rio X7: sem assinatura e sem limites de plano. Não pode ser suspensa por aqui.'}
+            ? 'Somente leitura, sem assinatura. Não tem plano para alterar e não pode ser suspensa, arquivada nem excluída.'
+            : 'Empresa da Rio X7: não tem assinatura comercial, então não há plano para trocar. Todos os recursos e cotas valem sem limite de plano; o que se ajusta por aqui são as regras comerciais e as liberações da Central. Não pode ser desativada, arquivada nem excluída.'}
         </AvisoTom>
       ) : (
         <>
@@ -222,39 +217,15 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
               <Campo rotulo="Motivo (fica no histórico)" largo>
                 <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
               </Campo>
-              <div className="sm:col-span-3">
+              <div className="space-y-2 sm:col-span-3">
+                <p className="text-xs text-premium-mudo">
+                  Trocar o plano não gera cobrança, não apaga dados e mantém as exceções e cotas da Central. Recursos que o plano novo não
+                  inclui só continuam valendo se houver uma liberação na Central.
+                </p>
                 <button type="submit" className={botaoPrimarioClass}>
                   Salvar assinatura
                 </button>
               </div>
-            </form>
-          </section>
-
-          <section className={`${cartaoClass} space-y-3 p-5`}>
-            <h2 className={legendaClass}>{suspensa ? 'Reativar empresa' : 'Suspender empresa'}</h2>
-            <p className="text-sm text-premium-secundario">
-              {suspensa
-                ? 'Volta a mesma empresa, com todos os dados, para ativa (ou teste, se o teste não venceu).'
-                : 'A empresa fica somente leitura: ninguém grava, nada é apagado. Pagamentos não desfazem a suspensão.'}
-            </p>
-            <form action={alterarSituacaoEmpresaAction} className="flex flex-wrap items-end gap-3">
-              <input type="hidden" name="tenant_id" value={empresa.id} />
-              <input type="hidden" name="acao" value={suspensa ? 'reativar' : 'suspender'} />
-              <Campo rotulo="Motivo">
-                <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
-              </Campo>
-              {suspensa ? (
-                <button type="submit" className={botaoPrimarioClass}>
-                  Reativar
-                </button>
-              ) : (
-                <BotaoConfirmar
-                  pergunta={`Suspender "${empresa.nome}"? A empresa fica somente leitura até ser reativada.`}
-                  className={botaoPerigoClass}
-                >
-                  Suspender
-                </BotaoConfirmar>
-              )}
             </form>
           </section>
 
@@ -273,19 +244,226 @@ export default async function AdminEmpresaPage({ params, searchParams }: Props) 
         </>
       )}
 
-      <section className="space-y-2">
-        <h2 className={legendaClass}>Ações administrativas</h2>
-        <Lista
-          vazio="Nenhuma ação registrada."
-          itens={auditoria.map((a) => ({
-            quando: a.criado_em,
-            texto: `${a.acao}${a.ator_email ? ` · ${a.ator_email}` : ''}${
-              typeof a.detalhes === 'object' && a.detalhes && 'motivo' in a.detalhes ? ` · ${String(a.detalhes.motivo)}` : ''
-            }`,
-          }))}
-        />
-      </section>
+      <AcoesAdministrativas
+        empresa={empresa}
+        exclusao={exclusao}
+        previa={previa}
+        historico={auditoria.map((a) => ({
+          quando: a.criado_em,
+          texto: `${a.acao}${a.ator_email ? ` · ${a.ator_email}` : ''}${
+            typeof a.detalhes === 'object' && a.detalhes && 'motivo' in a.detalhes ? ` · ${String(a.detalhes.motivo)}` : ''
+          }`,
+        }))}
+      />
     </div>
+  )
+}
+
+const ROTULO_VOLTA: Record<'ativa' | 'teste' | 'vencida', string> = {
+  ativa: 'Ativa',
+  teste: 'Teste',
+  vencida: 'Vencida',
+}
+
+/** O que a reativação vai aplicar (mesmas regras do banco: admin_reativacao_previa). */
+function PreviaVolta({ previa }: { previa: PreviaReativacao }) {
+  const datas = [
+    previa.testeAte && `teste até ${formatarData(previa.testeAte)}`,
+    previa.renovacaoEm && `renovação em ${formatarData(previa.renovacaoEm)}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <p className="rounded-md border border-premium-borda bg-premium-bg p-3 text-xs" data-previa-reativacao>
+      {previa.estadoAnterior ? (
+        <>
+          Antes da inativação a assinatura estava <strong>{ROTULO_VOLTA[previa.estadoAnterior]}</strong>: é assim que ela volta.
+        </>
+      ) : (
+        <>
+          Não há registro de como a assinatura estava antes da inativação: escolha como ela volta. Sem período pago ou teste em vigor,
+          só &quot;Vencida&quot; é possível por aqui.
+        </>
+      )}
+      {datas && <span className="block text-premium-mudo">Datas atuais (não mudam): {datas}.</span>}
+    </p>
+  )
+}
+
+/**
+ * Ações administrativas DESTA empresa (só dela: cada formulário leva o id da
+ * página), recolhidas por padrão. As perigosas ficam destacadas em vermelho e
+ * pedem motivo e confirmação; o banco confere o Super Admin e audita tudo.
+ */
+function AcoesAdministrativas({
+  empresa,
+  exclusao,
+  previa,
+  historico,
+}: {
+  empresa: EmpresaAdmin
+  exclusao: SituacaoExclusao | null
+  /** Como a empresa voltaria (só quando inativa). */
+  previa: PreviaReativacao | null
+  historico: { quando: string; texto: string }[]
+}) {
+  const assinante = empresa.tipo === 'assinante'
+  const inativa = empresa.status === 'suspenso' || empresa.status === 'cancelado'
+  return (
+    <details className={`${cartaoClass} group p-5`}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <span>
+          <span className={legendaClass}>Ações administrativas desta empresa</span>
+          <span className="block text-xs text-premium-mudo">
+            Endereço, ativar ou desativar, arquivar, excluir e o histórico. Só valem para {empresa.nome}.
+          </span>
+        </span>
+        <span className="text-sm text-premium-secundario group-open:hidden">Mostrar</span>
+        <span className="hidden text-sm text-premium-secundario group-open:inline">Recolher</span>
+      </summary>
+
+      <div className="mt-5 space-y-5">
+        {empresa.tipo !== 'arquivo' && (
+          <form action={alterarSlugEmpresaAction} className="space-y-3 rounded-lg border border-premium-borda p-4">
+            <input type="hidden" name="tenant_id" value={empresa.id} />
+            <h3 className="text-sm font-semibold">Endereço da empresa</h3>
+            <p className="text-xs text-premium-mudo">
+              Atual: /{empresa.slug}. O endereço antigo continua levando à empresa (só para quem é membro dela) e nunca poderá ser usado
+              por outra empresa. A troca fica registrada na auditoria.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo rotulo="Novo endereço">
+                <input name="slug" required maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" className={inputClass} />
+              </Campo>
+              <Campo rotulo="Motivo">
+                <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
+              </Campo>
+            </div>
+            <button type="submit" className={botaoSecundarioClass}>
+              Trocar endereço
+            </button>
+          </form>
+        )}
+
+        {!assinante ? (
+          <p className="rounded-lg border border-premium-borda p-4 text-sm text-premium-secundario">
+            {empresa.tipo === 'interno' ? 'Empresa interna' : 'Empresa de arquivo'}: protegida. Não pode ser desativada, arquivada nem
+            excluída.
+          </p>
+        ) : (
+          <>
+            <form action={alterarSituacaoEmpresaAction} className="space-y-3 rounded-lg border border-premium-borda p-4">
+              <input type="hidden" name="tenant_id" value={empresa.id} />
+              <input type="hidden" name="acao" value={inativa ? 'reativar' : 'suspender'} />
+              <h3 className="text-sm font-semibold">
+                Situação: {inativa ? 'Inativa' : 'Ativa'} · {ROTULO_STATUS_EMPRESA[empresa.status]}
+              </h3>
+              <p className="text-xs text-premium-mudo">
+                {inativa
+                  ? 'Reativar devolve a mesma empresa, com todos os dados, ao estado comercial de ANTES da inativação (vencida volta vencida). Plano, datas e cobrança não mudam; para renovar ou conceder um período, use "Assinatura".'
+                  : 'Desativar deixa a empresa somente leitura: os usuários entram e consultam, mas ninguém grava; nada é apagado. Leads de planilha, WhatsApp e formulários deixam de entrar enquanto ela estiver inativa.'}
+              </p>
+              {inativa && previa && <PreviaVolta previa={previa} />}
+              <div className="flex flex-wrap items-end gap-3">
+                <Campo rotulo="Motivo">
+                  <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
+                </Campo>
+                {inativa && previa && (
+                  <Campo rotulo="Volta como">
+                    <select
+                      name="status_assinatura"
+                      required={previa.estadoAnterior === null}
+                      defaultValue={previa.estadoAnterior ?? ''}
+                      className={inputClass}
+                    >
+                      {previa.estadoAnterior === null && <option value="">Escolha…</option>}
+                      {[...(previa.estadoAnterior ? [previa.estadoAnterior] : []), ...previa.opcoes.filter((o) => o !== previa.estadoAnterior)].map(
+                        (o) => (
+                          <option key={o} value={o === previa.estadoAnterior ? '' : o}>
+                            {ROTULO_VOLTA[o]}
+                            {o === previa.estadoAnterior ? ' (como estava antes)' : ' (decisão explícita, auditada)'}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </Campo>
+                )}
+                {inativa ? (
+                  <BotaoConfirmar pergunta={`Reativar "${empresa.nome}"?`} className={botaoPrimarioClass}>
+                    Reativar empresa
+                  </BotaoConfirmar>
+                ) : (
+                  <BotaoConfirmar
+                    pergunta={`Desativar "${empresa.nome}"? A empresa fica somente leitura e para de receber leads até ser reativada.`}
+                    className={botaoPerigoClass}
+                  >
+                    Desativar empresa
+                  </BotaoConfirmar>
+                )}
+              </div>
+            </form>
+
+            {empresa.status !== 'cancelado' && (
+              <form action={arquivarEmpresaAction} className="space-y-3 rounded-lg border border-amber-300/60 p-4 dark:border-amber-700/50">
+                <input type="hidden" name="tenant_id" value={empresa.id} />
+                <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">Arquivar empresa</h3>
+                <p className="text-xs text-premium-mudo">
+                  Cancela a assinatura e deixa a empresa somente leitura, com todos os dados preservados. Pode ser reativada depois.
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <Campo rotulo="Motivo">
+                    <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
+                  </Campo>
+                  <BotaoConfirmar pergunta={`Arquivar "${empresa.nome}"? A assinatura é cancelada e a empresa fica somente leitura.`} className={botaoPerigoClass}>
+                    Arquivar
+                  </BotaoConfirmar>
+                </div>
+              </form>
+            )}
+
+            <form action={excluirEmpresaAction} className="space-y-3 rounded-lg border border-red-300/70 bg-red-50/40 p-4 dark:border-red-800/60 dark:bg-red-950/20">
+              <input type="hidden" name="tenant_id" value={empresa.id} />
+              <h3 className="text-sm font-semibold text-red-700 dark:text-red-300">Excluir definitivamente · ação irreversível</h3>
+              <p className="text-xs text-premium-mudo">
+                Só para cadastro sem nenhum dado comercial e já inativo. Apaga funil, etapas, vínculos e assinatura; a auditoria continua.
+                Os usuários continuam existindo{exclusao && exclusao.usuariosSemOutraEmpresa > 0 ? ` (${exclusao.usuariosSemOutraEmpresa} ficariam sem empresa)` : ''}.
+              </p>
+              {exclusao && (exclusao.bloqueios.length > 0 || !exclusao.inativa) ? (
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Não pode ser excluída agora:{' '}
+                  {[!exclusao.inativa && 'desative ou arquive antes', exclusao.bloqueios.length > 0 && `tem ${exclusao.bloqueios.join(', ')}`]
+                    .filter(Boolean)
+                    .join('; ')}
+                  . Mantenha-a arquivada.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                  <Campo rotulo={`Digite o endereço (${empresa.slug}) para confirmar`}>
+                    <input name="confirmacao" required autoComplete="off" className={inputClass} />
+                  </Campo>
+                  <Campo rotulo="Motivo">
+                    <input name="motivo" required minLength={3} maxLength={500} className={inputClass} />
+                  </Campo>
+                  <BotaoConfirmar
+                    pergunta={`Excluir "${empresa.nome}" DEFINITIVAMENTE? Isto não pode ser desfeito.`}
+                    className={botaoPerigoClass}
+                  >
+                    Excluir definitivamente
+                  </BotaoConfirmar>
+                </div>
+              )}
+            </form>
+          </>
+        )}
+
+        <details className="rounded-lg border border-premium-borda p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Histórico administrativo desta empresa ({historico.length})</summary>
+          <div className="mt-3">
+            <Lista vazio="Nenhuma ação registrada." itens={historico} />
+          </div>
+        </details>
+      </div>
+    </details>
   )
 }
 

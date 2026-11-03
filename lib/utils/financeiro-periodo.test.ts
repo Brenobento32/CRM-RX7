@@ -14,7 +14,7 @@ describe('agregarRealizado', () => {
       { valor_vendido: 500, tipo_venda: 'tcv' },
       { valor_vendido: 300, tipo_venda: 'mrr' },
     ]
-    expect(agregarRealizado(linhas)).toEqual({ tcv: 1500, tcvQtd: 2, mrr: 300, mrrQtd: 1 })
+    expect(agregarRealizado(linhas)).toEqual({ tcv: 1500, tcvQtd: 2, mrr: 300, mrrQtd: 1, venda: 0, vendaQtd: 0 })
   })
 
   it('venda com tipo_venda nulo não entra em TCV nem em MRR', () => {
@@ -22,11 +22,11 @@ describe('agregarRealizado', () => {
       { valor_vendido: 1000, tipo_venda: null },
       { valor_vendido: 500, tipo_venda: 'tcv' },
     ]
-    expect(agregarRealizado(linhas)).toEqual({ tcv: 500, tcvQtd: 1, mrr: 0, mrrQtd: 0 })
+    expect(agregarRealizado(linhas)).toEqual({ tcv: 500, tcvQtd: 1, mrr: 0, mrrQtd: 0, venda: 0, vendaQtd: 0 })
   })
 
   it('zero vendas: tudo zero, sem erro', () => {
-    expect(agregarRealizado([])).toEqual({ tcv: 0, tcvQtd: 0, mrr: 0, mrrQtd: 0 })
+    expect(agregarRealizado([])).toEqual({ tcv: 0, tcvQtd: 0, mrr: 0, mrrQtd: 0, venda: 0, vendaQtd: 0 })
   })
 
   it('valor_vendido como string (numeric do Postgres) é convertido', () => {

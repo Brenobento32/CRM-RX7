@@ -627,9 +627,9 @@ export type Database = {
         Row: {
           anulado_em: string | null
           anulado_por: string | null
-          contrato_assinado: boolean
+          contrato_assinado: boolean | null
           contrato_assinado_em: string | null
-          contrato_enviado: boolean
+          contrato_enviado: boolean | null
           contrato_enviado_em: string | null
           created_at: string
           data_fechamento: string
@@ -640,8 +640,8 @@ export type Database = {
           negociacao_id: string
           observacoes: string | null
           responsavel_id: string
-          status_onboarding: Database["public"]["Enums"]["status_onboarding"]
-          status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          status_onboarding: Database["public"]["Enums"]["status_onboarding"] | null
+          status_pagamento: Database["public"]["Enums"]["status_pagamento"] | null
           tipo_venda: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at: string
           valor_vendido: number
@@ -649,9 +649,9 @@ export type Database = {
         Insert: {
           anulado_em?: string | null
           anulado_por?: string | null
-          contrato_assinado: boolean
+          contrato_assinado?: boolean | null
           contrato_assinado_em?: string | null
-          contrato_enviado: boolean
+          contrato_enviado?: boolean | null
           contrato_enviado_em?: string | null
           created_at?: string
           data_fechamento: string
@@ -662,8 +662,8 @@ export type Database = {
           negociacao_id: string
           observacoes?: string | null
           responsavel_id: string
-          status_onboarding: Database["public"]["Enums"]["status_onboarding"]
-          status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          status_onboarding?: Database["public"]["Enums"]["status_onboarding"] | null
+          status_pagamento?: Database["public"]["Enums"]["status_pagamento"] | null
           tipo_venda?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           valor_vendido: number
@@ -671,9 +671,9 @@ export type Database = {
         Update: {
           anulado_em?: string | null
           anulado_por?: string | null
-          contrato_assinado?: boolean
+          contrato_assinado?: boolean | null
           contrato_assinado_em?: string | null
-          contrato_enviado?: boolean
+          contrato_enviado?: boolean | null
           contrato_enviado_em?: string | null
           created_at?: string
           data_fechamento?: string
@@ -684,8 +684,8 @@ export type Database = {
           negociacao_id?: string
           observacoes?: string | null
           responsavel_id?: string
-          status_onboarding?: Database["public"]["Enums"]["status_onboarding"]
-          status_pagamento?: Database["public"]["Enums"]["status_pagamento"]
+          status_onboarding?: Database["public"]["Enums"]["status_onboarding"] | null
+          status_pagamento?: Database["public"]["Enums"]["status_pagamento"] | null
           tipo_venda?: Database["public"]["Enums"]["tipo_venda"] | null
           updated_at?: string
           valor_vendido?: number
@@ -1175,6 +1175,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      etapa_regras: {
+        Row: {
+          campos: Json
+          checklist: Json
+          definido_em: string
+          definido_por: string | null
+          etapa_id: string
+          motivo: string | null
+          tenant_id: string
+        }
+        Insert: {
+          campos?: Json
+          checklist?: Json
+          definido_em?: string
+          definido_por?: string | null
+          etapa_id: string
+          motivo?: string | null
+          tenant_id: string
+        }
+        Update: {
+          campos?: Json
+          checklist?: Json
+          definido_em?: string
+          definido_por?: string | null
+          etapa_id?: string
+          motivo?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      negociacao_confirmacoes_etapa: {
+        Row: {
+          confirmado_em: string
+          confirmado_por: string | null
+          etapa_id: string
+          id: number
+          item_id: string
+          negociacao_id: string
+          tenant_id: string
+          texto: string
+        }
+        Insert: {
+          confirmado_em?: string
+          confirmado_por?: string | null
+          etapa_id: string
+          id?: never
+          item_id: string
+          negociacao_id: string
+          tenant_id: string
+          texto: string
+        }
+        Update: {
+          confirmado_em?: string
+          confirmado_por?: string | null
+          etapa_id?: string
+          id?: never
+          item_id?: string
+          negociacao_id?: string
+          tenant_id?: string
+          texto?: string
+        }
+        Relationships: []
       }
       negociacao_servicos: {
         Row: {
@@ -2251,15 +2314,15 @@ export type Database = {
       }
       atualizar_fechamento: {
         Args: {
-          p_contrato_assinado: boolean
-          p_contrato_enviado: boolean
+          p_contrato_assinado: boolean | null
+          p_contrato_enviado: boolean | null
           p_data_fechamento: string
           p_link_contrato?: string
           p_negociacao_id: string
           p_observacoes?: string
           p_servico_ids?: string[]
-          p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
-          p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          p_status_onboarding: Database["public"]["Enums"]["status_onboarding"] | null
+          p_status_pagamento: Database["public"]["Enums"]["status_pagamento"] | null
           p_tipo_venda?: Database["public"]["Enums"]["tipo_venda"]
           p_valor_vendido: number
         }
@@ -2440,16 +2503,16 @@ export type Database = {
       }
       fechar_negociacao: {
         Args: {
-          p_contrato_assinado: boolean
-          p_contrato_enviado: boolean
+          p_contrato_assinado: boolean | null
+          p_contrato_enviado: boolean | null
           p_data_fechamento: string
           p_link_contrato?: string
           p_negociacao_id: string
           p_observacoes?: string
           p_posicao: number
           p_servico_ids?: string[]
-          p_status_onboarding: Database["public"]["Enums"]["status_onboarding"]
-          p_status_pagamento: Database["public"]["Enums"]["status_pagamento"]
+          p_status_onboarding: Database["public"]["Enums"]["status_onboarding"] | null
+          p_status_pagamento: Database["public"]["Enums"]["status_pagamento"] | null
           p_tipo_venda?: Database["public"]["Enums"]["tipo_venda"]
           p_valor_vendido: number
         }
@@ -2510,10 +2573,13 @@ export type Database = {
           funil_nome: string
           meta_id_mrr: string
           meta_id_tcv: string
+          meta_id_venda: string
           realizado_mrr: number
           realizado_tcv: number
+          realizado_venda: number
           valor_meta_mrr: number
           valor_meta_tcv: number
+          valor_meta_venda: number
         }[]
       }
       metas_reunioes_progresso: {
@@ -2543,14 +2609,18 @@ export type Database = {
           meta_id_mrr: string
           meta_id_tcv: string
           nome: string
+          meta_id_venda: string
           qtd_mrr: number
           qtd_tcv: number
+          qtd_venda: number
           realizado_mrr: number
           realizado_tcv: number
+          realizado_venda: number
           role: Database["public"]["Enums"]["user_role"]
           usuario_id: string
           valor_meta_mrr: number
           valor_meta_tcv: number
+          valor_meta_venda: number
         }[]
       }
       mover_negociacao: {
@@ -2717,7 +2787,20 @@ export type Database = {
       encerrar_meus_acessos_globais: { Args: { p_motivo?: string | null }; Returns: number }
       resolver_slug_antigo: { Args: { p_slug: string }; Returns: string | null }
       slug_reservado: { Args: { p_slug: string }; Returns: boolean }
-      admin_reativar_empresa: { Args: { p_tenant: string; p_motivo: string }; Returns: undefined }
+      admin_reativar_empresa: {
+        Args: {
+          p_tenant: string
+          p_motivo: string
+          p_status_assinatura?: Database["public"]["Enums"]["assinatura_status"]
+        }
+        Returns: undefined
+      }
+      admin_reativacao_previa: { Args: { p_tenant: string }; Returns: Json }
+      admin_regras_etapas: { Args: { p_tenant: string }; Returns: Json }
+      admin_definir_regras_etapa: {
+        Args: { p_tenant: string; p_etapa: string; p_campos: Json; p_checklist: string[]; p_motivo: string }
+        Returns: undefined
+      }
       admin_listar_auditoria: {
         Args: { p_tenant?: string; p_limite?: number }
         Returns: {
@@ -2796,6 +2879,7 @@ export type Database = {
           nome: string
           realizado_mrr: number
           realizado_tcv: number
+          realizado_venda: number
           role: Database["public"]["Enums"]["user_role"]
           usuario_id: string
         }[]
@@ -2830,6 +2914,27 @@ export type Database = {
       salvar_metas_funis: {
         Args: { p_itens: Json; p_mes: string }
         Returns: number
+      }
+      mover_negociacao_requisitos: {
+        Args: { p_negociacao_id: string; p_etapa_id: string; p_posicao: number; p_confirmados: string[] }
+        Returns: undefined
+      }
+      salvar_e_mover_negociacao: {
+        Args: {
+          p_confirmados: string[]
+          p_data_primeira_reuniao: string
+          p_data_proposta: string
+          p_etapa_id: string
+          p_forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
+          p_negociacao_id: string
+          p_objecao_principal: string
+          p_posicao: number
+          p_servico_ids: string[]
+          p_temperatura: Database["public"]["Enums"]["temperatura_negociacao"]
+          p_valor_estimado: number
+          p_valor_proposta: number
+        }
+        Returns: undefined
       }
       salvar_negociacao: {
         Args: {
@@ -2889,7 +2994,7 @@ export type Database = {
       tipo_evento: "reuniao" | "ligacao" | "followup" | "apresentacao" | "outro"
       tipo_mensagem: "texto" | "imagem" | "documento" | "audio" | "video"
       tipo_pergunta: "texto_livre" | "escolha_unica" | "escolha_multipla"
-      tipo_venda: "tcv" | "mrr"
+      tipo_venda: "tcv" | "mrr" | "venda"
       user_role: "gerente" | "closer" | "sdr" | "vendedor" | "atendente"
       tenant_papel: "admin_empresa" | "gerente" | "sdr" | "closer" | "vendedor" | "atendente"
       tenant_status: "teste" | "ativo" | "suspenso" | "cancelado" | "arquivo"
@@ -3070,7 +3175,7 @@ export const Constants = {
       tipo_evento: ["reuniao", "ligacao", "followup", "apresentacao", "outro"],
       tipo_mensagem: ["texto", "imagem", "documento", "audio", "video"],
       tipo_pergunta: ["texto_livre", "escolha_unica", "escolha_multipla"],
-      tipo_venda: ["tcv", "mrr"],
+      tipo_venda: ["tcv", "mrr", "venda"],
       user_role: ["gerente", "closer", "sdr", "vendedor", "atendente"],
       tenant_papel: ["admin_empresa", "gerente", "sdr", "closer", "vendedor", "atendente"],
       tenant_status: ["teste", "ativo", "suspenso", "cancelado", "arquivo"],

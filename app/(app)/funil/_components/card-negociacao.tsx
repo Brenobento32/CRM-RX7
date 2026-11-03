@@ -16,6 +16,7 @@ import {
   hojeSaoPaulo,
 } from '@/lib/utils/formatacao'
 import { rotuloDaOrigem } from '@/lib/validations/funil'
+import { usoDoCampo, type RegraEtapa } from '@/lib/utils/regras-etapas'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 
 import { MenuMoverPara } from './menu-mover'
@@ -53,6 +54,7 @@ const pararArraste = {
 
 export function CardArrastavel({
   card,
+  regra,
   etapas,
   travado = false,
   onMover,
@@ -61,6 +63,8 @@ export function CardArrastavel({
   onAbrirObservacoes,
 }: {
   card: CardFunil
+  /** Exigências da etapa do card: campo "Não usar" não aparece (o valor continua gravado). */
+  regra?: RegraEtapa
   etapas: EtapaKanban[]
   /** SDR: a negociação já passou do handoff — sem arraste e sem "Mover para" (item 4/UX; a trava real é no servidor). */
   travado?: boolean
@@ -83,6 +87,7 @@ export function CardArrastavel({
     >
       <CardConteudo
         card={card}
+        regra={regra}
         onEditar={onEditar}
         onAbrirDrawer={onAbrirDrawer}
         onAbrirObservacoes={onAbrirObservacoes}
@@ -103,6 +108,7 @@ export function CardArrastavel({
 
 export function CardConteudo({
   card,
+  regra,
   flutuando = false,
   menu,
   onEditar,
@@ -110,6 +116,8 @@ export function CardConteudo({
   onAbrirObservacoes,
 }: {
   card: CardFunil
+  /** Exigências da etapa do card: campo "Não usar" não aparece (o valor continua gravado). */
+  regra?: RegraEtapa
   flutuando?: boolean
   /** Menu "Mover para"; ausente na cópia flutuante do arraste. */
   menu?: React.ReactNode
@@ -123,7 +131,10 @@ export function CardConteudo({
   const campanha = resumoCampanha(card.atribuicao)
   // Proposta: o valor vendido manda quando a etapa é ganha, senão o estimado
   // — mesma regra de sempre, só o rótulo mudou para "Proposta" (item 1.7).
-  const proposta = card.etapaTipo === 'ganha' ? card.valorVendido : card.valorEstimado
+  // Campos "Não usar" na etapa (só etapas abertas têm exigências) não aparecem; o valor vendido não é configurável.
+  const usaTemperatura = usoDoCampo(regra, 'temperatura') !== 'oculto'
+  const proposta =
+    card.etapaTipo === 'ganha' ? card.valorVendido : usoDoCampo(regra, 'valor_estimado') !== 'oculto' ? card.valorEstimado : null
 
   return (
     <article
@@ -187,7 +198,7 @@ export function CardConteudo({
         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${PILL_ORIGEM[card.origem]}`}>
           {rotuloDaOrigem(card.origem, card.atribuicao)}
         </span>
-        {card.temperatura && (
+        {usaTemperatura && card.temperatura && (
           <span className="text-xs font-medium text-premium-secundario">
             {EMOJI_TEMPERATURA[card.temperatura]} {ROTULO_TEMPERATURA[card.temperatura]}
           </span>

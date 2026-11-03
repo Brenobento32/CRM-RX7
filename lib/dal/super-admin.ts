@@ -15,7 +15,11 @@ import {
   type DadosEmpresaInput,
   type NovaEmpresaInput,
   type PlanoInput,
+  type RegrasComerciaisInput,
+  type RegrasEtapaInput,
 } from '@/lib/validations/super-admin'
+import { normalizarRegraEtapa, type RegraEtapa } from '@/lib/utils/regras-etapas'
+import { camposDiferentesDoPadrao, normalizarRegras, type RegrasComerciais } from '@/lib/utils/regras-comerciais'
 
 /**
  * Painel do Super Admin (dono da plataforma).
@@ -72,7 +76,7 @@ export async function exigirSuperAdmin() {
 
 function falha(error: { code?: string; message?: string } | null, padrao: string): Resultado {
   if (error?.code === '42501') return { ok: false, mensagem: 'Somente o Super Admin.' }
-  if (error?.code === '22023' || error?.code === 'P0002') {
+  if (error?.code === '22023' || error?.code === 'P0002' || error?.code === '23503' || error?.code === '23514') {
     // Mensagens dessas RPCs são escritas para o usuário (sem dado interno).
     return { ok: false, mensagem: error.message ?? padrao }
   }
@@ -164,11 +168,57 @@ export async function suspenderEmpresa(tenantId: string, motivo: string): Promis
   return error ? falha(error, 'Não foi possível suspender a empresa.') : { ok: true }
 }
 
-export async function reativarEmpresa(tenantId: string, motivo: string): Promise<Resultado> {
+/**
+ * Reativar volta a assinatura ao estado de ANTES da inativação (vencida volta
+ * vencida). `status` = escolha explícita do Super Admin (auditada); o banco
+ * nunca concede Ativa sem período pago nem estende teste por aqui.
+ */
+export async function reativarEmpresa(
+  tenantId: string,
+  motivo: string,
+  status: 'ativa' | 'teste' | 'vencida' | null = null,
+): Promise<Resultado> {
   await exigirSuperAdmin()
   const supabase = await createClient()
-  const { error } = await supabase.rpc('admin_reativar_empresa', { p_tenant: tenantId, p_motivo: motivo })
+  const { error } = await supabase.rpc('admin_reativar_empresa', {
+    p_tenant: tenantId,
+    p_motivo: motivo,
+    ...(status ? { p_status_assinatura: status } : {}),
+  })
+  if (error?.code === '22023' && error.hint === 'escolha_necessaria') {
+    return { ok: false, mensagem: `${error.message} Faça isso em Ações administrativas, na página da empresa.` }
+  }
   return error ? falha(error, 'Não foi possível reativar a empresa.') : { ok: true }
+}
+
+type StatusVolta = 'ativa' | 'teste' | 'vencida'
+
+export type PreviaReativacao = {
+  inativa: boolean
+  temAssinatura: boolean
+  /** Como a assinatura estava antes da inativação (do histórico). `null` = sem registro: exige escolha. */
+  estadoAnterior: StatusVolta | null
+  /** O que a reativação pode aplicar sem conceder pagamento nem estender teste. */
+  opcoes: StatusVolta[]
+  testeAte: string | null
+  renovacaoEm: string | null
+}
+
+export async function previaReativacao(tenantId: string): Promise<PreviaReativacao | null> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('admin_reativacao_previa', { p_tenant: tenantId })
+  if (error || !data || typeof data !== 'object') return null
+  const d = data as Record<string, unknown>
+  const volta = (v: unknown): v is StatusVolta => v === 'ativa' || v === 'teste' || v === 'vencida'
+  return {
+    inativa: d.inativa === true,
+    temAssinatura: d.tem_assinatura === true,
+    estadoAnterior: volta(d.estado_anterior) ? d.estado_anterior : null,
+    opcoes: Array.isArray(d.opcoes) ? d.opcoes.filter(volta) : [],
+    testeAte: typeof d.teste_ate === 'string' ? d.teste_ate : null,
+    renovacaoEm: typeof d.renovacao_em === 'string' ? d.renovacao_em : null,
+  }
 }
 
 /**
@@ -386,4 +436,122 @@ async function caminhoLogoPlataforma(variante: VarianteLogo): Promise<string | n
   const { data } = await supabase.rpc('identidade_plataforma')
   const linha = data?.[0]
   return (variante === 'claro' ? linha?.logo_claro_path : linha?.logo_escuro_path) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Regras comerciais e ciclo de vida da empresa (migration 20261109090100)
+// ---------------------------------------------------------------------------
+type RpcSolto = (nome: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>
+
+async function rpcSolto() {
+  const supabase = await createClient()
+  return supabase.rpc.bind(supabase) as unknown as RpcSolto
+}
+
+export type UsoPorTipo = { fechamentos: Record<string, number>; metas: Record<string, number> }
+
+/** Regras da empresa + quantos fechamentos/metas ela já tem por tipo (null sem a migration). */
+export async function regrasComerciaisDaEmpresa(tenantId: string): Promise<(RegrasComerciais & { uso: UsoPorTipo }) | null> {
+  await exigirSuperAdmin()
+  const rpc = await rpcSolto()
+  const { data, error } = await rpc('admin_regras_comerciais', { p_tenant: tenantId })
+  if (error || !data) return null
+  const bruto = data as Record<string, unknown>
+  const uso = (bruto.uso ?? {}) as Partial<UsoPorTipo>
+  return { ...normalizarRegras(bruto), uso: { fechamentos: uso.fechamentos ?? {}, metas: uso.metas ?? {} } }
+}
+
+export async function definirRegrasComerciais(tenantId: string, input: RegrasComerciaisInput): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const rpc = await rpcSolto()
+  const { error } = await rpc('admin_definir_regras_comerciais', {
+    p_tenant: tenantId,
+    p_perfil: input.perfil,
+    p_metas_ativo: input.metasAtivo,
+    p_tipos_venda: input.tiposVenda,
+    p_campos: camposDiferentesDoPadrao(input.perfil, input.campos),
+    p_motivo: input.motivo,
+  })
+  return error ? falha(error, 'Não foi possível salvar as regras comerciais.') : { ok: true }
+}
+
+export async function arquivarEmpresa(tenantId: string, motivo: string): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const rpc = await rpcSolto()
+  const { error } = await rpc('admin_arquivar_empresa', { p_tenant: tenantId, p_motivo: motivo })
+  return error ? falha(error, 'Não foi possível arquivar a empresa.') : { ok: true }
+}
+
+export type SituacaoExclusao = { protegida: boolean; inativa: boolean; bloqueios: string[]; usuariosSemOutraEmpresa: number }
+
+export async function situacaoExclusaoEmpresa(tenantId: string): Promise<SituacaoExclusao | null> {
+  await exigirSuperAdmin()
+  const rpc = await rpcSolto()
+  const { data, error } = await rpc('admin_exclusao_empresa_situacao', { p_tenant: tenantId })
+  if (error || !data) return null
+  const s = data as Record<string, unknown>
+  return {
+    protegida: s.protegida === true,
+    inativa: s.inativa === true,
+    bloqueios: Array.isArray(s.bloqueios) ? s.bloqueios.map(String) : [],
+    usuariosSemOutraEmpresa: Number(s.usuarios_sem_outra_empresa ?? 0),
+  }
+}
+
+export async function excluirEmpresa(tenantId: string, confirmacao: string, motivo: string): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const rpc = await rpcSolto()
+  const { error } = await rpc('admin_excluir_empresa', { p_tenant: tenantId, p_confirmacao: confirmacao, p_motivo: motivo })
+  return error ? falha(error, 'Não foi possível excluir a empresa.') : { ok: true }
+}
+
+export type EtapaRegrasAdmin = {
+  id: string
+  nome: string
+  tipo: 'aberta' | 'ganha' | 'perdida'
+  ativo: boolean
+  /** Aberta e não inicial: as outras têm regras próprias (entrada de leads, fechamento, perda). */
+  configuravel: boolean
+  regra: RegraEtapa
+  definidoEm: string | null
+  negociacoes: number
+}
+export type FunilRegrasAdmin = { id: string; nome: string; ativo: boolean; etapas: EtapaRegrasAdmin[] }
+
+/** Funis e etapas da empresa com as exigências de cada etapa. Sem a migration: lista vazia. */
+export async function regrasEtapasDaEmpresa(tenantId: string): Promise<FunilRegrasAdmin[] | null> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('admin_regras_etapas', { p_tenant: tenantId })
+  if (error || !Array.isArray(data)) return null
+  return (data as Record<string, unknown>[]).map((f) => ({
+    id: String(f.id),
+    nome: String(f.nome),
+    ativo: f.ativo === true,
+    etapas: (Array.isArray(f.etapas) ? (f.etapas as Record<string, unknown>[]) : []).map((e) => ({
+      id: String(e.id),
+      nome: String(e.nome),
+      tipo: e.tipo === 'ganha' || e.tipo === 'perdida' ? e.tipo : 'aberta',
+      ativo: e.ativo === true,
+      configuravel: e.configuravel === true,
+      regra: normalizarRegraEtapa(e.campos, e.checklist),
+      definidoEm: typeof e.definido_em === 'string' ? e.definido_em : null,
+      negociacoes: Number(e.negociacoes ?? 0),
+    })),
+  }))
+}
+
+export async function definirRegrasEtapa(tenantId: string, input: RegrasEtapaInput): Promise<Resultado> {
+  await exigirSuperAdmin()
+  const supabase = await createClient()
+  // Só o que difere de "opcional" vai para o banco.
+  const campos = Object.fromEntries(Object.entries(input.campos).filter(([, uso]) => uso !== 'opcional'))
+  const { error } = await supabase.rpc('admin_definir_regras_etapa', {
+    p_tenant: tenantId,
+    p_etapa: input.etapaId,
+    p_campos: campos,
+    p_checklist: input.checklist.map((l) => l.trim()).filter(Boolean),
+    p_motivo: input.motivo,
+  })
+  return error ? falha(error, 'Não foi possível salvar as exigências da etapa.') : { ok: true }
 }

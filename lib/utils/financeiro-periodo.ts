@@ -1,5 +1,5 @@
 /**
- * Matemática financeira do período (TCV/MRR), pura — sem Supabase, testável
+ * Matemática financeira do período (TCV/MRR/Venda comum), pura — sem Supabase, testável
  * direto. Duas responsabilidades:
  *
  *   1. `agregarRealizado`/`ticketMedio` — soma o que já veio filtrado do
@@ -15,7 +15,7 @@
 
 export type LinhaFechamentoBruta = {
   valor_vendido: number | string
-  tipo_venda: 'tcv' | 'mrr' | null
+  tipo_venda: 'tcv' | 'mrr' | 'venda' | null
 }
 
 export type RealizadoFunil = {
@@ -23,6 +23,9 @@ export type RealizadoFunil = {
   tcvQtd: number
   mrr: number
   mrrQtd: number
+  /** Venda comum (pontual): total e quantidade próprios, nunca somados a TCV/MRR. */
+  venda: number
+  vendaQtd: number
 }
 
 /**
@@ -31,7 +34,7 @@ export type RealizadoFunil = {
  * mesma regra de `metas_progresso`.
  */
 export function agregarRealizado(linhas: LinhaFechamentoBruta[]): RealizadoFunil {
-  const acc: RealizadoFunil = { tcv: 0, tcvQtd: 0, mrr: 0, mrrQtd: 0 }
+  const acc: RealizadoFunil = { tcv: 0, tcvQtd: 0, mrr: 0, mrrQtd: 0, venda: 0, vendaQtd: 0 }
   for (const l of linhas) {
     const valor = Number(l.valor_vendido)
     if (l.tipo_venda === 'tcv') {
@@ -40,6 +43,9 @@ export function agregarRealizado(linhas: LinhaFechamentoBruta[]): RealizadoFunil
     } else if (l.tipo_venda === 'mrr') {
       acc.mrr += valor
       acc.mrrQtd += 1
+    } else if (l.tipo_venda === 'venda') {
+      acc.venda += valor
+      acc.vendaQtd += 1
     }
   }
   return acc
@@ -89,4 +95,4 @@ export function metaProporcionalPeriodo(mensal: MetaMensal[], periodo: { inicio:
   return algumaDefinida ? soma : null
 }
 
-export type MetaPeriodo = { tcv: number | null; mrr: number | null }
+export type MetaPeriodo = { tcv: number | null; mrr: number | null; venda: number | null }

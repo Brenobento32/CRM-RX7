@@ -28,7 +28,8 @@ export type PropostaFechada = {
   valorVendido: number
   valorProposta: number | null
   formaPagamento: FormaPagamento | null
-  statusPagamento: Database['public']['Enums']['status_pagamento']
+  /** null = não se aplica à empresa (regras comerciais). */
+  statusPagamento: Database['public']['Enums']['status_pagamento'] | null
   dataFechamento: string
   /** Responsável no momento do fechamento (mesma regra das metas). */
   responsavel: string | null

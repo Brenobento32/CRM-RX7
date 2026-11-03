@@ -23,6 +23,8 @@ import { lerMes, primeiroDiaDoMes, rotuloMes, ultimoDiaDoMes } from '@/lib/utils
 import { ALVO_EMPRESA, ROTULO_TIPO_META, TIPOS_META } from '@/lib/validations/meta'
 
 import { obterProgressoReunioes } from '@/lib/dal/metas-reunioes'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
+import { tiposVisiveis } from '@/lib/utils/regras-comerciais'
 
 import { FormMetasFunis } from './_components/form-metas-funis'
 import { CARGOS_COM_METAS_DE_REUNIOES, SecaoMetasReunioes } from './_components/metas-reunioes'
@@ -36,9 +38,21 @@ export const metadata: Metadata = {
 const botaoPremiumClass = botaoSecundarioClass
 
 export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
-  const eu = await exigirCargo(CARGOS_POR_AREA.metas)
+  const [eu, regras] = await Promise.all([exigirCargo(CARGOS_POR_AREA.metas), obterRegrasComerciais()])
   const { mes: param, erro } = await searchParams
   const mes = lerMes(param)
+
+  // Menu desligado pelo Super Admin: a página não mostra metas (o banco também recusa gravar).
+  if (!regras.metasAtivo) {
+    return (
+      <div className="@container w-full space-y-6 text-premium-texto">
+        <PageHeaderPremium titulo="Metas" usuario={eu} />
+        <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
+          O menu Metas não está disponível para esta empresa. As metas já cadastradas continuam guardadas.
+        </p>
+      </div>
+    )
+  }
   const veReunioes = (CARGOS_COM_METAS_DE_REUNIOES as readonly string[]).includes(eu.role)
   const [{ empresa, pessoas }, progressoFunis, reunioes] = await Promise.all([
     obterProgressoMetas(mes),
@@ -47,6 +61,12 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
   ])
   const gerente = eu.role === 'gerente'
   const temMetaIndividual = eu.role === 'closer' || eu.role === 'vendedor'
+  // Tipos liberados para a empresa + qualquer outro que já tenha meta ou venda neste mês (histórico nunca some).
+  const comDados = TIPOS_META.filter((t) =>
+    [empresa, ...pessoas, ...progressoFunis].some((x) => x && (x[t].valorMeta !== null || x[t].realizado > 0)),
+  )
+  const tipos = tiposVisiveis(regras.tiposVenda, comDados)
+  const liberados = regras.tiposVenda
 
   return (
     <div className="@container w-full space-y-6 text-premium-texto">
@@ -76,13 +96,13 @@ export default async function MetasPage({ searchParams }: PageProps<'/metas'>) {
                    (a RPC nunca devolve nenhuma linha individual pra ele),
                    então nem "Minha meta" nem a tabela fariam sentido aqui.
       */}
-      {empresa && <SecaoMetaEmpresa empresa={empresa} mes={mes} podeGerenciar={gerente} />}
+      {empresa && <SecaoMetaEmpresa empresa={empresa} mes={mes} podeGerenciar={gerente} tipos={tipos} liberados={liberados} />}
 
-      <SecaoMetasFunis mes={mes} progresso={progressoFunis} gerente={gerente} />
+      <SecaoMetasFunis mes={mes} progresso={progressoFunis} gerente={gerente} tipos={tipos} liberados={liberados} />
 
-      {temMetaIndividual && <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} />}
+      {temMetaIndividual && <MinhaMeta pessoa={pessoas.find((p) => p.usuarioId === eu.id)} tipos={tipos} />}
 
-      {gerente && <TabelaPessoas pessoas={pessoas} mes={mes} />}
+      {gerente && <TabelaPessoas pessoas={pessoas} mes={mes} tipos={tipos} liberados={liberados} />}
 
       {veReunioes && <SecaoMetasReunioes mes={mes} sdrs={reunioes} gerente={gerente} euId={eu.id} />}
     </div>
@@ -93,17 +113,21 @@ function SecaoMetaEmpresa({
   empresa,
   mes,
   podeGerenciar,
+  tipos,
+  liberados,
 }: {
   empresa: NonNullable<Awaited<ReturnType<typeof obterProgressoMetas>>['empresa']>
   mes: string
   podeGerenciar: boolean
+  tipos: readonly TipoMeta[]
+  liberados: readonly TipoMeta[]
 }) {
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-semibold text-premium-secundario">Meta da empresa</h2>
       <p className="text-xs text-premium-mudo">Todos os funis, todos os responsáveis.</p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {TIPOS_META.map((tipo) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tipos.map((tipo) => (
           <CardMeta
             key={tipo}
             titulo={ROTULO_TIPO_META[tipo]}
@@ -113,7 +137,7 @@ function SecaoMetaEmpresa({
             semMeta="Não definida"
             acoes={
               podeGerenciar ? (
-                <AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} />
+                <AcoesMeta metaId={empresa[tipo].metaId} alvo={ALVO_EMPRESA} tipo={tipo} mes={mes} podeCriar={liberados.includes(tipo)} />
               ) : undefined
             }
           />
@@ -135,10 +159,14 @@ function SecaoMetasFunis({
   mes,
   progresso,
   gerente,
+  tipos,
+  liberados,
 }: {
   mes: string
   progresso: ProgressoFunilMeta[]
   gerente: boolean
+  tipos: readonly TipoMeta[]
+  liberados: readonly TipoMeta[]
 }) {
   if (progresso.length === 0) return null
 
@@ -146,25 +174,25 @@ function SecaoMetasFunis({
     <section className="space-y-3">
       <h2 className="text-sm font-semibold text-premium-secundario">Metas mensais por funil</h2>
       <p className="text-xs text-premium-mudo">
-        Cada funil tem sua própria meta de TCV e de MRR, cadastrada separadamente da meta geral.
+        Cada funil tem sua própria meta por tipo ({tipos.map((t) => ROTULO_TIPO_META[t]).join(', ')}), cadastrada separadamente da meta geral.
       </p>
       {gerente && (
         <PremiumPanel>
-          <FormMetasFunis mes={mes} progresso={progresso} />
+          <FormMetasFunis mes={mes} progresso={progresso} tipos={liberados} />
         </PremiumPanel>
       )}
-      <CardsMetaFunil progresso={progresso} />
+      <CardsMetaFunil progresso={progresso} tipos={tipos} />
     </section>
   )
 }
 
-function MinhaMeta({ pessoa }: { pessoa: ProgressoPessoa | undefined }) {
+function MinhaMeta({ pessoa, tipos }: { pessoa: ProgressoPessoa | undefined; tipos: readonly TipoMeta[] }) {
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-semibold text-premium-secundario">Minha meta</h2>
       <p className="text-xs text-premium-mudo">Todos os funis, só as suas vendas (responsável pelo fechamento).</p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {TIPOS_META.map((tipo) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tipos.map((tipo) => (
           <CardMeta
             key={tipo}
             titulo={ROTULO_TIPO_META[tipo]}
@@ -179,7 +207,17 @@ function MinhaMeta({ pessoa }: { pessoa: ProgressoPessoa | undefined }) {
   )
 }
 
-function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: string }) {
+function TabelaPessoas({
+  pessoas,
+  mes,
+  tipos,
+  liberados,
+}: {
+  pessoas: ProgressoPessoa[]
+  mes: string
+  tipos: readonly TipoMeta[]
+  liberados: readonly TipoMeta[]
+}) {
   if (pessoas.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-premium-borda p-6 text-center text-sm text-premium-mudo">
@@ -198,7 +236,7 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
               <th className="px-4 py-3 font-medium" rowSpan={2}>
                 Pessoa
               </th>
-              {TIPOS_META.map((tipo) => (
+              {tipos.map((tipo) => (
                 <th key={tipo} className="px-4 py-2 text-center font-medium" colSpan={3}>
                   {ROTULO_TIPO_META[tipo]}
                 </th>
@@ -206,7 +244,7 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
               <th className="px-4 py-3" rowSpan={2} />
             </tr>
             <tr>
-              {TIPOS_META.map((tipo) => (
+              {tipos.map((tipo) => (
                 <Fragment key={tipo}>
                   <th className="px-4 py-1.5 text-right font-medium">Meta</th>
                   <th className="px-4 py-1.5 text-right font-medium">Vendido</th>
@@ -224,21 +262,21 @@ function TabelaPessoas({ pessoas, mes }: { pessoas: ProgressoPessoa[]; mes: stri
                   {p.role === 'gerente' && <Etiqueta>gerente</Etiqueta>}
                   {!p.ativo && <Etiqueta>desativado</Etiqueta>}
                 </td>
-                {TIPOS_META.map((tipo) => (
+                {tipos.map((tipo) => (
                   <LinhaTipo key={tipo} dados={p[tipo]} nome={p.nome} />
                 ))}
                 <td className="px-4 py-3">
                   {/* Meta individual só para closer/vendedor ativo; as demais linhas só mostram o vendido. */}
-                  {(p.role === 'closer' || p.role === 'vendedor') && (p.ativo || p.tcv.metaId || p.mrr.metaId) && (
+                  {(p.role === 'closer' || p.role === 'vendedor') && (p.ativo || tipos.some((t) => p[t].metaId)) && (
                     <div className="flex flex-col items-end gap-1">
-                      {TIPOS_META.map((tipo) => (
+                      {tipos.map((tipo) => (
                         <AcoesMeta
                           key={tipo}
                           metaId={p[tipo].metaId}
                           alvo={p.usuarioId}
                           tipo={tipo}
                           mes={mes}
-                          podeCriar={p.ativo}
+                          podeCriar={p.ativo && liberados.includes(tipo)}
                         />
                       ))}
                     </div>
@@ -278,7 +316,7 @@ function Etiqueta({ children }: { children: React.ReactNode }) {
   return <span className="ml-2 rounded bg-premium-borda px-1.5 py-0.5 text-xs text-premium-secundario">{children}</span>
 }
 
-/** Sem meta: "Definir [TCV/MRR]". Com meta: "Editar" e "Remover". */
+/** Sem meta: "Definir [tipo]" (só tipo liberado). Com meta: "Editar" e "Remover". */
 function AcoesMeta({
   metaId,
   alvo,

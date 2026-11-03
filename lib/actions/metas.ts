@@ -6,8 +6,9 @@ import { z } from 'zod'
 
 import { criarMeta, editarMeta, removerMeta, salvarMetasFunis, type ItemMetaFunil, type ResultadoMeta } from '@/lib/dal/metas'
 import { obterProgressoReunioes, salvarMetasReunioes, type ItemMetaReunioes } from '@/lib/dal/metas-reunioes'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
 import { mesValido } from '@/lib/utils/periodo'
-import { criarMetaSchema, editarMetaSchema, TIPOS_META, valorMetaFunil, type CampoMeta } from '@/lib/validations/meta'
+import { criarMetaSchema, editarMetaSchema, ROTULO_TIPO_META, TIPOS_META, valorMetaFunil, type CampoMeta } from '@/lib/validations/meta'
 import { quantidadeMetaReunioes } from '@/lib/validations/meta-reunioes'
 
 export type EstadoFormMeta = {
@@ -21,6 +22,13 @@ const uuid = z.uuid()
 /** Volta para a tela de metas no mês em que se estava. */
 function lista(mes?: string) {
   return mesValido(mes) ? `/metas?mes=${mes}` : '/metas'
+}
+
+const METAS_DESATIVADAS = 'O menu Metas está desativado para esta empresa.'
+
+/** Menu Metas desligado pelo Super Admin: nenhuma ação de metas passa (o banco também recusa). */
+async function metasDesativadas(): Promise<boolean> {
+  return !(await obterRegrasComerciais()).metasAtivo
 }
 
 function comoEstado(r: Extract<ResultadoMeta, { ok: false }>, valores: EstadoFormMeta['valores']) {
@@ -37,8 +45,13 @@ export async function criarMetaAction(
     mes: String(formData.get('mes') ?? ''),
     valor_meta: String(formData.get('valor_meta') ?? ''),
   }
+  const regras = await obterRegrasComerciais()
+  if (!regras.metasAtivo) return { erro: METAS_DESATIVADAS, valores }
   const parsed = criarMetaSchema.safeParse(valores)
   if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
+  if (!(regras.tiposVenda as readonly string[]).includes(parsed.data.tipo_meta)) {
+    return { campos: { tipo_meta: [`Meta ${ROTULO_TIPO_META[parsed.data.tipo_meta]} não está liberada para esta empresa.`] }, valores }
+  }
 
   const r = await criarMeta(parsed.data)
   if (!r.ok) return comoEstado(r, valores)
@@ -55,6 +68,7 @@ export async function editarMetaAction(
 ): Promise<EstadoFormMeta> {
   const valores = { valor_meta: String(formData.get('valor_meta') ?? '') }
   if (!uuid.safeParse(id).success) return { erro: 'Meta inválida.', valores }
+  if (await metasDesativadas()) return { erro: METAS_DESATIVADAS, valores }
 
   const parsed = editarMetaSchema.safeParse(valores)
   if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors, valores }
@@ -69,6 +83,7 @@ export async function editarMetaAction(
 /** Botão da lista. Falha volta com a mensagem na URL (funciona sem JS). */
 export async function removerMetaAction(id: string, mes: string): Promise<void> {
   if (!uuid.safeParse(id).success) return
+  if (await metasDesativadas()) redirect(`/metas?erro=${encodeURIComponent(METAS_DESATIVADAS)}`)
 
   const r = await removerMeta(id)
   revalidatePath('/metas')
@@ -101,6 +116,7 @@ export async function salvarMetasFunisAction(
   formData: FormData,
 ): Promise<void> {
   if (!mesValido(mes)) redirect('/metas')
+  if (await metasDesativadas()) redirect(`/metas?erro=${encodeURIComponent(METAS_DESATIVADAS)}`)
 
   const itens: ItemMetaFunil[] = []
   const mensagens: string[] = []
@@ -110,7 +126,7 @@ export async function salvarMetasFunisAction(
       const bruto = String(formData.get(`${tipo}_${funil.id}`) ?? '')
       const parsed = valorMetaFunil.safeParse(bruto)
       if (!parsed.success) {
-        mensagens.push(`${funil.nome} (${tipo.toUpperCase()}): ${z.flattenError(parsed.error).formErrors[0] ?? 'valor inválido.'}`)
+        mensagens.push(`${funil.nome} (${ROTULO_TIPO_META[tipo]}): ${z.flattenError(parsed.error).formErrors[0] ?? 'valor inválido.'}`)
         continue
       }
       if (parsed.data === null) continue // campo vazio: não altera esta meta
@@ -146,6 +162,7 @@ export async function salvarMetasFunisAction(
  */
 export async function salvarMetasReunioesAction(mes: string, formData: FormData): Promise<void> {
   if (!mesValido(mes)) redirect('/metas')
+  if (await metasDesativadas()) redirect(`/metas?erro=${encodeURIComponent(METAS_DESATIVADAS)}`)
   const destino = `/metas?mes=${mes}`
 
   const sdrs = await obterProgressoReunioes(mes)

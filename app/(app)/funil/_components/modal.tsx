@@ -89,28 +89,25 @@ export function BotoesModal({
   pendente,
   rotulo,
   onCancelar,
+  resumo,
 }: {
   pendente: boolean
   rotulo: string
   onCancelar: () => void
+  /** Aviso de campos pendentes (`ResumoErros`), junto dos botões. */
+  resumo?: React.ReactNode
 }) {
   return (
-    <div className="flex justify-end gap-3 border-t border-premium-borda pt-5">
-      <button
-        type="button"
-        onClick={onCancelar}
-        disabled={pendente}
-        className={botaoFantasmaClass}
-      >
-        Cancelar
-      </button>
-      <button
-        type="submit"
-        disabled={pendente}
-        className={botaoPrimarioClass}
-      >
-        {pendente ? 'Salvando…' : rotulo}
-      </button>
+    <div className="space-y-3 border-t border-premium-borda pt-5">
+      {resumo}
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onCancelar} disabled={pendente} className={botaoFantasmaClass}>
+          Cancelar
+        </button>
+        <button type="submit" disabled={pendente} className={botaoPrimarioClass}>
+          {pendente ? 'Salvando…' : rotulo}
+        </button>
+      </div>
     </div>
   )
 }

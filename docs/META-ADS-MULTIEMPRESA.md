@@ -211,3 +211,26 @@ O AVANTE **nunca** cria, edita, pausa campanhas nem gera gasto.
   formulário. A política de privacidade da Rio X7 deve citar o compartilhamento com a Meta. Envia só
   o `lead_id` e o nome da etapa (valor apenas em Fechado). O titular pode pedir oposição: desligar o
   envio da empresa ou excluir a negociação para os eventos seguintes.
+
+### Devolutivas: preparação de 03/11/2026 (migration 20261109090100, nada conectado nem enviado)
+
+- **Corrigido em 01/11:** os 48 leads da Rio X7 têm o `meta_lead_id` (leadgen_id), e a conexão da
+  planilha lê a coluna `id`.
+- **Venda só na etapa ganha de cada funil:** `capi_definir_configuracao` recusa um nome de evento de
+  venda (Venda, Venda fechada, Purchase, Fechado, Ganho…) numa etapa que não seja a "ganha" daquele
+  funil. O valor do fechamento continua indo só na etapa ganha. Uma etapa "Finalizado" que não é
+  venda nunca vira venda.
+- **`capi_mapeamento_sugerido()`** (leitura, só o Administrador da própria empresa) monta a sugestão
+  pelas etapas de cada empresa, nunca por nome fixo:
+  - etapa "ganha" → Venda fechada, com valor;
+  - `chave = reuniao_realizada` → Reunião realizada;
+  - etapa aberta chamada MQL ou Lead qualificado → Lead qualificado.
+
+  Na Rio X7: MQL → Lead qualificado; Reunião realizada; Fechado → Venda fechada.
+- **Falta para ativar na Rio X7**, cada passo com autorização:
+  1. Dataset da BM Bento ligado à Página dos formulários.
+  2. Conexão CAPI (permissão MBE `manage_business_extension` ou token de usuário do sistema;
+     confirmar com evento de teste se a Meta exige `ads_management`).
+  3. Salvar o mapeamento sugerido.
+  4. Eventos de teste com código de teste do Events Manager.
+  5. Ligar o envio só na Rio X7.

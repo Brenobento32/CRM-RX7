@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { editarMetaAction } from '@/lib/actions/metas'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterMeta } from '@/lib/dal/metas'
+import { metasHabilitadas } from '@/lib/dal/regras-comerciais'
 import { rotuloMes } from '@/lib/utils/periodo'
 import { ROTULO_TIPO_META } from '@/lib/validations/meta'
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
@@ -17,8 +18,8 @@ export const metadata: Metadata = {
 }
 
 export default async function EditarMetaPage({ params }: PageProps<'/metas/[id]/editar'>) {
-  const eu = await getUsuarioAtual()
-  if (eu.role !== 'gerente') notFound()
+  const [eu, habilitadas] = await Promise.all([getUsuarioAtual(), metasHabilitadas()])
+  if (eu.role !== 'gerente' || !habilitadas) notFound()
 
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()

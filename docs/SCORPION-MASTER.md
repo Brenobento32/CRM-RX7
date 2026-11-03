@@ -115,6 +115,92 @@ ativamente TCV ou MRR na tela passa a ter o campo preenchido. Nunca
 reclassifica histórico sozinho (`coalesce` preserva o valor atual quando a
 chamada não manda um novo).
 
+**Venda comum** (migration `20261109090000`): terceiro tipo (`venda`), para
+vendas pontuais — faturamento e quantidade em colunas próprias de
+`metas_progresso`, `metas_funis_progresso` e `realizado_periodo`. Cada
+fechamento conta uma vez, só no seu tipo; TCV, MRR e Venda comum nunca se
+somam.
+
+## Regras comerciais por empresa
+
+Migration `20261109090100`, tabela `empresa_regras_comerciais` (só o Super
+Admin grava, por `admin_definir_regras_comerciais`, auditado; a empresa lê
+por `minhas_regras_comerciais()`):
+
+- **Menu Metas** ligado/desligado: o menu some, a página e as Server Actions
+  recusam no servidor e o banco recusa gravar metas e metas de reuniões.
+- **Tipos de venda/meta liberados** (TCV, MRR, Venda comum, um ou vários).
+  Metas mostra os liberados e, para não esconder histórico, os que já têm
+  meta ou venda no mês.
+- **Itens do fechamento** (contrato enviado/assinado, link, pagamento,
+  onboarding, serviços, observações): oculto, opcional, obrigatório ou
+  "obrigatório e Sim". Formulário, Server Action e gatilho
+  `fechamentos_regras_empresa` seguem a mesma regra; item oculto nunca é
+  apagado ao editar um fechamento antigo.
+- **Perfis**: "genérico" (padrão de empresa nova: Venda comum, sem itens de
+  agência) e "agência" (TCV/MRR e itens de agência obrigatórios). Toda
+  empresa que já existia ficou "agência", isto é, exatamente o
+  comportamento anterior.
+- Etapas continuam definidas pelo **tipo** (aberta, ganha, perdida) e não
+  pelo nome: "Fechado" é a etapa ganha; "Finalizado" é só o rótulo do
+  onboarding concluído.
+
+## Exigências por funil e etapa
+
+Migration `20261109090200`, tabela `etapa_regras` (uma linha por etapa, pelo
+id real; só o Super Admin grava, por `admin_definir_regras_etapa`, auditado
+como `regras_etapa_definidas`; a empresa lê as próprias pela RLS):
+
+- Vale para etapas **abertas que não são a inicial**. Etapa inicial (entrada
+  de leads), ganha (regras comerciais) e perdida (motivo de perda) não
+  recebem exigências. Sem linha = sem exigências (padrão de toda empresa).
+- Cada campo comercial da negociação (valor estimado, temperatura, primeira
+  reunião, data e valor da proposta, forma de pagamento, objeção, serviços):
+  **Não usar**, **Opcional** ou **Obrigatório para entrar na etapa**, mais
+  um **checklist** de até 10 confirmações. Cada funil e cada empresa tem as
+  próprias regras.
+- A trava é do banco: gatilho `negociacoes_zz_regras_etapa` na troca de
+  etapa (qualquer caminho), erro `RX101` com o que falta em `detail` (JSON).
+  Roda depois das travas de permissão e de handoff SDR × CLOSER.
+- No Kanban, o movimento recusado abre o formulário da etapa (campos que
+  faltam em vermelho, checklist, aviso perto do botão). "Salvar e mover" =
+  `salvar_e_mover_negociacao` (uma transação: se a etapa recusar, nada é
+  gravado). As confirmações ficam em `negociacao_confirmacoes_etapa` (quem e
+  quando).
+- Exige só para **entrar**: mudar a regra não move, não reabre e não altera
+  negociações que já estão na etapa.
+- Campo "Não usar" some de onde a negociação aparece enquanto ela estiver
+  naquela etapa: formulários (edição rápida, página de edição, ficha), card
+  do Kanban, total da coluna, painel lateral, resumo na página do cliente e
+  lista de leads (`mostraCampo`). O valor gravado fica: Server Actions e o
+  gatilho `negociacoes_preserva_ocultos` não deixam apagar. Relatórios,
+  métricas e propostas (visões de histórico) continuam com os valores.
+
+## Empresas no Super Admin
+
+- **Plano**: só empresa assinante tem assinatura. Interna (Rio X7) e
+  arquivo não têm plano, e a tela explica isso. Trocar o plano não cobra,
+  não apaga dados e mantém as exceções e cotas da Central.
+- **Ativa / Inativa** (lista e tela da empresa): desativar =
+  `admin_suspender_empresa` (somente leitura; login continua; planilhas
+  param e retomam sem perder linhas; formulários por webhook são recusados).
+- **Arquivar** (`admin_arquivar_empresa`): assinatura cancelada, somente
+  leitura, dados preservados; volta por "Reativar".
+- **Reativar** (`admin_reativar_empresa`): volta ao estado comercial de
+  ANTES da inativação, lido do histórico de assinaturas (vencida volta
+  vencida, teste volta teste). Plano, ciclo e datas não mudam; nada é
+  cobrado. Sem registro do estado anterior, o Super Admin escolhe e a
+  escolha fica auditada como decisão explícita; mesmo assim a reativação
+  nunca concede Ativa sem período pago em vigor nem estende teste (isso é
+  em "Assinatura", com datas e motivo). A tela mostra a prévia
+  (`admin_reativacao_previa`).
+- **Excluir definitivamente** (`admin_excluir_empresa`): só assinante, já
+  inativa, sem nenhum dado comercial (`empresa_bloqueios_exclusao`), com o
+  endereço digitado e motivo. A auditoria fica (sem o vínculo, com id e
+  endereço nos detalhes). Interna e arquivo nunca.
+- Ações administrativas da empresa ficam num accordion recolhido; as
+  perigosas em destaque.
+
 ## Kanban
 
 - Lê a view `funil_cards` (`security_invoker`) — a visibilidade é 100% da RLS

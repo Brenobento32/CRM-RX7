@@ -10,6 +10,7 @@ import {
   type CampoCliente,
 } from '@/lib/validations/cliente'
 import { botaoFantasmaClass, botaoPrimarioClass, caixaErroClass, inputClass, legendaClass, opcaoClass } from '@/components/ui/estilos'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 
 type Valores = Partial<Record<CampoCliente, string>>
 
@@ -279,6 +280,8 @@ export function ClienteForm({
         responsaveis={responsaveis}
         mostrarObservacoes={mostrarObservacoes}
       />
+
+      <ResumoErros campos={estado?.campos} erro={estado?.erro} />
 
       <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button

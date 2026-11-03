@@ -1,6 +1,7 @@
 'use client'
 
 import { startTransition, useActionState } from 'react'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 
 import { marcarPerdidaAction, type EstadoModalFunil } from '@/lib/actions/funil'
 import type { CardFunil } from '@/lib/dal/funil'
@@ -68,7 +69,7 @@ export function ModalPerda({ card, posicao, onCancelar, onConcluido }: Props) {
           <ErroCampo id="motivo_perda-erro" mensagem={erro} />
         </div>
 
-        <BotoesModal pendente={pendente} rotulo="Marcar como perdida" onCancelar={onCancelar} />
+        <BotoesModal pendente={pendente} rotulo="Marcar como perdida" onCancelar={onCancelar} resumo={<ResumoErros campos={estado?.campos} erro={estado?.erro} />} />
       </form>
     </Modal>
   )

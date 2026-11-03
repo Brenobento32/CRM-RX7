@@ -3,6 +3,7 @@ import { TextoPercentual } from '@/app/(app)/metas/_components/progresso'
 import { CORES_PROGRESSO, IconBadge, PremiumCard, ProgressBarPremium, type CorProgresso } from '@/components/ui/premium'
 import type { ProgressoFunilMeta } from '@/lib/dal/metas'
 import { formatarMoeda } from '@/lib/utils/formatacao'
+import { ROTULO_TIPO_META, type TipoMetaRotulo } from '@/lib/validations/meta'
 
 /**
  * Paleta por POSIÇÃO (ciclo), nunca pelo nome do funil — "o segundo card é
@@ -33,27 +34,28 @@ const PALETA_FUNIL: CorProgresso[] = [
  * cards de funil entram no MESMO grid dos cards gerais (TCV/MRR), aqui têm
  * uma grade própria.
  */
-export function CardsMetaFunil({ progresso }: { progresso: ProgressoFunilMeta[] }) {
+export function CardsMetaFunil({ progresso, tipos }: { progresso: ProgressoFunilMeta[]; tipos: readonly TipoMetaRotulo[] }) {
   if (progresso.length === 0) return null
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {progresso.map((p, i) => (
-        <CardMetaFunil key={p.funilId} progresso={p} cor={PALETA_FUNIL[i % PALETA_FUNIL.length]} />
+        <CardMetaFunil key={p.funilId} progresso={p} tipos={tipos} cor={PALETA_FUNIL[i % PALETA_FUNIL.length]} />
       ))}
     </div>
   )
 }
 
-function CardMetaFunil({ progresso, cor }: { progresso: ProgressoFunilMeta; cor: CorProgresso }) {
+function CardMetaFunil({ progresso, tipos, cor }: { progresso: ProgressoFunilMeta; tipos: readonly TipoMetaRotulo[]; cor: CorProgresso }) {
   return (
     <PremiumCard className="space-y-3 p-4">
       <p className="flex items-center gap-2 font-semibold text-premium-texto">
         <IconBadge icone={IconeFunil} cor={cor.texto} fundo={cor.trilho} />
         {progresso.funilNome}
       </p>
-      <LinhaMetaFunil titulo="TCV" dados={progresso.tcv} cor={cor} />
-      <LinhaMetaFunil titulo="MRR" dados={progresso.mrr} cor={cor} />
+      {tipos.map((tipo) => (
+        <LinhaMetaFunil key={tipo} titulo={ROTULO_TIPO_META[tipo]} dados={progresso[tipo]} cor={cor} />
+      ))}
     </PremiumCard>
   )
 }

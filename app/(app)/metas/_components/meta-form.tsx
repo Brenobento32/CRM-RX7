@@ -4,21 +4,24 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import type { EstadoFormMeta } from '@/lib/actions/metas'
 import type { OpcaoAlvo } from '@/lib/dal/metas'
-import { ROTULO_TIPO_META, TIPOS_META, type CampoMeta } from '@/lib/validations/meta'
+import { ROTULO_TIPO_META, TIPOS_META, type CampoMeta, type TipoMetaRotulo } from '@/lib/validations/meta'
 
 type Props = {
   action: (estado: EstadoFormMeta | undefined, formData: FormData) => Promise<EstadoFormMeta>
   valoresIniciais: Partial<Record<CampoMeta, string>>
   /** Criar: escolhe alvo e mês. Editar: omitido — só o valor muda. */
   alvos?: OpcaoAlvo[]
+  /** Tipos liberados para a empresa (padrão: todos). */
+  tipos?: readonly TipoMetaRotulo[]
   cancelarHref: string
   rotuloEnviar: string
 }
 
-export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloEnviar }: Props) {
+export function MetaForm({ action, valoresIniciais, alvos, tipos, cancelarHref, rotuloEnviar }: Props) {
   const [estado, formAction, pendente] = useActionState(action, undefined)
   const valores = estado?.valores ?? valoresIniciais
   const erro = (campo: CampoMeta) => estado?.campos?.[campo]?.[0]
@@ -67,7 +70,7 @@ export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloE
               aria-invalid={erro('tipo_meta') ? true : undefined}
               className={inputClass}
             >
-              {TIPOS_META.map((t) => (
+              {(tipos ?? TIPOS_META).map((t) => (
                 <option key={t} value={t}>
                   {ROTULO_TIPO_META[t]}
                 </option>
@@ -108,6 +111,8 @@ export function MetaForm({ action, valoresIniciais, alvos, cancelarHref, rotuloE
         />
         <ErroCampo mensagem={erro('valor_meta')} />
       </div>
+
+      <ResumoErros campos={estado?.campos} erro={estado?.erro} />
 
       <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>

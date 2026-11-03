@@ -8,6 +8,7 @@ import type { Servico } from '@/lib/dal/servicos'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
 import type { EtapaVisual, TipoEtapa } from '@/lib/utils/etapas'
+import { lerRequisitos, type RequisitosEtapa } from '@/lib/utils/regras-etapas'
 import type { ClienteInput } from '@/lib/validations/cliente'
 import type {
   CampoEdicaoNegociacao,
@@ -21,11 +22,12 @@ type Enums = Database['public']['Enums']
 export type FechamentoEdicao = {
   valorVendido: number
   dataFechamento: string
-  contratoEnviado: boolean
-  contratoAssinado: boolean
+  /** null = não se aplica à empresa (regras comerciais). */
+  contratoEnviado: boolean | null
+  contratoAssinado: boolean | null
   linkContrato: string | null
-  statusPagamento: Enums['status_pagamento']
-  statusOnboarding: Enums['status_onboarding']
+  statusPagamento: Enums['status_pagamento'] | null
+  statusOnboarding: Enums['status_onboarding'] | null
   observacoes: string | null
   /** `null` só em fechamentos anteriores à classificação TCV/MRR — "não classificado". */
   tipoVenda: Enums['tipo_venda'] | null
@@ -43,6 +45,8 @@ export type NegociacaoEdicao = {
   id: string
   clienteId: string
   clienteNome: string
+  /** Etapa atual (id real): as exigências por etapa decidem o que o formulário mostra. */
+  etapaId: string
   etapa: EtapaVisual & { tipo: TipoEtapa }
   valorEstimado: number | null
   temperatura: Temperatura | null
@@ -69,7 +73,7 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
   const { data, error } = await supabase
     .from('negociacoes')
     .select(
-      `id, cliente_id, valor_estimado, temperatura, data_primeira_reuniao, data_proposta,
+      `id, cliente_id, etapa_id, valor_estimado, temperatura, data_primeira_reuniao, data_proposta,
        objecao_principal, valor_proposta, forma_pagamento,
        etapa:etapas_funil!negociacoes_etapa_id_fkey(nome, cor, tipo),
        cliente:clientes!negociacoes_cliente_id_fkey(nome, deleted_at),
@@ -88,6 +92,7 @@ export async function obterNegociacaoParaEdicao(id: string): Promise<NegociacaoE
     id: data.id,
     clienteId: data.cliente_id,
     clienteNome: data.cliente.nome,
+    etapaId: data.etapa_id,
     etapa: data.etapa,
     valorEstimado: data.valor_estimado === null ? null : Number(data.valor_estimado),
     temperatura: data.temperatura,
@@ -154,6 +159,56 @@ export async function salvarNegociacao(id: string, n: EdicaoNegociacaoInput): Pr
 
   const { error } = await supabase.rpc('salvar_negociacao', args as ArgsSalvar)
   return error ? traduzirErro(error) : { ok: true }
+}
+
+type ArgsSalvarEMover = Database['public']['Functions']['salvar_e_mover_negociacao']['Args']
+
+export type ResultadoSalvarEMover =
+  | { ok: true }
+  | { ok: false; mensagem: string; campo?: CampoEdicaoNegociacao; requisitos?: RequisitosEtapa }
+
+/**
+ * Salva os dados comerciais e move para a etapa numa transação só
+ * (`salvar_e_mover_negociacao`): se a etapa recusar (permissão, handoff ou
+ * exigências), nada é gravado. As travas são as mesmas de `mover_negociacao`.
+ */
+export async function salvarEMoverNegociacao(
+  id: string,
+  n: EdicaoNegociacaoInput,
+  destino: { etapaId: string; posicao: number; confirmados: string[] },
+): Promise<ResultadoSalvarEMover> {
+  await getUsuarioAtual()
+  const supabase = await createClient()
+
+  const args: { [K in keyof ArgsSalvarEMover]: ArgsSalvarEMover[K] | null } = {
+    p_negociacao_id: id,
+    p_valor_estimado: n.valor_estimado === null ? null : Number(n.valor_estimado),
+    p_temperatura: n.temperatura,
+    p_data_primeira_reuniao: n.data_primeira_reuniao,
+    p_data_proposta: n.data_proposta,
+    p_objecao_principal: n.objecao_principal,
+    p_valor_proposta: n.valor_proposta === null ? null : Number(n.valor_proposta),
+    p_forma_pagamento: n.forma_pagamento,
+    p_servico_ids: n.servico_ids,
+    p_etapa_id: destino.etapaId,
+    p_posicao: destino.posicao,
+    p_confirmados: destino.confirmados,
+  }
+
+  const { error } = await supabase.rpc('salvar_e_mover_negociacao', args as ArgsSalvarEMover)
+  if (!error) return { ok: true }
+  if (error.code === 'RX101') {
+    const requisitos = lerRequisitos(error.details)
+    return requisitos ? { ok: false, mensagem: error.message, requisitos } : { ok: false, mensagem: error.message }
+  }
+  if (error.code === '42501') {
+    return {
+      ok: false,
+      mensagem: error.message.includes('CLOSER deve assumir') ? error.message : 'Você não tem permissão para mover esta negociação.',
+    }
+  }
+  if (error.code === '23514' && /etapa|funil/i.test(error.message)) return { ok: false, mensagem: error.message }
+  return traduzirErro(error)
 }
 
 export type NegociacaoArquivada = {

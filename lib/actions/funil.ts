@@ -21,12 +21,13 @@ import {
   type RespostaLead,
 } from '@/lib/dal/negociacoes'
 import { listarNichosAtivos, type Nicho } from '@/lib/dal/nichos'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
 import { CAMPOS_CLIENTE, clienteSchema } from '@/lib/validations/cliente'
 import {
   dadosComerciaisSchema,
   desqualificarSchema,
   excluirLeadSchema,
-  fechamentoSchema,
+  criarFechamentoSchema,
   moverSchema,
   perdaSchema,
 } from '@/lib/validations/funil'
@@ -65,7 +66,8 @@ export async function fecharNegociacaoAction(
   _estado: EstadoModalFunil | undefined,
   formData: FormData,
 ): Promise<EstadoModalFunil> {
-  const parsed = fechamentoSchema.safeParse({
+  // Mesmas regras do formulário, conferidas no servidor (e de novo no banco).
+  const parsed = criarFechamentoSchema(await obterRegrasComerciais()).safeParse({
     ...lerCampos(formData, [
       'negociacao_id',
       'posicao',

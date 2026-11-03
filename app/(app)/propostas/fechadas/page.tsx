@@ -77,7 +77,7 @@ export default async function PropostasFechadasPage({ searchParams }: PageProps<
                 </td>
                 <td className="px-4 py-3">
                   {f.formaPagamento ? ROTULO_FORMA_PAGAMENTO[f.formaPagamento] : '—'}
-                  <p className="text-xs text-premium-mudo">{ROTULO_STATUS_PAGAMENTO[f.statusPagamento]}</p>
+                  {f.statusPagamento && <p className="text-xs text-premium-mudo">{ROTULO_STATUS_PAGAMENTO[f.statusPagamento]}</p>}
                 </td>
                 <td className="px-4 py-3">{f.responsavel ?? '—'}</td>
                 <td className="px-4 py-3 text-right">

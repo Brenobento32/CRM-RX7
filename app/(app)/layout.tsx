@@ -14,6 +14,7 @@ import { SincronizaUrlEmpresa } from '@/components/layout/sincroniza-url-empresa
 import { integracoesHabilitadas } from '@/lib/dal/integracoes-oficiais'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { getEmpresaAtual } from '@/lib/dal/empresa'
+import { obterRegrasComerciais } from '@/lib/dal/regras-comerciais'
 import { isSuperAdmin } from '@/lib/dal/super-admin'
 
 /**
@@ -29,13 +30,16 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [usuario, empresa, cookieStore, superAdmin, habilitadas] = await Promise.all([
+  const [usuario, empresa, cookieStore, superAdmin, habilitadas, regras] = await Promise.all([
     getUsuarioAtual(),
     getEmpresaAtual(),
     cookies(),
     isSuperAdmin(),
     integracoesHabilitadas(),
+    obterRegrasComerciais(),
   ])
+  // Menu some quando a empresa não tem o recurso (cada página e o banco conferem de novo).
+  const ocultar = [...(habilitadas.whatsappOficial ? [] : ['conversas']), ...(regras.metasAtivo ? [] : ['metas'])]
   const recolhida = cookieStore.get(COOKIE_SIDEBAR)?.value === SIDEBAR_RECOLHIDA
   const temaClaro = cookieStore.get(COOKIE_TEMA)?.value === TEMA_CLARO
 
@@ -43,7 +47,7 @@ export default async function AppLayout({
     <ShellApp
       recolhidaInicial={recolhida}
       temaClaroInicial={temaClaro}
-      sidebar={<Sidebar usuario={usuario} empresa={empresa} superAdmin={superAdmin} ocultar={habilitadas.whatsappOficial ? [] : ['conversas']} />}
+      sidebar={<Sidebar usuario={usuario} empresa={empresa} superAdmin={superAdmin} ocultar={ocultar} />}
       topo={<Topbar usuario={usuario} />}
     >
       <SincronizaUrlEmpresa slug={empresa.slug} />

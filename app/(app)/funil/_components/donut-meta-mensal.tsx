@@ -7,6 +7,7 @@ import { ticketMedio } from '@/lib/utils/financeiro-periodo'
 import { formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '@/lib/utils/formatacao'
 import { fracaoDonut } from '@/lib/utils/painel-metricas'
 import { rotuloMes } from '@/lib/utils/periodo'
+import { ROTULO_TIPO_META, type TipoMetaRotulo } from '@/lib/validations/meta'
 
 import { IconeAlvo } from './icones-metricas'
 
@@ -14,9 +15,10 @@ const RAIO = 96
 const ESPESSURA = 18
 const CIRCUNFERENCIA = 2 * Math.PI * RAIO
 
-const CORES: Record<'tcv' | 'mrr', { trilho: string; preenchimento: string; texto: string }> = {
+const CORES: Record<TipoMetaRotulo, { trilho: string; preenchimento: string; texto: string }> = {
   tcv: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-emerald-400', texto: 'text-emerald-700 dark:text-emerald-400' },
   mrr: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-sky-400', texto: 'text-sky-700 dark:text-sky-400' },
+  venda: { trilho: 'stroke-premium-borda', preenchimento: 'stroke-amber-400', texto: 'text-amber-700 dark:text-amber-400' },
 }
 
 /**
@@ -35,8 +37,18 @@ const CORES: Record<'tcv' | 'mrr', { trilho: string; preenchimento: string; text
  * Sem meta: círculo mostra "—" (nunca 0%, que pareceria "meta batida em
  * 0"), mesma distinção que `TextoPercentual`/`BarraProgresso` já fazem.
  */
-export function DonutMetaMensal({ progresso, mes }: { progresso: ProgressoEmpresa | null; mes: string }) {
-  const [aba, setAba] = useState<'tcv' | 'mrr'>('tcv')
+export function DonutMetaMensal({
+  progresso,
+  mes,
+  tipos,
+}: {
+  progresso: ProgressoEmpresa | null
+  mes: string
+  /** Tipos visíveis para a empresa (liberados ou com dados no mês). */
+  tipos: readonly TipoMetaRotulo[]
+}) {
+  const [escolhida, setAba] = useState<TipoMetaRotulo>(tipos[0] ?? 'tcv')
+  const aba = tipos.includes(escolhida) ? escolhida : (tipos[0] ?? 'tcv')
 
   if (!progresso) {
     return (
@@ -63,19 +75,19 @@ export function DonutMetaMensal({ progresso, mes }: { progresso: ProgressoEmpres
         </span>
       </div>
 
-      <div role="tablist" aria-label="TCV ou MRR" className="inline-flex rounded-md border border-premium-borda bg-premium-bg/60 p-0.5">
-        {(['tcv', 'mrr'] as const).map((t) => (
+      <div role="tablist" aria-label="Tipo de meta" className="inline-flex rounded-md border border-premium-borda bg-premium-bg/60 p-0.5">
+        {tipos.map((t) => (
           <button
             key={t}
             type="button"
             role="tab"
             aria-selected={aba === t}
             onClick={() => setAba(t)}
-            className={`rounded px-4 py-1.5 text-xs font-medium uppercase transition ${
+            className={`rounded px-4 py-1.5 text-xs font-medium transition ${
               aba === t ? 'bg-premium-acento text-premium-acento-texto' : 'text-premium-mudo hover:bg-premium-borda/60 hover:text-premium-texto'
             }`}
           >
-            {t}
+            {ROTULO_TIPO_META[t]}
           </button>
         ))}
       </div>
@@ -121,7 +133,7 @@ function AneDeProgresso({
   percentual: number | null
   realizado: number
   cor: { trilho: string; preenchimento: string; texto: string }
-  aba: 'tcv' | 'mrr'
+  aba: TipoMetaRotulo
 }) {
   const fracaoVisual = fracaoDonut(percentual)
   const tamanho = (RAIO + ESPESSURA) * 2
@@ -132,7 +144,7 @@ function AneDeProgresso({
         viewBox={`0 0 ${tamanho} ${tamanho}`}
         className="-rotate-90"
         role="img"
-        aria-label={`Progresso da meta mensal de ${aba.toUpperCase()}: ${percentual === null ? 'sem meta definida' : formatarPercentual(percentual)}`}
+        aria-label={`Progresso da meta mensal de ${ROTULO_TIPO_META[aba]}: ${percentual === null ? 'sem meta definida' : formatarPercentual(percentual)}`}
       >
         <circle
           cx={tamanho / 2}

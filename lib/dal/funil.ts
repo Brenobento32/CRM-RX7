@@ -15,6 +15,7 @@ import {
   type RegraAtendente,
   tipoExigeModal,
 } from '@/lib/utils/etapas'
+import { lerRequisitos, type RequisitosEtapa } from '@/lib/utils/regras-etapas'
 import type { AtualizarFechamentoInput, FechamentoInput, PerdaInput } from '@/lib/validations/funil'
 import type { NovaNegociacaoInput } from '@/lib/validations/funis'
 import { CHAVES_DATA_ENVIO, dataDoEnvio } from '@/supabase/functions/_shared/planilha-colunas'
@@ -316,7 +317,14 @@ export async function listarLeadsAtivos(funilId?: string | null): Promise<CardFu
   return data.flatMap((r) => paraCardFunil(r, agora, criadoEm))
 }
 
-export type ResultadoFunil = { ok: true } | { ok: false; mensagem: string }
+export type ResultadoFunil =
+  | { ok: true }
+  | {
+      ok: false
+      mensagem: string
+      /** Etapa de destino com exigências não atendidas (erro RX101 do banco): o Kanban abre o formulário. */
+      requisitos?: RequisitosEtapa
+    }
 
 const NAO_ENCONTRADA: ResultadoFunil = {
   ok: false,
@@ -581,7 +589,7 @@ export async function fecharNegociacao(f: FechamentoInput): Promise<ResultadoFun
     p_status_onboarding: f.status_onboarding,
     p_servico_ids: f.servico_ids,
     p_observacoes: f.observacoes ?? undefined,
-    p_tipo_venda: f.tipo_venda,
+    p_tipo_venda: f.tipo_venda ?? undefined,
   })
 
   if (error) return traduzirErro(error)
@@ -707,6 +715,12 @@ function traduzirErroNovaNegociacao(error: PostgrestError): Extract<ResultadoCri
 
 function traduzirErro(error: PostgrestError): ResultadoFunil {
   switch (error.code) {
+    case 'RX101': {
+      // Exigências da etapa de destino (gatilho negociacoes_zz_regras_etapa). A mensagem
+      // do banco já diz o que falta; o detalhe estruturado abre o formulário certo.
+      const requisitos = lerRequisitos(error.details)
+      return requisitos ? { ok: false, mensagem: error.message, requisitos } : { ok: false, mensagem: error.message }
+    }
     case 'P0002':
       return NAO_ENCONTRADA
     case '42501':

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { ErroCampo } from '@/components/ui/erro-campo'
+import { ResumoErros } from '@/components/ui/resumo-erros'
 import { botaoPrimarioClass, inputClass, botaoFantasmaClass, caixaErroClass } from '@/components/ui/estilos'
 import { criarNegociacaoAction, type EstadoNovaNegociacao } from '@/lib/actions/funis'
 import { ROTULO_TEMPERATURA, TEMPERATURAS } from '@/lib/validations/negociacao'
@@ -83,6 +84,8 @@ export function NovaEntradaForm({
           <ErroCampo mensagem={erro('temperatura')} />
         </div>
       </div>
+
+      <ResumoErros campos={estado?.campos} erro={estado?.erro} />
 
       <div className="flex items-center gap-3 border-t border-premium-borda pt-6">
         <button type="submit" disabled={pendente} className={botaoPrimarioClass}>

@@ -11,11 +11,14 @@ import type { EtapaKanban } from '@/lib/utils/etapas'
 import { formatarMoeda } from '@/lib/utils/formatacao'
 import { formatarDuracaoHistorico, montarHistorico, type LinhaHistoricoBruta } from '@/lib/utils/historico'
 import { rotuloDaOrigem } from '@/lib/validations/funil'
+import { usoDoCampo, type RegraEtapa } from '@/lib/utils/regras-etapas'
 import { ROTULO_TEMPERATURA } from '@/lib/validations/negociacao'
 import { botaoCompactoClass } from '@/components/ui/estilos'
 
 type Props = {
   card: CardFunil
+  /** Exigências da etapa do card: campo "Não usar" não aparece (o valor continua gravado). */
+  regra?: RegraEtapa
   etapas: EtapaKanban[]
   whatsappHabilitado: boolean
   onFechar: () => void
@@ -38,6 +41,7 @@ type Props = {
  */
 export function DrawerNegociacao({
   card,
+  regra,
   etapas,
   whatsappHabilitado,
   onFechar,
@@ -187,11 +191,13 @@ export function DrawerNegociacao({
                 </dd>
               </div>
 
-              {detalhes && detalhes.valorProposta !== null && (
+              {usoDoCampo(regra, 'valor_proposta') !== 'oculto' && detalhes && detalhes.valorProposta !== null && (
                 <Campo rotulo="Valor da proposta" valor={formatarMoeda(detalhes.valorProposta)} />
               )}
 
-              {card.temperatura && <Campo rotulo="Temperatura" valor={ROTULO_TEMPERATURA[card.temperatura]} />}
+              {usoDoCampo(regra, 'temperatura') !== 'oculto' && card.temperatura && (
+                <Campo rotulo="Temperatura" valor={ROTULO_TEMPERATURA[card.temperatura]} />
+              )}
 
               <Campo rotulo="Responsável" valor={card.responsavel ?? '—'} />
             </dl>

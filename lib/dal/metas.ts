@@ -27,7 +27,7 @@ export type ProgressoMetaTipo = {
   quantidade: number
 }
 
-export type ProgressoEmpresa = { tcv: ProgressoMetaTipo; mrr: ProgressoMetaTipo }
+export type ProgressoEmpresa = { tcv: ProgressoMetaTipo; mrr: ProgressoMetaTipo; venda: ProgressoMetaTipo }
 
 export type ProgressoPessoa = ProgressoEmpresa & {
   usuarioId: string
@@ -57,16 +57,18 @@ export function percentualMeta(realizado: number, meta: number | null): number |
  */
 type LinhaMetasProgressoRpc = Omit<
   Database['public']['Functions']['metas_progresso']['Returns'][number],
-  'meta_id_tcv' | 'meta_id_mrr' | 'usuario_id' | 'nome' | 'role' | 'ativo' | 'valor_meta_tcv' | 'valor_meta_mrr'
+  'meta_id_tcv' | 'meta_id_mrr' | 'meta_id_venda' | 'usuario_id' | 'nome' | 'role' | 'ativo' | 'valor_meta_tcv' | 'valor_meta_mrr' | 'valor_meta_venda'
 > & {
   meta_id_tcv: string | null
   meta_id_mrr: string | null
+  meta_id_venda?: string | null
   usuario_id: string | null
   nome: string | null
   role: UserRole | null
   ativo: boolean | null
   valor_meta_tcv: number | string | null
   valor_meta_mrr: number | string | null
+  valor_meta_venda?: number | string | null
 }
 
 /**
@@ -89,8 +91,10 @@ export async function obterProgressoMetas(mes: string): Promise<ProgressoMetas> 
   for (const linha of linhas) {
     const valorMetaTcv = linha.valor_meta_tcv === null ? null : Number(linha.valor_meta_tcv)
     const valorMetaMrr = linha.valor_meta_mrr === null ? null : Number(linha.valor_meta_mrr)
+    const valorMetaVenda = linha.valor_meta_venda === null || linha.valor_meta_venda === undefined ? null : Number(linha.valor_meta_venda)
     const realizadoTcv = Number(linha.realizado_tcv)
     const realizadoMrr = Number(linha.realizado_mrr)
+    const realizadoVenda = Number(linha.realizado_venda ?? 0)
     const base: ProgressoEmpresa = {
       tcv: {
         metaId: linha.meta_id_tcv,
@@ -105,6 +109,13 @@ export async function obterProgressoMetas(mes: string): Promise<ProgressoMetas> 
         realizado: realizadoMrr,
         percentual: percentualMeta(realizadoMrr, valorMetaMrr),
         quantidade: Number(linha.qtd_mrr),
+      },
+      venda: {
+        metaId: linha.meta_id_venda ?? null,
+        valorMeta: valorMetaVenda,
+        realizado: realizadoVenda,
+        percentual: percentualMeta(realizadoVenda, valorMetaVenda),
+        quantidade: Number(linha.qtd_venda ?? 0),
       },
     }
 
@@ -124,6 +135,7 @@ export type ProgressoFunilMeta = {
   funilNome: string
   tcv: Omit<ProgressoMetaTipo, 'quantidade'>
   mrr: Omit<ProgressoMetaTipo, 'quantidade'>
+  venda: Omit<ProgressoMetaTipo, 'quantidade'>
 }
 
 /**
@@ -133,12 +145,14 @@ export type ProgressoFunilMeta = {
  */
 type LinhaMetasFunisProgressoRpc = Omit<
   Database['public']['Functions']['metas_funis_progresso']['Returns'][number],
-  'meta_id_tcv' | 'meta_id_mrr' | 'valor_meta_tcv' | 'valor_meta_mrr'
+  'meta_id_tcv' | 'meta_id_mrr' | 'meta_id_venda' | 'valor_meta_tcv' | 'valor_meta_mrr' | 'valor_meta_venda'
 > & {
   meta_id_tcv: string | null
   valor_meta_tcv: number | string | null
   meta_id_mrr: string | null
   valor_meta_mrr: number | string | null
+  meta_id_venda?: string | null
+  valor_meta_venda?: number | string | null
 }
 
 /**
@@ -163,6 +177,8 @@ export async function obterProgressoMetasFunis(mes: string): Promise<ProgressoFu
     const valorMetaMrr = linha.valor_meta_mrr === null ? null : Number(linha.valor_meta_mrr)
     const realizadoTcv = Number(linha.realizado_tcv)
     const realizadoMrr = Number(linha.realizado_mrr)
+    const valorMetaVenda = linha.valor_meta_venda === null || linha.valor_meta_venda === undefined ? null : Number(linha.valor_meta_venda)
+    const realizadoVenda = Number(linha.realizado_venda ?? 0)
     return {
       funilId: linha.funil_id,
       funilNome: linha.funil_nome,
@@ -177,6 +193,12 @@ export async function obterProgressoMetasFunis(mes: string): Promise<ProgressoFu
         valorMeta: valorMetaMrr,
         realizado: realizadoMrr,
         percentual: percentualMeta(realizadoMrr, valorMetaMrr),
+      },
+      venda: {
+        metaId: linha.meta_id_venda ?? null,
+        valorMeta: valorMetaVenda,
+        realizado: realizadoVenda,
+        percentual: percentualMeta(realizadoVenda, valorMetaVenda),
       },
     }
   })
@@ -214,10 +236,11 @@ export async function obterMetaPeriodo(
   return {
     tcv: metaProporcionalPeriodo(paraMensal('tcv'), periodo),
     mrr: metaProporcionalPeriodo(paraMensal('mrr'), periodo),
+    venda: metaProporcionalPeriodo(paraMensal('venda'), periodo),
   }
 }
 
-export type RealizadoGeral = { tcv: number; mrr: number }
+export type RealizadoGeral = { tcv: number; mrr: number; venda: number }
 
 /**
  * `realizado_periodo` já está nos tipos gerados, mas o gerador não consegue
@@ -265,9 +288,9 @@ export async function obterRealizadoGeral(
 
   const linhas = data as unknown as LinhaRealizadoPeriodo[]
   const linha = linhas.find((l) => l.usuario_id === usuarioId)
-  if (!linha) return { tcv: 0, mrr: 0 }
+  if (!linha) return { tcv: 0, mrr: 0, venda: 0 }
 
-  return { tcv: Number(linha.realizado_tcv), mrr: Number(linha.realizado_mrr) }
+  return { tcv: Number(linha.realizado_tcv), mrr: Number(linha.realizado_mrr), venda: Number(linha.realizado_venda ?? 0) }
 }
 
 // ---------------------------------------------------------------------------
