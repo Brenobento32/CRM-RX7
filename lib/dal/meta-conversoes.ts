@@ -1,6 +1,7 @@
 import 'server-only'
 
-import { banco, exigirAdministrador, falhaDoBanco, podeAdministrarIntegracoes, type Resultado } from '@/lib/dal/integracoes-oficiais'
+import { getEmpresaAtual } from '@/lib/dal/empresa'
+import { banco, chamarIntegracoes, exigirAdministrador, falhaDoBanco, podeAdministrarIntegracoes, type Resultado } from '@/lib/dal/integracoes-oficiais'
 
 /**
  * Franquia mensal do WhatsApp (painel do Administrador) e Meta Ads —
@@ -183,4 +184,32 @@ export async function reprocessarEventoMetaAds(id: number): Promise<Resultado> {
   const { rpc } = await banco()
   const { error } = await rpc('capi_reprocessar', { p_evento: id })
   return error ? falhaDoBanco(error, 'Não foi possível reenviar o evento.') : { ok: true }
+}
+
+// ------------------------------------------------------------------ Meta Ads: homologação de UM evento (Super Admin)
+export type HomologacaoCapi = {
+  disponivel: boolean
+  pronto?: boolean
+  jaFeita?: boolean
+  motivo?: string
+  negociacao?: string
+  evento?: string
+  eventId?: string
+  eventTime?: number
+  leadFinal?: string
+  dataset?: string
+  formulario?: string
+  ate?: string
+}
+
+/**
+ * Só para o Super Admin dentro do CRM pelo "Acessar CRM" (janela auditada). A
+ * Edge Function decide o resto (secret CAPI_HOMOLOGACAO, empresa, Super Admin)
+ * e, desligada, responde "indisponível" sem tocar no banco.
+ */
+export async function homologacaoCapi(): Promise<HomologacaoCapi> {
+  const empresa = await getEmpresaAtual()
+  if (!empresa.acessoGlobal) return { disponivel: false }
+  const r = await chamarIntegracoes<HomologacaoCapi>('/meta-conversoes/homologacao')
+  return r.ok ? r : { disponivel: false }
 }

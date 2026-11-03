@@ -335,6 +335,31 @@ export async function selecionarAtivosMetaAdsAction(dados: z.input<typeof esquem
   return r
 }
 
+// ------------------------------------------------------------------ Meta Ads: homologação de UM evento (Super Admin)
+export type ResultadoHomologacaoCapi = {
+  aceito: boolean
+  resultado: 'ok' | 'temporario' | 'permanente' | 'autorizacao' | 'limite'
+  erro: string | null
+  fbtrace: string | null
+  evento: string
+  eventId: string
+  dataset: string
+}
+const esquemaHomologacaoCapi = z.object({
+  negociacao: uuid,
+  codigoTeste: z.string().trim().regex(/^[A-Za-z0-9_-]{3,40}$/),
+  confirmacao: z.literal('ENVIAR 1 EVENTO'),
+})
+
+/** UM evento de homologação (o servidor e o banco conferem Super Admin, empresa, lead e repetição). */
+export async function enviarHomologacaoCapiAction(dados: { negociacao: string; codigoTeste: string; confirmacao: string }): Promise<Resultado<ResultadoHomologacaoCapi>> {
+  const v = esquemaHomologacaoCapi.safeParse(dados)
+  if (!v.success) return invalido('Informe o código de teste e digite ENVIAR 1 EVENTO para confirmar.')
+  const r = await chamarIntegracoes<ResultadoHomologacaoCapi>('/meta-conversoes/homologacao/enviar', v.data)
+  revalidatePath(`${LISTA}/meta-ads`)
+  return r
+}
+
 export async function desconectarMetaAdsLoginAction(): Promise<void> {
   const { desconectarMetaAdsLogin } = await import('@/lib/dal/meta-ads')
   const r = await desconectarMetaAdsLogin()

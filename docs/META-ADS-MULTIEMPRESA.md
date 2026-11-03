@@ -234,3 +234,55 @@ O AVANTE **nunca** cria, edita, pausa campanhas nem gera gasto.
   3. Salvar o mapeamento sugerido.
   4. Eventos de teste com código de teste do Events Manager.
   5. Ligar o envio só na Rio X7.
+
+### Homologação de UM evento, sem ligar o envio geral (preparada em 03/11/2026, só local)
+
+- **Para que serve:** conferir o payload, o dataset e a credencial do AVANTE com um único evento,
+  sem ativar a fila da empresa. A fila normal só envia com a conexão "ativa", e isso liga tudo.
+- **Migration `20261110090000_capi_homologacao_evento.sql`** (ainda não aplicada):
+  - tabela `meta_conversoes_homologacoes`, só do servidor;
+  - funções `capi_homologacao_preparar` (conferência ou reserva) e `capi_homologacao_concluir`,
+    só `service_role`.
+- **Sessão:** a Edge roda com `--no-verify-jwt`. Nas rotas da homologação, a sessão é conferida no
+  código (`auth.getUser`), a empresa vem do banco (`exigir_administrador_integracoes`, que exige a
+  janela do "Acessar CRM" para o Super Admin) e `is_super_admin` vem do JWT. O banco confere de novo a
+  janela aberta em `super_admin_acessos`. Sem o secret, a rota responde 404 antes de qualquer consulta.
+- **Travas:**
+  - só o Super Admin, com a janela do "Acessar CRM" aberta, e só empresa na lista de homologação da CAPI;
+  - só com a conexão "configurando" ou "pausada";
+  - só o dataset, o formulário, a negociação e o `lead_id` do secret;
+  - só lead **comprovadamente** da ferramenta de teste da Meta (um nome "Homologação" NÃO basta):
+    - dados fictícios gerados pela Meta (`<test lead: dummy data…>`) no contato ou nas respostas
+      gravadas na entrada;
+    - `form_id` do formulário autorizado, sem `ad_id` de anúncio;
+    - `id` da Meta igual ao `lead_id`;
+    - `created_time` da Meta nas últimas 72 h.
+    - Sem essa prova, nada é enviado.
+  - `lead_id` da própria negociação (nunca só de uma origem adicional);
+  - negociação intocada na etapa inicial, sem arquivamento, e que entrou no funil há menos de 72 h;
+  - uma homologação por negociação, sem reenvio; uma em curso por empresa; no máximo 3 em 24 h;
+  - auditoria `capi_homologacao_iniciada` / `capi_homologacao_concluida`.
+  - Nada entra em `meta_conversoes_eventos`; a conexão, a negociação e o histórico não mudam.
+- **Evento:**
+  - `Lead recebido`, no horário da entrada do lead na etapa inicial;
+  - `event_id` = `avante-homologacao-<negociação>`, que não gasta o evento real;
+  - `test_event_code` obrigatório e nunca gravado;
+  - sem valor e sem e-mail/telefone.
+- **Edge `integracoes`:** `POST /meta-conversoes/homologacao` (conferência) e
+  `/meta-conversoes/homologacao/enviar` (`{ negociacao, codigoTeste, confirmacao: "ENVIAR 1 EVENTO" }`).
+  - Desligadas sem o secret **`CAPI_HOMOLOGACAO`**:
+    `{"empresa","dataset","formulario","negociacao","lead_id","ate"}`, com prazo de no máximo 7 dias.
+- **Limite conhecido:** a ingestão da planilha só cria negociação com telefone ou e-mail válidos.
+  Se o lead de teste da Meta vier só com dados fictícios, ele não vira negociação, e a homologação
+  fica bloqueada. Nesse caso nada é enviado; outra prova exigiria ler o lead na Graph API, com a
+  Página na autorização.
+  - A tela só mostra o cartão ao Super Admin no "Acessar CRM".
+- **Testes:**
+  - `supabase/tests/capi_homologacao_test.sql`;
+  - `lib/integracoes/meta-conversoes-homologacao.test.ts`;
+  - tela no AVANTE local, com a Meta simulada: `C:/Tools/avante-local/homologacao-capi-ui.mjs`. A
+    configuração é o arquivo `homologacao-capi.json` do emulador.
+- **Desligar depois do teste:** apagar o secret `CAPI_HOMOLOGACAO`. As rotas voltam a "indisponível"
+  e o cartão some. Mesmo esquecido, o secret para de valer no prazo `ate`, de no máximo 7 dias.
+  - A tabela guarda o histórico (sem segredos).
+  - A negociação de teste deve ser arquivada.

@@ -10,10 +10,13 @@
  *   INTEGRACOES_STATE_SECRET (≥ 32), INTEGRACOES_CRON_SECRET (≥ 32), AVANTE_URL
  *   META_APP_ID, META_APP_SECRET, META_CONFIG_ID, META_VERIFY_TOKEN, META_GRAPH_VERSION (padrão v23.0)
  *   META_ADS_CONFIG_ID (opcional: Login do Facebook para Empresas do Meta Ads)
+ *   CAPI_HOMOLOGACAO (opcional, desligado por padrão: homologação de UM evento da CAPI
+ *     pelo Super Admin; JSON com empresa, dataset, formulario, negociacao, lead_id e ate — ver meta-conversoes.ts)
  */
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 import { tratarIntegracoes, type ClienteUsuario, type Dependencias } from '../_shared/integracoes-servico.ts'
+import { lerConfigHomologacao } from '../_shared/meta-conversoes.ts'
 import { HEADER_TENANT, slugDaRequisicao } from '../_shared/requisicao.ts'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
@@ -65,6 +68,8 @@ const deps: Dependencias = {
   emSegundoPlano: tarefaEmSegundoPlano(),
   // Desligar os avisos do Drive sem deploy: secret GOOGLE_AVISOS_DRIVE=desligado (vale na próxima inicialização da função).
   avisosDrive: env('GOOGLE_AVISOS_DRIVE') !== 'desligado',
+  // Homologação de UM evento da CAPI: só existe com o secret preenchido, válido e no prazo.
+  homologacaoCapi: lerConfigHomologacao(env('CAPI_HOMOLOGACAO')),
 }
 
 function tarefaEmSegundoPlano(): ((p: Promise<unknown>) => void) | undefined {

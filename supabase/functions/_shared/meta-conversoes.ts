@@ -132,6 +132,49 @@ export async function enviarEvento(buscar: Busca, graphUrl: string, token: strin
   return classificarErro(r.status, corpo)
 }
 
+// ------------------------------------------------------------------ homologação de UM evento (Super Admin)
+/**
+ * Secret CAPI_HOMOLOGACAO da Edge Function (JSON). Sem ele, inválido ou vencido:
+ * a homologação não existe. Nomeia a empresa, o dataset, o formulário, a
+ * negociação e o ID do lead de teste expressamente escolhidos; vale no máximo 7 dias.
+ *   {"empresa":"<uuid>","dataset":"<id>","formulario":"<form_id>","negociacao":"<uuid>","lead_id":"<15–17 dígitos>","ate":"<ISO 8601>"}
+ */
+export type ConfigHomologacao = { empresa: string; dataset: string; formulario: string; negociacao: string; leadId: string; ate: string }
+
+const UUID_HOMOLOGACAO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SETE_DIAS_MS = 7 * 86400000
+
+export function lerConfigHomologacao(texto: string | null | undefined): ConfigHomologacao | null {
+  if (!texto || !texto.trim()) return null
+  let o: Record<string, unknown>
+  try {
+    const v = JSON.parse(texto)
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+    o = v as Record<string, unknown>
+  } catch {
+    return null
+  }
+  const s = (k: string) => (typeof o[k] === 'string' ? (o[k] as string).trim() : '')
+  const cfg = { empresa: s('empresa'), dataset: s('dataset'), formulario: s('formulario'), negociacao: s('negociacao'), leadId: s('lead_id'), ate: s('ate') }
+  if (!UUID_HOMOLOGACAO.test(cfg.empresa) || !UUID_HOMOLOGACAO.test(cfg.negociacao)) return null
+  if (!/^[0-9]{5,30}$/.test(cfg.dataset) || !/^[0-9]{5,30}$/.test(cfg.formulario) || !/^[0-9]{15,17}$/.test(cfg.leadId)) return null
+  if (!Number.isFinite(Date.parse(cfg.ate))) return null
+  return cfg
+}
+
+/** Vigente: prazo no futuro e a no máximo 7 dias (homologação esquecida não fica ligada). */
+export function homologacaoVigente(cfg: ConfigHomologacao, agoraMs: number): boolean {
+  const fim = Date.parse(cfg.ate)
+  return Number.isFinite(fim) && fim > agoraMs && fim - agoraMs <= SETE_DIAS_MS
+}
+
+/** Texto para guardar ou mostrar sem nenhum segredo (código de teste, token). */
+export function semSegredos(texto: string, segredos: (string | null | undefined)[]): string {
+  let t = texto
+  for (const s of segredos) if (s && s.length >= 3) t = t.split(s).join('***')
+  return t.slice(0, 300)
+}
+
 // ------------------------------------------------------------------ autorização (MBE)
 async function graphJson(buscar: Busca, url: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const r = await buscar(url, init)

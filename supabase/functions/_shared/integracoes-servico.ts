@@ -41,7 +41,17 @@ import {
   type Mapeamento,
 } from './google-sheets.ts'
 import { assinaturaMetaValida, respostaVerificacao } from './meta.ts'
-import { enviarEvento, idExternoDaEmpresa, lerInstalacao, nomeDoDataset, tokenDeSistema, type EventoFila } from './meta-conversoes.ts'
+import {
+  enviarEvento,
+  homologacaoVigente,
+  idExternoDaEmpresa,
+  lerInstalacao,
+  nomeDoDataset,
+  semSegredos,
+  tokenDeSistema,
+  type ConfigHomologacao,
+  type EventoFila,
+} from './meta-conversoes.ts'
 import {
   ErroMetaAds,
   ativosLiberados,
@@ -102,6 +112,11 @@ export type Dependencias = {
    * A leitura periódica não muda.
    */
   avisosDrive?: boolean
+  /**
+   * Homologação de UM evento da CAPI pelo Super Admin (secret CAPI_HOMOLOGACAO).
+   * Ausente = desligada: as rotas respondem "indisponível" sem tocar no banco.
+   */
+  homologacaoCapi?: ConfigHomologacao | null
 }
 
 /** Executa depois da resposta quando o ambiente permite; senão, espera aqui. */
@@ -1163,6 +1178,115 @@ async function metaAdsConcluir(deps: Dependencias, req: Request): Promise<Respon
   }
 }
 
+// =============================================================== CAPI — homologação de UM evento (Super Admin)
+/**
+ * Um único evento de etapa inicial ("Lead recebido") da negociação e do lead
+ * de teste expressamente escolhidos no secret CAPI_HOMOLOGACAO, com o código
+ * de teste do Gerenciador de Eventos, SEM ativar a fila geral.
+ * Rotas com --no-verify-jwt: a sessão é conferida aqui (auth.getUser + banco),
+ * nunca pelo corpo. O banco confere de novo Super Admin, janela auditada do
+ * "Acessar CRM", empresa em homologação, envio geral desligado, dataset,
+ * formulário, prova de lead da ferramenta de teste da Meta, 72 h e repetição;
+ * o código de teste e o token nunca são gravados nem devolvidos.
+ */
+export const CONFIRMACAO_HOMOLOGACAO = 'ENVIAR 1 EVENTO'
+const indisponivel = () => erro(404, 'indisponivel', 'Homologação da CAPI indisponível.')
+type LinhaHomologacao = {
+  homologacao: string | null; dataset: string; negocio: string; nome_evento: string; id_evento: string
+  momento_unix: number | string; lead: string; credencial: string | null; ja_feita: boolean
+}
+
+async function contextoHomologacao(deps: Dependencias, req: Request): Promise<{ resposta: Response } | (ContextoAdmin & { cfg: ConfigHomologacao })> {
+  const cfg = deps.homologacaoCapi ?? null
+  if (!cfg || !homologacaoVigente(cfg, Date.now()) || !deps.meta?.appSecret) return { resposta: indisponivel() }
+  const ctx = await contextoAdmin(deps, req)
+  if ('resposta' in ctx) return { resposta: ctx.resposta! }
+  // Outra empresa: a homologação nem aparece.
+  if (ctx.tenantId !== cfg.empresa) return { resposta: indisponivel() }
+  const { data: superAdmin, error } = await ctx.usuario.rpc('is_super_admin')
+  if (error || superAdmin !== true) return { resposta: erro(403, 'sem_permissao', 'A homologação da CAPI é exclusiva do Super Admin.') }
+  return { ...ctx, cfg }
+}
+
+const argsHomologacao = (ctx: ContextoAdmin & { cfg: ConfigHomologacao }, reservar: boolean) => ({
+  p_tenant: ctx.tenantId,
+  p_usuario: ctx.userId,
+  p_negociacao: ctx.cfg.negociacao,
+  p_lead_id: ctx.cfg.leadId,
+  p_dataset: ctx.cfg.dataset,
+  p_formulario: ctx.cfg.formulario,
+  p_reservar: reservar,
+})
+
+/** POST /meta-conversoes/homologacao — o que seria enviado (nada é gravado nem enviado). */
+async function capiHomologacaoSituacao(deps: Dependencias, req: Request): Promise<Response> {
+  const ctx = await contextoHomologacao(deps, req)
+  if ('resposta' in ctx) return json(200, { ok: true, disponivel: false })
+  const { data, error } = await deps.admin.rpc('capi_homologacao_preparar', argsHomologacao(ctx, false))
+  const linha = (data as LinhaHomologacao[] | null)?.[0]
+  if (error || !linha) {
+    const regra = error && (['P0002', '23514', '23505', '42501'].includes(error.code ?? '') || (error.code ?? '').startsWith('RX'))
+    return json(200, { ok: true, disponivel: true, pronto: false, motivo: regra ? error!.message : 'Não foi possível conferir a homologação.' })
+  }
+  return json(200, {
+    ok: true,
+    disponivel: true,
+    pronto: !linha.ja_feita,
+    jaFeita: linha.ja_feita,
+    negociacao: ctx.cfg.negociacao,
+    evento: linha.nome_evento,
+    eventId: linha.id_evento,
+    eventTime: Number(linha.momento_unix),
+    leadFinal: linha.lead.slice(-4),
+    dataset: linha.dataset,
+    formulario: ctx.cfg.formulario,
+    ate: ctx.cfg.ate,
+  })
+}
+
+/** POST /meta-conversoes/homologacao/enviar — { negociacao, codigoTeste, confirmacao }: UM evento, uma vez. */
+async function capiHomologacaoEnviar(deps: Dependencias, req: Request): Promise<Response> {
+  const ctx = await contextoHomologacao(deps, req)
+  if ('resposta' in ctx) return ctx.resposta
+  const c = (await lerCorpo(req)) ?? {}
+  const codigo = typeof c.codigoTeste === 'string' ? c.codigoTeste.trim() : ''
+  if (!/^[A-Za-z0-9_-]{3,40}$/.test(codigo)) return erro(422, 'dados_invalidos', 'Informe o código de teste do Gerenciador de Eventos (aba Eventos de teste).')
+  if (c.negociacao !== ctx.cfg.negociacao) return erro(422, 'dados_invalidos', 'Negociação diferente da autorizada para a homologação.')
+  if (c.confirmacao !== CONFIRMACAO_HOMOLOGACAO) return erro(422, 'dados_invalidos', `Digite "${CONFIRMACAO_HOMOLOGACAO}" para confirmar.`)
+  const { data, error } = await deps.admin.rpc('capi_homologacao_preparar', argsHomologacao(ctx, true))
+  if (error) return erroDoBanco(error)
+  const p = (data as LinhaHomologacao[] | null)?.[0]
+  if (!p?.homologacao || !p.credencial) return erro(500, 'interno', 'Não foi possível preparar a homologação.')
+  const ev: EventoFila = {
+    evento_id: 0,
+    conexao_id: '',
+    dataset_id: p.dataset,
+    codigo_teste: codigo,
+    evento: p.nome_evento,
+    event_id: p.id_evento,
+    event_time_unix: Number(p.momento_unix),
+    lead_id: p.lead,
+    // Primeiro teste: sem valor e sem dados de contato.
+    valor: null,
+    moeda: null,
+    email: null,
+    telefone: null,
+  }
+  const r = await enviarEvento(deps.buscar, deps.meta!.graphUrl, p.credencial, deps.meta!.appSecret, ev)
+  const erroLimpo = r.erro ? semSegredos(r.erro, [codigo, p.credencial]) : null
+  await deps.admin.rpc('capi_homologacao_concluir', { p_homologacao: p.homologacao, p_resultado: r.resultado, p_erro: erroLimpo, p_fbtrace: r.fbtrace })
+  return json(200, {
+    ok: true,
+    aceito: r.resultado === 'ok',
+    resultado: r.resultado,
+    erro: erroLimpo,
+    fbtrace: r.fbtrace,
+    evento: p.nome_evento,
+    eventId: p.id_evento,
+    dataset: p.dataset,
+  })
+}
+
 /** Fila de conversões: lote com lease; por conexão, para no primeiro aviso de limite da API. */
 export async function processarConversoes(deps: Dependencias, limite = 50) {
   const resumo = { enviados: 0, rejeitados: 0, adiados: 0 }
@@ -1245,6 +1369,10 @@ export async function tratarIntegracoes(req: Request, deps: Dependencias): Promi
         return await metaAdsLoginAtivos(deps, req)
       case '/meta-ads/login/selecionar':
         return await metaAdsLoginSelecionar(deps, req)
+      case '/meta-conversoes/homologacao':
+        return await capiHomologacaoSituacao(deps, req)
+      case '/meta-conversoes/homologacao/enviar':
+        return await capiHomologacaoEnviar(deps, req)
       default:
         return erro(404, 'rota', 'Rota desconhecida.')
     }

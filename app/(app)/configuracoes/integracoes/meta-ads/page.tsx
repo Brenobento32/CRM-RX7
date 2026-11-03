@@ -15,11 +15,12 @@ import { listarResponsaveis } from '@/lib/dal/clientes'
 import { opcoesDeDestino } from '@/lib/dal/fontes-leads'
 import { integracoesHabilitadas, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
 import { metaAdsDaEmpresa } from '@/lib/dal/meta-ads'
-import { conexaoMetaAds, eventosMetaAds, funisComEtapas } from '@/lib/dal/meta-conversoes'
+import { conexaoMetaAds, eventosMetaAds, funisComEtapas, homologacaoCapi } from '@/lib/dal/meta-conversoes'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
 import { AtivosMetaAds } from './ativos-meta-ads'
 import { ConectarMetaAds } from './conectar-meta-ads'
+import { HomologacaoCapiCartao } from './homologacao-capi'
 
 export const metadata: Metadata = { title: 'Meta Ads — Conversões do CRM' }
 
@@ -56,6 +57,8 @@ export default async function MetaAdsPage({ searchParams }: { searchParams: Prom
   ])
   const elegivel = Boolean(conexao?.elegivel)
   const conectada = Boolean(conexao?.conexaoId)
+  // Só o Super Admin pelo "Acessar CRM", com a homologação ligada no servidor; para os demais, nada aparece.
+  const homologacao = conectada && podeGerir ? await homologacaoCapi() : { disponivel: false }
   const mapa = new Map((conexao?.mapeamento ?? []).map((m) => [m.etapaId, m]))
   const monitorados = new Set(conexao?.funis ?? [])
   const s = conexao?.situacao ? SITUACAO[conexao.situacao] : null
@@ -208,6 +211,17 @@ export default async function MetaAdsPage({ searchParams }: { searchParams: Prom
               )}
             </div>
           </Secao>
+
+          {conectada && homologacao.disponivel && (
+            <Secao
+              titulo="Homologação de 1 evento (Super Admin)"
+              descricao="Envia UM evento de etapa inicial do lead de homologação autorizado, com o código de teste, sem ativar o envio geral. Uma vez por negociação, sem reenvio."
+            >
+              <div className="pb-5">
+                <HomologacaoCapiCartao situacao={homologacao} />
+              </div>
+            </Secao>
+          )}
 
           {conectada && (
             <Secao titulo="2. Funis e eventos" descricao="Escolha os funis monitorados e o nome do evento de cada etapa. A Meta recomenda enviar todas as etapas, na ordem, inclusive a de lead recebido. Etapa sem nome não é enviada.">
