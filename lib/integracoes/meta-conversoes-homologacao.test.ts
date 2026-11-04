@@ -124,6 +124,8 @@ describe('configuração (secret CAPI_HOMOLOGACAO)', () => {
     expect(lerConfigHomologacao(JSON.stringify({ ...base, dataset: 'abc' }))).toBeNull()
     expect(lerConfigHomologacao(JSON.stringify({ ...base, ate: 'amanhã' }))).toBeNull()
     expect(lerConfigHomologacao(JSON.stringify({ ...base, formulario: undefined }))).toBeNull()
+    // O formulário autorizado leva só os dígitos; o "f:" da planilha é tratado no banco (20261111090000).
+    expect(lerConfigHomologacao(JSON.stringify({ ...base, formulario: `f:${FORM}` }))).toBeNull()
     expect(lerConfigHomologacao(JSON.stringify(base))).toEqual({ empresa: T_A, dataset: DS, formulario: FORM, negociacao: NEG, leadId: LEAD, ate: base.ate })
   })
 

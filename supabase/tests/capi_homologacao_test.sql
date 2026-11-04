@@ -1,6 +1,8 @@
 set client_encoding = 'UTF8'; -- arquivo em UTF-8 (acentos das mensagens)
 -- ===========================================================================
--- Teste: homologação de UM evento da CAPI (migration 20261110090000).
+-- Teste: homologação de UM evento da CAPI (migration 20261110090000, com a
+-- correção 20261111090000; formato real da planilha, prova e deduplicação em
+-- capi_homologacao_formulario_test.sql).
 -- ONDE RODAR: só cópia LOCAL crm_rx7_*. Termina em ROLLBACK.
 --
 --  H1–H6   quem e o quê: só Super Admin COM a janela do "Acessar CRM", só
@@ -96,7 +98,9 @@ begin
     ('created_time', to_char((now() - p_criado) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"+0000"'), 3),
     ('is_organic', 'true', 4),
     ('ad_id', coalesce(p_ad, ''), 5),
-    ('Qual é o nome da sua Empresa?', case when p_teste then '<test lead: dummy data for qual_é_o_nome_da_sua_empresa?>' else 'Escola Real Ltda' end, 6)
+    ('Qual é o nome da sua Empresa?', case when p_teste then '<test lead: dummy data for qual_é_o_nome_da_sua_empresa?>' else 'Escola Real Ltda' end, 6),
+    -- A ferramenta preenche todas as perguntas; 20261111090000 exige os dados fictícios em dois campos.
+    ('Qual o maior desafio hoje?', case when p_teste then '<test lead: dummy data for qual_o_maior_desafio_hoje?>' else 'Captar alunos' end, 7)
   ) x(c, v, o) where v <> '';
   return v_neg;
 end;
