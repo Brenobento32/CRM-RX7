@@ -661,7 +661,8 @@ async function whatsappConcluir(deps: Dependencias, req: Request): Promise<Respo
   }
   const base = { ok: true, numero: numeroId, numeroExibicao: numero.numeroExibicao, nomeVerificado: numero.nomeVerificado, modo }
   // Coexistência: a Meta não pede registro (o número já está no app WhatsApp Business).
-  // Pede logo a sincronização (contatos e histórico): a Meta só aceita nas 24 h após a conexão, uma vez por tipo.
+  // Pede logo só os CONTATOS (nomes das conversas; a Meta aceita nas 24 h após a conexão).
+  // O histórico antigo só com autorização separada do Administrador (/whatsapp/historico).
   if (modo === 'coexistencia') {
     const sincronizacao = await pedirSincronizacoes(deps, numeroId, token, phone)
     return json(200, { ...base, situacao: 'conectado', sincronizacao })
@@ -673,21 +674,50 @@ async function whatsappConcluir(deps: Dependencias, req: Request): Promise<Respo
   return json(200, { ...base, ...(await registrarComPin(deps, ctx.usuario, numeroId, pin, token)) })
 }
 
-/** Contatos primeiro, depois histórico (ordem da documentação). Falha não desfaz a conexão: fica registrada. */
+/** Só os contatos do app na conexão. Falha não desfaz a conexão: fica registrada. */
 async function pedirSincronizacoes(deps: Dependencias, numeroId: string, token: string, phone: string): Promise<Record<string, string>> {
-  const saida: Record<string, string> = {}
-  for (const [tipo, sync] of [['contatos', 'smb_app_state_sync'], ['historico', 'history']] as const) {
-    try {
-      const requestId = await pedirSincronizacaoApp(deps.buscar, deps.meta!, token, phone, sync)
-      await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: tipo, p_ok: true, p_request_id: requestId, p_erro: null })
-      saida[tipo] = 'pedida'
-    } catch (e) {
-      const msg = e instanceof ErroMeta ? e.message : 'Falha ao falar com a Meta.'
-      await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: tipo, p_ok: false, p_request_id: null, p_erro: msg })
-      saida[tipo] = 'erro'
-    }
+  return { contatos: await pedirUmaSincronizacao(deps, numeroId, token, phone, 'contatos', 'smb_app_state_sync') }
+}
+
+async function pedirUmaSincronizacao(
+  deps: Dependencias, numeroId: string, token: string, phone: string, tipo: 'contatos' | 'historico', sync: 'smb_app_state_sync' | 'history',
+): Promise<'pedida' | 'erro'> {
+  try {
+    const requestId = await pedirSincronizacaoApp(deps.buscar, deps.meta!, token, phone, sync)
+    await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: tipo, p_ok: true, p_request_id: requestId, p_erro: null })
+    return 'pedida'
+  } catch (e) {
+    const msg = e instanceof ErroMeta ? e.message : 'Falha ao falar com a Meta.'
+    await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: tipo, p_ok: false, p_request_id: null, p_erro: msg })
+    return 'erro'
   }
-  return saida
+}
+
+/**
+ * Histórico antigo do app (até 6 meses, só conversas individuais), com autorização SEPARADA do
+ * Administrador: o banco confere (Administrador, WhatsApp liberado, coexistência, conectado,
+ * dentro das 24 h da conexão, uma vez por conexão), registra o pedido e audita; só então a Meta é
+ * chamada. O histórico nunca cria lead.
+ */
+async function whatsappHistorico(deps: Dependencias, req: Request): Promise<Response> {
+  if (!deps.meta?.appId || !deps.meta.appSecret) return erro(503, 'nao_configurado', 'A integração com a Meta ainda não foi configurada na plataforma.')
+  const ctx = await contextoAdmin(deps, req)
+  if ('resposta' in ctx) return ctx.resposta!
+  const c = (await lerCorpo(req)) ?? {}
+  const numeroId = uuid(c.numero)
+  if (!numeroId) return erro(422, 'dados_invalidos', 'Número inválido.')
+  if (c.confirmar !== true) return erro(422, 'confirmacao', 'Confirme a importação do histórico.')
+  const { data: phone, error } = await ctx.usuario.rpc('whatsapp_historico_autorizar', { p_numero: numeroId })
+  if (error || typeof phone !== 'string') return erroDoBanco(error)
+  const { data: cred } = await deps.admin.rpc('whatsapp_obter_token', { p_numero: numeroId })
+  const token = (cred as { token: string }[] | null)?.[0]?.token
+  if (!token) {
+    await deps.admin.rpc('whatsapp_sincronizacao_registrar', { p_numero: numeroId, p_tipo: 'historico', p_ok: false, p_request_id: null, p_erro: 'Número sem credencial válida.' })
+    return erro(503, 'sem_credencial', 'O número não está pronto (credencial ausente).')
+  }
+  const situacao = await pedirUmaSincronizacao(deps, numeroId, token, phone, 'historico', 'history')
+  if (situacao === 'erro') return erro(502, 'meta_historico', 'A Meta não aceitou o pedido do histórico. Veja o motivo em Integrações.')
+  return json(200, { ok: true, situacao })
 }
 
 /**
@@ -1359,6 +1389,8 @@ export async function tratarIntegracoes(req: Request, deps: Dependencias): Promi
         return await whatsappRegistrar(deps, req)
       case '/whatsapp/enviar':
         return await whatsappEnviar(deps, req)
+      case '/whatsapp/historico':
+        return await whatsappHistorico(deps, req)
       case '/meta-ads/config':
         return await metaAdsConfig(deps, req)
       case '/meta-ads/concluir':

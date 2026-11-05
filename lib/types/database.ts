@@ -2119,6 +2119,7 @@ export type Database = {
           direcao: Database["public"]["Enums"]["direcao_mensagem"] | null
           encaminhada_de_id: string | null
           id: string | null
+          origem_app: string | null
           resposta_a_conteudo: string | null
           resposta_a_direcao:
             | Database["public"]["Enums"]["direcao_mensagem"]
@@ -2142,6 +2143,7 @@ export type Database = {
           direcao?: Database["public"]["Enums"]["direcao_mensagem"] | null
           encaminhada_de_id?: string | null
           id?: string | null
+          origem_app?: string | null
           resposta_a_conteudo?: string | null
           resposta_a_direcao?:
             | Database["public"]["Enums"]["direcao_mensagem"]
@@ -2165,6 +2167,7 @@ export type Database = {
           direcao?: Database["public"]["Enums"]["direcao_mensagem"] | null
           encaminhada_de_id?: string | null
           id?: string | null
+          origem_app?: string | null
           resposta_a_conteudo?: string | null
           resposta_a_direcao?:
             | Database["public"]["Enums"]["direcao_mensagem"]

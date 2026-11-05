@@ -15,6 +15,7 @@ import { listarResponsaveis } from '@/lib/dal/clientes'
 import { listarFontes, opcoesDeDestino, podeGerirFontes } from '@/lib/dal/fontes-leads'
 import {
   consumoWhatsapp,
+  inicializacaoWhatsapp,
   integracoesHabilitadas,
   listarContasGoogle,
   listarIntegracoesOficiais,
@@ -67,7 +68,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') notFound()
 
-  const [central, todasFontes, podeGerir, opcoes, responsaveis, params, oficiais, contas, consumo, podeConectar, franquia, metaAds, habilitadas, monitoramento, sincronizacoes, loginAds] =
+  const [central, todasFontes, podeGerir, opcoes, responsaveis, params, oficiais, contas, consumo, podeConectar, franquia, metaAds, habilitadas, monitoramento, sincronizacoes, loginAds, inicializacao] =
     await Promise.all([
       centralDaEmpresa(),
       listarFontes(),
@@ -85,6 +86,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
       monitoramentoDasPlanilhas(),
       sincronizacoesWhatsapp(),
       metaAdsDaEmpresa(),
+      inicializacaoWhatsapp(),
     ])
   const erro = typeof params.erro === 'string' ? params.erro : null
   const ok = typeof params.ok === 'string' ? params.ok : null
@@ -178,6 +180,7 @@ export default async function IntegracoesPage({ searchParams }: { searchParams: 
         franquia={franquia}
         habilitada={habilitadas.whatsappOficial}
         sincronizacoes={sincronizacoes}
+        inicializacao={inicializacao}
         modo="coexistencia"
       />
     ),

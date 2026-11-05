@@ -86,7 +86,7 @@ export function AssistenteWhatsapp({
   return (
     <div className="space-y-5">
       {erro && <Aviso tom="erro">{erro}</Aviso>}
-      <Secao titulo="1. Destino dos leads" descricao="Contato novo que escrever para o número entra aqui. Quem já é cliente desta empresa tem a conversa vinculada, sem criar nem mover negociação.">
+      <Secao titulo="1. Destino dos leads" descricao="Contato novo que escrever para o número entra aqui. Quem já é cliente desta empresa é reaproveitado: com negociação aberta neste funil, só a conversa é vinculada (nada é movido); sem negociação aberta, abre uma nova oportunidade.">
         <div className="space-y-4 pb-5">
           <label className="block text-sm">
             <span className={labelClass}>Nome da conexão</span>
@@ -146,12 +146,21 @@ export function AssistenteWhatsapp({
           </fieldset>
           {tipoNumero === 'app' ? (
             <ul className="list-disc space-y-1 pl-5 text-xs text-premium-secundario">
-              <li>Mensagens enviadas pelo celular também aparecem no AVANTE (como enviadas pelo app).</li>
+              <li>O app do celular continua funcionando com o mesmo número. Mensagens enviadas pelo celular também aparecem no AVANTE (como enviadas pelo app).</li>
               <li>
-                Histórico: a Meta só envia conversas dos últimos 180 dias se você aceitar compartilhar no app. O AVANTE pede logo após a conexão (a Meta dá 24 h,
-                uma vez só). Conversas antigas entram no histórico, mas não criam negociações.
+                Depois de conectar, o número fica em <strong>inicialização</strong>: as mensagens chegam em Conversas, mas ninguém vira lead até o Administrador
+                concluir em Integrações (quando os contatos do app chegarem e depois de decidir sobre o histórico). Assim, clientes antigos do app não entram no
+                funil como lead novo.
               </li>
-              <li>Grupos não são sincronizados.</li>
+              <li>
+                Concluída a inicialização, quem escrever pela primeira vez vira lead no destino do passo 1. Conversas iniciadas pelo celular, mensagens antigas e
+                contatos da agenda do app não criam negociações sozinhos (os da agenda vão para revisão).
+              </li>
+              <li>
+                Histórico: no app, a Meta pergunta se você quer compartilhar as conversas antigas. Mesmo aceitando, o AVANTE só importa depois que o Administrador
+                autorizar em Integrações, durante a inicialização (a Meta dá 24 h após a conexão, uma vez só, até 6 meses de conversas).
+              </li>
+              <li>Grupos, chamadas e mensagens de visualização única não passam para o AVANTE. Aparelhos conectados ao WhatsApp (computador, WhatsApp Web) podem ser desconectados pela Meta e precisam ser conectados de novo no app.</li>
             </ul>
           ) : (
             <>

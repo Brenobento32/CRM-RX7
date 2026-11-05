@@ -10,7 +10,10 @@ import {
   acaoWhatsapp,
   alterarDestino,
   chamarIntegracoes,
+  concluirInicializacao,
   criarPlanilha,
+  levarConversaAoFunil,
+  marcarConversaRevisada,
   type Resultado,
 } from '@/lib/dal/integracoes-oficiais'
 import { acaoMetaAds, configurarMetaAds, reprocessarEventoMetaAds } from '@/lib/dal/meta-conversoes'
@@ -207,6 +210,54 @@ export async function acaoWhatsappAction(fd: FormData): Promise<void> {
     revisar_cobranca: 'Aviso de cobrança revisado. O número continua em "Somente envios gratuitos".',
   }
   voltar('ok', msg[acao])
+}
+
+/**
+ * Histórico antigo do app WhatsApp Business: autorização SEPARADA do Administrador (confirmação
+ * marcada na tela). O banco confere prazo e repetição; o histórico nunca cria lead.
+ */
+export async function importarHistoricoWhatsappAction(fd: FormData): Promise<void> {
+  const numero = texto(fd, 'numero')
+  if (!uuid.safeParse(numero).success) voltar('erro', 'Número inválido.')
+  if (texto(fd, 'confirmar') !== 'sim') voltar('erro', 'Marque a confirmação para importar o histórico.')
+  const r = await chamarIntegracoes('/whatsapp/historico', { numero, confirmar: true })
+  if (!r.ok) voltar('erro', r.mensagem)
+  voltar('ok', 'Histórico pedido à Meta. As conversas antigas chegam aos poucos, sem criar leads.')
+}
+
+/** Liga os leads automáticos do número do app depois de contatos recebidos e histórico decidido. */
+export async function concluirInicializacaoWhatsappAction(fd: FormData): Promise<void> {
+  const numero = texto(fd, 'numero')
+  if (!uuid.safeParse(numero).success) voltar('erro', 'Número inválido.')
+  const r = await concluirInicializacao(numero)
+  if (!r.ok) voltar('erro', r.mensagem)
+  voltar(
+    'ok',
+    r.aRevisar > 0
+      ? `Leads automáticos ligados. ${r.aRevisar} conversa(s) recebida(s) na inicialização aguardam sua revisão em Conversas.`
+      : 'Leads automáticos ligados para este número.',
+  )
+}
+
+function voltarConversa(conversa: string, r: Resultado, okMsg: string): never {
+  revalidatePath('/conversas')
+  const chave = r.ok ? 'ok' : 'erro'
+  const msg = r.ok ? okMsg : r.mensagem
+  redirect(`/conversas?c=${conversa}&${chave}=${encodeURIComponent(msg)}`)
+}
+
+/** Conversa (ex.: contato do app ou de origem a revisar) levada ao funil do número, pelo Administrador. */
+export async function levarConversaAoFunilAction(fd: FormData): Promise<void> {
+  const conversa = texto(fd, 'conversa')
+  if (!uuid.safeParse(conversa).success) redirect('/conversas')
+  voltarConversa(conversa, await levarConversaAoFunil(conversa), 'Negociação criada no funil do número.')
+}
+
+/** Revisão de origem: o contato não é lead novo (fica só a conversa). */
+export async function marcarConversaRevisadaAction(fd: FormData): Promise<void> {
+  const conversa = texto(fd, 'conversa')
+  if (!uuid.safeParse(conversa).success) redirect('/conversas')
+  voltarConversa(conversa, await marcarConversaRevisada(conversa), 'Conversa revisada: fica só no atendimento, sem lead.')
 }
 
 export type EstadoEnvio = { ok?: boolean; erro?: string; codigo?: string }

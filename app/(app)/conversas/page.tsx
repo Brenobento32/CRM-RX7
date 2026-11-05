@@ -2,10 +2,18 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { PageHeaderPremium } from '@/components/layout/page-header-premium'
-import { Aviso } from '@/components/ui/aviso'
+import { Aviso, AvisoDaUrl } from '@/components/ui/aviso'
 import { EstadoVazio } from '@/components/ui/estado-vazio'
 import { Selo } from '@/components/ui/selo'
-import { integracoesHabilitadas, janelaDaConversa, listarConversasOficiais, mensagensDaConversa } from '@/lib/dal/integracoes-oficiais'
+import { levarConversaAoFunilAction, marcarConversaRevisadaAction } from '@/lib/actions/integracoes-oficiais'
+import {
+  conversaNoFunil,
+  conversasARevisar,
+  integracoesHabilitadas,
+  janelaDaConversa,
+  listarConversasOficiais,
+  mensagensDaConversa,
+} from '@/lib/dal/integracoes-oficiais'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
 import { AtualizarSozinho } from './atualizar-sozinho'
@@ -15,6 +23,7 @@ export const metadata: Metadata = { title: 'Conversas' }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const STATUS: Record<string, string> = { enviando: 'Enviando…', enviado: 'Enviada', entregue: 'Entregue', lido: 'Lida', falhou: 'Falhou', pendente: 'Pendente' }
+const ORIGEM_APP = { eco_app: 'pelo app WhatsApp Business', historico: 'histórico do app' } as const
 
 /**
  * Caixa de entrada do WhatsApp oficial. O banco decide quem vê o quê
@@ -31,15 +40,19 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
       </div>
     )
   }
-  const conversas = await listarConversasOficiais()
+  const [conversas, revisar] = await Promise.all([listarConversasOficiais(), conversasARevisar()])
+  const aRevisar = new Set(revisar)
   const pedida = typeof params.c === 'string' && UUID.test(params.c) ? params.c : null
   const atual = conversas.find((c) => c.id === pedida) ?? null
-  const [mensagens, janela] = atual ? await Promise.all([mensagensDaConversa(atual.id), janelaDaConversa(atual.id)]) : [[], null]
+  const [mensagens, janela, noFunil] = atual
+    ? await Promise.all([mensagensDaConversa(atual.id), janelaDaConversa(atual.id), conversaNoFunil(atual.id)])
+    : [[], null, null]
 
   return (
     <div className="space-y-5">
       <PageHeaderPremium titulo="Conversas" subtitulo="WhatsApp oficial da empresa. Você vê as conversas dos clientes que atende." />
       <AtualizarSozinho segundos={20} />
+      <AvisoDaUrl ok={params.ok} erro={params.erro} />
       {conversas.length === 0 ? (
         <EstadoVazio
           titulo="Nenhuma conversa por aqui"
@@ -58,7 +71,10 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate font-medium text-premium-texto">{c.clienteNome ?? c.nomeContato ?? c.telefone}</span>
-                      {c.previaDirecao === 'entrada' && <Selo tom="ambar">Aguardando resposta</Selo>}
+                      <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                        {aRevisar.has(c.id) && <Selo tom="roxo">Revisar</Selo>}
+                        {c.previaDirecao === 'entrada' && c.ultimaEntradaEm && <Selo tom="ambar">Aguardando resposta</Selo>}
+                      </span>
                     </span>
                     <span className="block truncate text-xs text-premium-mudo">{c.previa ?? '—'}</span>
                     <span className="block text-[11px] text-premium-mudo">
@@ -82,12 +98,51 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                       +{atual.telefone} · pelo número {atual.numero ?? 'oficial'}
                     </p>
                   </div>
-                  {atual.clienteId && (
-                    <Link href={`/clientes/${atual.clienteId}`} className="text-sm font-medium text-premium-acento hover:underline">
-                      Abrir cliente
-                    </Link>
-                  )}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {noFunil?.revisarOrigem && <Selo tom="roxo">Origem a revisar</Selo>}
+                    {noFunil?.contatoDoApp && !noFunil.revisarOrigem && !noFunil.negociacaoId && <Selo tom="azul">Contato do app</Selo>}
+                    {noFunil?.negociacaoId && (
+                      <Link href={`/negociacoes/${noFunil.negociacaoId}/editar`} className="text-sm font-medium text-premium-acento hover:underline">
+                        Negociação{noFunil.funil ? `: ${noFunil.funil}` : ''}
+                        {noFunil.etapa ? ` › ${noFunil.etapa}` : ''}
+                      </Link>
+                    )}
+                    {noFunil?.podeLevar && (
+                      <form action={levarConversaAoFunilAction}>
+                        <input type="hidden" name="conversa" value={atual.id} />
+                        <button type="submit" className="rounded-lg border border-premium-borda px-3 py-1.5 text-sm font-medium text-premium-texto hover:bg-premium-bg">
+                          Levar para o funil
+                        </button>
+                      </form>
+                    )}
+                    {noFunil?.revisarOrigem && (
+                      <form action={marcarConversaRevisadaAction}>
+                        <input type="hidden" name="conversa" value={atual.id} />
+                        <button type="submit" className="rounded-lg px-3 py-1.5 text-sm font-medium text-premium-secundario hover:bg-premium-bg">
+                          Não é lead novo
+                        </button>
+                      </form>
+                    )}
+                    {noFunil && !noFunil.negociacaoId && !noFunil.fonteAtiva && (
+                      <span className="text-xs text-premium-mudo">Entrada de leads deste número pausada</span>
+                    )}
+                    {(atual.clienteId ?? noFunil?.clienteId) && (
+                      <Link href={`/clientes/${atual.clienteId ?? noFunil?.clienteId}`} className="text-sm font-medium text-premium-acento hover:underline">
+                        Abrir cliente
+                      </Link>
+                    )}
+                  </div>
                 </header>
+                {(noFunil?.revisarOrigem || noFunil?.emInicializacao) && (
+                  <div className="border-b border-premium-borda-suave px-5 py-2 text-xs text-premium-secundario">
+                    {noFunil.emInicializacao
+                      ? 'Número do app em inicialização: as mensagens não viram lead sozinhas até o Administrador concluir em Integrações. '
+                      : ''}
+                    {noFunil.revisarOrigem
+                      ? 'O AVANTE não tem como saber se este contato já era cliente no app (escreveu durante a inicialização ou está na agenda do app). Se for lead novo, leve para o funil.'
+                      : ''}
+                  </div>
+                )}
                 <ol className="flex max-h-[55vh] flex-1 flex-col gap-2 overflow-y-auto px-5 py-4">
                   {mensagens.map((m) => (
                     <li
@@ -100,6 +155,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                       <p className="mt-1 text-[11px] text-premium-mudo">
                         {formatarDataHoraCompleta(m.createdAt)}
                         {m.direcao === 'saida' && m.status ? ` · ${STATUS[m.status] ?? m.status}` : ''}
+                        {m.origemApp ? ` · ${ORIGEM_APP[m.origemApp]}` : ''}
                       </p>
                     </li>
                   ))}

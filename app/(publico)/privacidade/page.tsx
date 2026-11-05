@@ -155,6 +155,7 @@ export default function PrivacidadePage() {
           itens={[
             'O número de WhatsApp Business é conectado pela própria empresa, na janela oficial da Meta (WhatsApp Cloud API). Cada número pertence a uma única empresa no AVANTE.',
             'Mensagens recebidas são guardadas para o atendimento da empresa dona do número. Respostas só saem dentro da janela de atendimento de 24 horas aberta pelo cliente; o AVANTE não faz envio em massa nem mensagens de marketing.',
+            'Quando a empresa mantém o número no aplicativo WhatsApp Business do celular (coexistência oficial da Meta), o AVANTE também recebe da Meta as mensagens que a empresa envia pelo celular e os nomes e telefones da agenda do aplicativo, usados para nomear as conversas e para não tratar clientes antigos como leads novos. O histórico de conversas antigas (até 6 meses, conversas individuais) só é importado se a empresa aceitar compartilhar no aplicativo e o Administrador autorizar no AVANTE.',
             'O PIN de verificação em duas etapas digitado para registrar o número é repassado à Meta e não é guardado pelo AVANTE.',
             'Conversões de anúncios (quando a empresa ativar): o AVANTE envia à Meta eventos do funil, como lead qualificado ou venda, com o identificador do lead fornecido pela própria Meta, sem nome, telefone ou e-mail do contato.',
           ]}

@@ -203,6 +203,8 @@ begin
   perform public._ok(v_j ->> 'ignorado' is null, 'W6 número ativo da mesma conta: mensagem entra');
   v_j := public.whatsapp_registrar_status('550000000000005', 'wamid.IW5', 'read', false, null, null, null);
   perform public._ok(v_j ->> 'ignorado' is null and v_j ? 'mensagem', 'W6 …e o status é processado pela função de sempre');
+  -- Desde 20261114090000 o andamento só vale para histórico pedido com autorização (pedido registrado).
+  perform public.whatsapp_sincronizacao_registrar(n_x, 'historico', true, 'req-w6', null);
   perform public.whatsapp_historico_andamento('550000000000005', 1, 40, false);
   perform public._como(null, null);
   perform public._ok(exists (select 1 from public.whatsapp_sincronizacoes where numero_id = n_x and tipo = 'historico' and progresso = 40),

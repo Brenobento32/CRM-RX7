@@ -282,7 +282,16 @@ export async function listarConversasOficiais(limite = 100): Promise<ConversaOfi
   }))
 }
 
-export type MensagemOficial = { id: string; direcao: 'entrada' | 'saida'; tipo: string; conteudo: string | null; status: string | null; createdAt: string }
+export type MensagemOficial = {
+  id: string
+  direcao: 'entrada' | 'saida'
+  tipo: string
+  conteudo: string | null
+  status: string | null
+  createdAt: string
+  /** Coexistência: enviada pelo app WhatsApp Business no celular, ou vinda do histórico do app. */
+  origemApp: 'eco_app' | 'historico' | null
+}
 
 /** Últimas mensagens da conversa (RLS de mensagens: mesma regra da carteira). */
 export async function mensagensDaConversa(conversaId: string, limite = 80): Promise<MensagemOficial[]> {
@@ -290,7 +299,7 @@ export async function mensagensDaConversa(conversaId: string, limite = 80): Prom
   const { supabase } = await banco()
   const { data, error } = await supabase
     .from('mensagens_visiveis')
-    .select('id, direcao, tipo, conteudo, status, created_at')
+    .select('id, direcao, tipo, conteudo, status, created_at, origem_app')
     .eq('conversa_id', conversaId)
     .order('created_at', { ascending: false })
     .limit(limite)
@@ -298,7 +307,17 @@ export async function mensagensDaConversa(conversaId: string, limite = 80): Prom
   // View: colunas chegam anuláveis nos tipos gerados, mas são NOT NULL na tabela.
   return (data ?? []).reverse().flatMap((m) =>
     m.id && m.direcao && m.created_at
-      ? [{ id: m.id, direcao: m.direcao, tipo: m.tipo ?? 'texto', conteudo: m.conteudo, status: m.status, createdAt: m.created_at }]
+      ? [
+          {
+            id: m.id,
+            direcao: m.direcao,
+            tipo: m.tipo ?? 'texto',
+            conteudo: m.conteudo,
+            status: m.status,
+            createdAt: m.created_at,
+            origemApp: m.origem_app === 'eco_app' || m.origem_app === 'historico' ? m.origem_app : null,
+          },
+        ]
       : [],
   )
 }
@@ -422,5 +441,135 @@ export async function sincronizacoesWhatsapp(): Promise<SincronizacaoWhatsapp[]>
   } catch {
     return []
   }
+}
+
+/**
+ * Inicialização do número do app (coexistência): até o Administrador concluir, nenhuma mensagem
+ * vira lead sozinha. Mostra contatos, histórico (prazo da Meta de 24 h) e conversas para revisar.
+ */
+export type InicializacaoWhatsapp = {
+  numeroId: string
+  emInicializacao: boolean
+  concluidaEm: string | null
+  prazoHistorico: string
+  podePedirHistorico: boolean
+  historico: 'nao_pedido' | 'prazo_encerrado' | 'nao_importado' | SincronizacaoWhatsapp['situacao']
+  contatos: 'nao_pedido' | 'sem_resposta' | SincronizacaoWhatsapp['situacao']
+  /** O que ainda impede concluir: contatos chegando ou histórico chegando. */
+  pendencia: 'contatos' | 'historico' | null
+  aRevisar: number
+}
+
+export async function inicializacaoWhatsapp(): Promise<InicializacaoWhatsapp[]> {
+  if (!(await podeAdministrarIntegracoes())) return []
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('whatsapp_inicializacao_da_empresa')
+    if (error || !Array.isArray(data)) return []
+    return (
+      data as {
+        numero_id: string; em_inicializacao: boolean; concluida_em: string | null; prazo_historico: string; pode_pedir_historico: boolean
+        historico: InicializacaoWhatsapp['historico']; contatos: InicializacaoWhatsapp['contatos']; pendencia: InicializacaoWhatsapp['pendencia']; a_revisar: number
+      }[]
+    ).map((i) => ({
+      numeroId: i.numero_id,
+      emInicializacao: Boolean(i.em_inicializacao),
+      concluidaEm: i.concluida_em,
+      prazoHistorico: i.prazo_historico,
+      podePedirHistorico: Boolean(i.pode_pedir_historico),
+      historico: i.historico,
+      contatos: i.contatos,
+      pendencia: i.pendencia,
+      aRevisar: i.a_revisar ?? 0,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function concluirInicializacao(numeroId: string): Promise<Resultado<{ aRevisar: number; contatosAgenda: number }>> {
+  const recusa = await exigirAdministrador()
+  if (recusa) return recusa
+  const { rpc } = await banco()
+  const { data, error } = await rpc('whatsapp_inicializacao_concluir', { p_numero: numeroId })
+  const r = data as { a_revisar: number; contatos_agenda: number } | null
+  if (error || !r) return falhaDoBanco(error, 'Não foi possível concluir a inicialização.')
+  return { ok: true, aRevisar: r.a_revisar, contatosAgenda: r.contatos_agenda }
+}
+
+/** Conversas de origem incerta aguardando a revisão do Administrador (vazio para os demais cargos). */
+export async function conversasARevisar(): Promise<string[]> {
+  if (!(await podeAdministrarIntegracoes())) return []
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('whatsapp_conversas_a_revisar')
+    if (error || !Array.isArray(data)) return []
+    // Função "setof uuid": o PostgREST devolve uma lista de textos.
+    return (data as unknown[]).filter((x): x is string => typeof x === 'string')
+  } catch {
+    return []
+  }
+}
+
+/** Revisão de origem: o Administrador marca que o contato não é lead novo (fica só a conversa). */
+export async function marcarConversaRevisada(conversaId: string): Promise<Resultado> {
+  const recusa = await exigirAdministrador()
+  if (recusa) return recusa
+  const { rpc } = await banco()
+  const { error } = await rpc('whatsapp_conversa_revisada', { p_conversa: conversaId })
+  return error ? falhaDoBanco(error, 'Não foi possível marcar a conversa.') : { ok: true }
+}
+
+/** Conversa no funil do número (só o Administrador vê; demais cargos recebem null). */
+export type ConversaNoFunil = {
+  contatoDoApp: boolean
+  clienteId: string | null
+  negociacaoId: string | null
+  funil: string | null
+  etapa: string | null
+  fonteAtiva: boolean
+  podeLevar: boolean
+  /** Contato de origem incerta (inicialização ou agenda do app): sem lead automático até revisar. */
+  revisarOrigem: boolean
+  /** Número do app ainda em inicialização (leads automáticos em espera). */
+  emInicializacao: boolean
+}
+
+export async function conversaNoFunil(conversaId: string): Promise<ConversaNoFunil | null> {
+  if (!(await podeAdministrarIntegracoes())) return null
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('whatsapp_conversa_no_funil', { p_conversa: conversaId })
+    const c = (
+      data as {
+        contato_do_app: boolean; cliente_id: string | null; negociacao_id: string | null; funil: string | null; etapa: string | null
+        fonte_ativa: boolean; pode_levar: boolean; revisar_origem: boolean; em_inicializacao: boolean
+      }[] | null
+    )?.[0]
+    if (error || !c) return null
+    return {
+      contatoDoApp: Boolean(c.contato_do_app),
+      clienteId: c.cliente_id,
+      negociacaoId: c.negociacao_id,
+      funil: c.funil,
+      etapa: c.etapa,
+      fonteAtiva: Boolean(c.fonte_ativa),
+      podeLevar: Boolean(c.pode_levar),
+      revisarOrigem: Boolean(c.revisar_origem),
+      emInicializacao: Boolean(c.em_inicializacao),
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Administrador leva a conversa (ex.: contato do app) para o funil configurado no número. */
+export async function levarConversaAoFunil(conversaId: string): Promise<Resultado<{ negociacaoId: string }>> {
+  const recusa = await exigirAdministrador()
+  if (recusa) return recusa
+  const { rpc } = await banco()
+  const { data, error } = await rpc('whatsapp_conversa_levar_ao_funil', { p_conversa: conversaId })
+  if (error || typeof data !== 'string') return falhaDoBanco(error, 'Não foi possível levar a conversa para o funil.')
+  return { ok: true, negociacaoId: data }
 }
 

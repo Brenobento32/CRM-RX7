@@ -11,9 +11,18 @@ import {
   acaoWhatsappAction,
   alterarDestinoAction,
   desconectarGoogleAction,
+  concluirInicializacaoWhatsappAction,
+  importarHistoricoWhatsappAction,
   sincronizarAgoraAction,
 } from '@/lib/actions/integracoes-oficiais'
-import type { ConsumoWhatsapp, ContaGoogle, IntegracaoOficial, MonitoramentoPlanilha, SincronizacaoWhatsapp } from '@/lib/dal/integracoes-oficiais'
+import type {
+  ConsumoWhatsapp,
+  ContaGoogle,
+  InicializacaoWhatsapp,
+  IntegracaoOficial,
+  MonitoramentoPlanilha,
+  SincronizacaoWhatsapp,
+} from '@/lib/dal/integracoes-oficiais'
 import type { ConexaoMetaAds, FranquiaWhatsapp } from '@/lib/dal/meta-conversoes'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
@@ -118,12 +127,15 @@ export function PainelWhatsapp({
   franquia,
   habilitada,
   sincronizacoes = [],
+  inicializacao = [],
   modo = 'cloud_api',
 }: PropsPainel & {
   consumo: ConsumoWhatsapp[]
   franquia: FranquiaWhatsapp[]
   habilitada: boolean
   sincronizacoes?: SincronizacaoWhatsapp[]
+  /** Coexistência: prazo para pedir o histórico antigo do app (autorização separada). */
+  inicializacao?: InicializacaoWhatsapp[]
   /** Cartão: número novo (Cloud API) ou app existente (coexistência oficial). */
   modo?: 'cloud_api' | 'coexistencia'
 }) {
@@ -136,7 +148,7 @@ export function PainelWhatsapp({
       titulo={app ? 'WhatsApp Business — aplicativo existente (coexistência oficial)' : 'WhatsApp Business (oficial)'}
       descricao={
         app
-          ? 'Coexistência oficial da Meta: o número continua no app WhatsApp Business do celular e as conversas também chegam ao AVANTE. A confirmação é feita no próprio app, pelo código ou QR Code que a janela oficial da Meta mostrar. Histórico e contatos só chegam se a Meta enviar e a empresa autorizar no app. Não usa WhatsApp Web nem conexão não oficial.'
+          ? 'Coexistência oficial da Meta: o número continua no app WhatsApp Business do celular e as conversas também chegam ao AVANTE. A confirmação é feita no próprio app, pelo código ou QR Code que a janela oficial da Meta mostrar. Ao conectar, o número fica em inicialização (ninguém vira lead até o Administrador concluir aqui); depois, quem escreve pela primeira vez vira lead no destino do número. Conversas iniciadas pelo celular, o histórico e contatos da agenda do app não criam leads sozinhos. Os contatos do app são pedidos na conexão; o histórico antigo, só se o Administrador autorizar aqui. Não usa WhatsApp Web nem conexão não oficial.'
           : 'Número novo pela Cloud API da Meta, registrado com PIN. Quem escreve vira lead no destino do número; a equipe responde pela tela Conversas.'
       }
       acoes={
@@ -175,6 +187,7 @@ export function PainelWhatsapp({
                 consumo={consumo.filter((c) => c.numeroId === n.numeroId)}
                 franquia={franquia.find((x) => x.numeroId === n.numeroId) ?? null}
                 sincronizacoes={sincronizacoes.filter((s) => s.numeroId === n.numeroId)}
+                inicializacao={inicializacao.find((h) => h.numeroId === n.numeroId) ?? null}
                 hoje={hoje}
               />
             ))}
@@ -188,6 +201,112 @@ export function PainelWhatsapp({
 export function PainelMetaAds({ metaAds, habilitada }: { metaAds: ConexaoMetaAds | null; habilitada: boolean }) {
   if (!metaAds) return <EmHomologacao />
   return <CartaoMetaAds c={metaAds} habilitada={habilitada} />
+}
+
+const ROTULO_CONTATOS: Record<InicializacaoWhatsapp['contatos'], string> = {
+  nao_pedido: 'não pedidos',
+  pedida: 'aguardando a Meta enviar',
+  sem_resposta: 'a Meta não enviou (contatos da agenda não serão reconhecidos)',
+  recebendo: 'recebendo',
+  concluida: 'recebidos',
+  recusada: 'não compartilhados',
+  erro: 'o pedido falhou',
+}
+const ROTULO_HISTORICO: Record<InicializacaoWhatsapp['historico'], string> = {
+  nao_pedido: 'não pedido',
+  pedida: 'pedido à Meta',
+  recebendo: 'chegando',
+  concluida: 'importado',
+  recusada: 'a empresa não compartilhou no app',
+  erro: 'o pedido falhou (dá para tentar de novo no prazo)',
+  prazo_encerrado: 'não importado (o prazo da Meta de 24 h terminou)',
+  nao_importado: 'não importado',
+}
+
+/**
+ * Inicialização do número do app (coexistência): até o Administrador concluir, nenhuma mensagem vira
+ * lead sozinha (o AVANTE ainda não sabe quem já era cliente do app). Contatos chegam na conexão; o
+ * histórico é opcional, com autorização separada, no prazo da Meta (24 h, uma vez por conexão).
+ */
+function Inicializacao({ i, numeroId, podeGerir }: { i: InicializacaoWhatsapp | null; numeroId: string; podeGerir: boolean }) {
+  if (!i) return null
+  if (!i.emInicializacao) {
+    return (
+      <p className="text-xs text-premium-secundario">
+        Leads automáticos ligados{i.concluidaEm ? ` desde ${formatarDataHoraCompleta(i.concluidaEm)}` : ''}. Histórico do app:{' '}
+        {ROTULO_HISTORICO[i.historico] ?? i.historico}. Contato da agenda do app ou do histórico não vira lead sozinho.
+        {i.aRevisar > 0 && (
+          <>
+            {' '}
+            <Link href="/conversas" className="font-medium text-premium-acento hover:underline">
+              {i.aRevisar} conversa(s) para revisar
+            </Link>
+          </>
+        )}
+      </p>
+    )
+  }
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2.5 text-xs text-premium-secundario dark:border-amber-500/40 dark:bg-amber-500/10">
+      <p>
+        <strong className="text-premium-texto">Inicialização do número: leads automáticos em espera.</strong> O AVANTE ainda não sabe quem já era cliente
+        no app. Até concluir, as mensagens chegam em Conversas marcadas &quot;Origem a revisar&quot;, sem virar lead; você pode levar cada uma para o funil.
+      </p>
+      <ul className="space-y-0.5">
+        <li>1. Contatos do app: {ROTULO_CONTATOS[i.contatos] ?? i.contatos}</li>
+        <li>
+          2. Histórico do app (opcional): {ROTULO_HISTORICO[i.historico] ?? i.historico}
+          {i.podePedirHistorico ? ` · pode pedir até ${formatarDataHoraCompleta(i.prazoHistorico)}` : ''}
+        </li>
+        <li>
+          3. Conversas para revisar: {i.aRevisar}
+          {i.aRevisar > 0 && (
+            <>
+              {' · '}
+              <Link href="/conversas" className="font-medium text-premium-acento hover:underline">
+                abrir Conversas
+              </Link>
+            </>
+          )}
+        </li>
+      </ul>
+      {podeGerir && i.podePedirHistorico && (
+        <form action={importarHistoricoWhatsappAction} className="space-y-2 border-t border-amber-300/50 pt-2">
+          <input type="hidden" name="numero" value={numeroId} />
+          <p>
+            A Meta envia até 6 meses de conversas individuais (sem grupos), só se a empresa aceitou compartilhar o histórico no app durante a conexão. As
+            mensagens antigas entram como &quot;histórico do app&quot;: não criam leads, não abrem a janela de 24 h e confirmam quem já era cliente. Mídias
+            antigas podem não vir. Uma vez por conexão.
+          </p>
+          <label className="flex items-start gap-2 text-premium-texto">
+            <input type="checkbox" name="confirmar" value="sim" required className="mt-0.5" />
+            <span>Autorizo importar o histórico de conversas deste número para o AVANTE.</span>
+          </label>
+          <BotaoConfirmar pergunta="Pedir o histórico do app à Meta agora? Só é possível uma vez por conexão." className={botaoSecundarioClass}>
+            Importar histórico do app
+          </BotaoConfirmar>
+        </form>
+      )}
+      {podeGerir &&
+        (i.pendencia ? (
+          <p className="text-premium-texto">
+            {i.pendencia === 'contatos'
+              ? 'Aguardando os contatos do app chegarem (alguns minutos, até 1 hora) para concluir.'
+              : 'Aguardando o histórico terminar de chegar para concluir.'}
+          </p>
+        ) : (
+          <form action={concluirInicializacaoWhatsappAction} className="border-t border-amber-300/50 pt-2">
+            <input type="hidden" name="numero" value={numeroId} />
+            <BotaoConfirmar
+              pergunta={`Ligar os leads automáticos deste número? ${i.podePedirHistorico ? 'O histórico não poderá mais ser pedido. ' : ''}Contatos novos passam a virar lead; contatos da agenda do app vão para revisão.`}
+              className={botaoPrimarioClass}
+            >
+              Concluir inicialização e ligar leads automáticos
+            </BotaoConfirmar>
+          </form>
+        ))}
+    </div>
+  )
 }
 
 /** Situação da sincronização do app (coexistência): contatos e histórico, sem prometer o que a Meta não mandou. */
@@ -454,6 +573,7 @@ function LinhaNumero({
   consumo,
   franquia,
   sincronizacoes,
+  inicializacao,
   hoje,
 }: {
   n: IntegracaoOficial
@@ -463,6 +583,7 @@ function LinhaNumero({
   consumo: ConsumoWhatsapp[]
   franquia: FranquiaWhatsapp | null
   sincronizacoes: SincronizacaoWhatsapp[]
+  inicializacao: InicializacaoWhatsapp | null
   hoje: string
 }) {
   const s = SITUACAO[n.situacao] ?? { rotulo: n.situacao, tom: 'neutro' as TomSelo }
@@ -486,7 +607,8 @@ function LinhaNumero({
       {n.modo === 'coexistencia' && (
         <p className="text-xs text-premium-secundario">Coexistência: o número continua no app WhatsApp Business; mensagens enviadas pelo celular também aparecem no AVANTE.</p>
       )}
-      <SincronizacaoApp s={sincronizacoes} />
+      {!inicializacao?.emInicializacao && <SincronizacaoApp s={sincronizacoes} />}
+      {n.modo === 'coexistencia' && n.numeroId && <Inicializacao i={inicializacao} numeroId={n.numeroId} podeGerir={podeGerir} />}
       {n.bloqueadoPorCobranca && (
         <Aviso tom="erro">
           A Meta indicou cobrança em uma mensagem deste número. Os envios estão bloqueados até o Administrador revisar o aviso (o número continua em &quot;Somente envios
