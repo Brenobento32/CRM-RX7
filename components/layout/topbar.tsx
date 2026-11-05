@@ -11,7 +11,7 @@ import type { UsuarioAtual } from '@/lib/dal/auth'
 import { ROTULO_CARGO } from '@/lib/validations/usuario'
 
 import { IconeEditar, IconeLua, IconeSair, IconeSetaBaixo, IconeSino, IconeSol } from './icones'
-import { useTemaPremium } from './shell-app'
+import { BotaoMenuCelular, useTemaPremium } from './shell-app'
 
 const LARGURA_MENU = 208
 
@@ -25,7 +25,7 @@ function posicionarSobBotao(popover: HTMLElement, botao: HTMLElement) {
 /**
  * Cabeçalho global do usuário logado (renderizado pela casca em TODA página
  * autenticada): sino, avatar, nome e papel, e o menu do perfil com
- * "Editar perfil" (`/perfil`, o próprio usuário), o interruptor "Modo
+ * "Meu perfil" (`/perfil`, o próprio usuário), o interruptor "Modo
  * escuro" e "Sair". O sino ainda é só visual (não há notificações no CRM) —
  * tem `aria-label` e não finge contagem.
  */
@@ -62,6 +62,7 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
 
   return (
     <>
+    <BotaoMenuCelular />
     {/* Onde estou: grupos do menu até a página atual (só o que o cargo vê). */}
     <nav aria-label="Você está em" className="min-w-0 flex-1">
       <ol className="flex min-w-0 items-center gap-1.5 text-sm">
@@ -126,7 +127,7 @@ export function Topbar({ usuario }: { usuario: UsuarioAtual }) {
           className="flex w-full items-center gap-2 rounded-md px-3 py-2 transition hover:bg-premium-bg"
         >
           <IconeEditar className="size-4 text-premium-mudo" />
-          Editar perfil
+          Meu perfil
         </Link>
 
         {tema && (

@@ -15,7 +15,7 @@ import { listarResponsaveis } from '@/lib/dal/clientes'
 import { opcoesDeDestino } from '@/lib/dal/fontes-leads'
 import { integracoesHabilitadas, podeAdministrarIntegracoes } from '@/lib/dal/integracoes-oficiais'
 import { metaAdsDaEmpresa } from '@/lib/dal/meta-ads'
-import { conexaoMetaAds, eventosMetaAds, funisComEtapas, homologacaoCapi } from '@/lib/dal/meta-conversoes'
+import { conexaoMetaAds, eventosMetaAds, funisComEtapas, homologacaoCapi, modalidadesDeValorMetaAds } from '@/lib/dal/meta-conversoes'
 import { formatarDataHoraCompleta } from '@/lib/utils/formatacao'
 
 import { AtivosMetaAds } from './ativos-meta-ads'
@@ -44,7 +44,7 @@ const sugestao = (nome: string, tipo: string) => (tipo === 'perdida' ? '' : nome
 export default async function MetaAdsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const eu = await getUsuarioAtual()
   if (eu.role !== 'gerente') notFound()
-  const [podeGerir, conexao, funis, eventos, params, habilitadas, login, opcoes, responsaveis] = await Promise.all([
+  const [podeGerir, conexao, funis, eventos, params, habilitadas, login, opcoes, responsaveis, modalidadesValor] = await Promise.all([
     podeAdministrarIntegracoes(),
     conexaoMetaAds(),
     funisComEtapas(),
@@ -54,7 +54,12 @@ export default async function MetaAdsPage({ searchParams }: { searchParams: Prom
     metaAdsDaEmpresa(),
     opcoesDeDestino(),
     listarResponsaveis(),
+    modalidadesDeValorMetaAds(),
   ])
+  const ROTULO_MODALIDADE = { tcv: 'TCV (contrato total)', mrr: 'MRR (uma mensalidade)', venda: 'Venda comum (valor da venda)' } as const
+  const valorAprovado = modalidadesValor.length
+    ? `Valor enviado só nas vendas ${modalidadesValor.map((m) => ROTULO_MODALIDADE[m]).join(', ')}, em BRL.`
+    : 'O valor ainda não é enviado: a regra comercial do valor não foi aprovada pela plataforma.'
   const elegivel = Boolean(conexao?.elegivel)
   const conectada = Boolean(conexao?.conexaoId)
   // Só o Super Admin pelo "Acessar CRM", com a homologação ligada no servidor; para os demais, nada aparece.
@@ -253,10 +258,13 @@ export default async function MetaAdsPage({ searchParams }: { searchParams: Prom
                               />
                             </label>
                             {e.tipo === 'ganha' && (
-                              <label className="mt-1 flex items-center gap-2 text-xs">
-                                <input type="checkbox" name={`valor:${e.id}`} defaultChecked={atual?.enviarValor ?? true} />
-                                Enviar o valor da venda (R$)
-                              </label>
+                              <>
+                                <label className="mt-1 flex items-center gap-2 text-xs">
+                                  <input type="checkbox" name={`valor:${e.id}`} defaultChecked={atual?.enviarValor ?? false} />
+                                  Enviar o valor da venda (R$)
+                                </label>
+                                <p className="mt-0.5 text-xs text-premium-mudo">{valorAprovado}</p>
+                              </>
                             )}
                           </div>
                         )

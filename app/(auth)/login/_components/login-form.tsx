@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import { login } from '@/lib/actions/auth'
+import { CampoSenha } from '@/components/ui/campo-senha'
 import { inputClass, botaoPrimarioClass, caixaErroClass } from '@/components/ui/estilos'
 
 
@@ -57,15 +58,13 @@ export function LoginForm({ next }: { next: string }) {
             Esqueci minha senha
           </Link>
         </div>
-        <input
+        <CampoSenha
           id="senha"
           name="senha"
-          type="password"
           autoComplete="current-password"
           required
           aria-invalid={erroSenha ? true : undefined}
           aria-describedby={erroSenha ? 'senha-erro' : undefined}
-          className={inputClass}
         />
         {erroSenha && (
           <p id="senha-erro" className="text-sm text-red-600 dark:text-red-400">

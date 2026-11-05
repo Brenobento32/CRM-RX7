@@ -107,6 +107,24 @@ export async function conexaoMetaAds(): Promise<ConexaoMetaAds | null> {
   }
 }
 
+export type ModalidadeValor = 'tcv' | 'mrr' | 'venda'
+
+/**
+ * Modalidades de venda cujo valor a plataforma aprovou para a Meta (regra
+ * comercial). Falha fechada: sem a função ou sem permissão, nenhuma.
+ */
+export async function modalidadesDeValorMetaAds(): Promise<ModalidadeValor[]> {
+  if (!(await podeAdministrarIntegracoes())) return []
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('capi_valor_modalidades')
+    if (error || !Array.isArray(data)) return []
+    return (data as string[]).filter((m): m is ModalidadeValor => m === 'tcv' || m === 'mrr' || m === 'venda')
+  } catch {
+    return []
+  }
+}
+
 export type EventoMetaAds = {
   id: number
   evento: string

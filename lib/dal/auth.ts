@@ -1,9 +1,12 @@
 import 'server-only'
 
+import { createClient as clienteSemSessao } from '@supabase/supabase-js'
 import { notFound, redirect } from 'next/navigation'
 import { cache } from 'react'
 
+import { trocarSenhaComVerificacao, type ResultadoTrocaSenha } from '@/lib/auth/trocar-senha'
 import { getEmpresaAtual, papelComercial, type CargoApp } from '@/lib/dal/empresa'
+import { publicEnv } from '@/lib/env/public'
 import { serverEnv } from '@/lib/env/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
@@ -215,6 +218,38 @@ export async function solicitarRecuperacaoSenha(email: string): Promise<Resultad
  * link de verdade.
  */
 export type ResultadoRedefinirSenha = { ok: true } | { ok: false; mensagem: string }
+
+/**
+ * Meu perfil: troca da PRÓPRIA senha, com a senha atual conferida antes. O
+ * e-mail vem da sessão (nunca do formulário), então ninguém troca a senha de
+ * outra pessoa. A conferência usa um cliente sem cookie e sem renovação
+ * automática, cuja sessão é encerrada logo em seguida (escopo local).
+ */
+export async function alterarMinhaSenha(atual: string, nova: string): Promise<ResultadoTrocaSenha> {
+  const supabase = await createClient()
+  return trocarSenhaComVerificacao(
+    {
+      emailDaSessao: async () => {
+        const { data } = await supabase.auth.getUser()
+        return data.user?.email ?? null
+      },
+      verificarSenha: async (email, senha) => {
+        const temporario = clienteSemSessao(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        })
+        const { data, error } = await temporario.auth.signInWithPassword({ email, password: senha })
+        if (error || !data.session) return { ok: false, erro: error ? { code: error.code, status: error.status } : null }
+        return { ok: true, encerrar: async () => void (await temporario.auth.signOut({ scope: 'local' })) }
+      },
+      atualizarSenha: async (novaSenha, senhaAtual) => {
+        const { error } = await supabase.auth.updateUser({ password: novaSenha, current_password: senhaAtual })
+        return error ? { code: error.code, status: error.status, name: error.name } : null
+      },
+    },
+    atual,
+    nova,
+  )
+}
 
 export async function redefinirSenha(novaSenha: string): Promise<ResultadoRedefinirSenha> {
   const supabase = await createClient()

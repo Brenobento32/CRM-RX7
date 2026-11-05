@@ -350,6 +350,42 @@ async function trocarFoto(
   return null
 }
 
+// ---------------------------------------------------------------------------
+// Meu perfil: a PRÓPRIA foto (qualquer cargo). O id vem da sessão, nunca do
+// formulário; o Storage só grava na pasta `<id>/` do próprio usuário
+// (20261113090000) e o banco só aceita foto_url dessa pasta.
+// ---------------------------------------------------------------------------
+
+export type ResultadoMinhaFoto = { ok: true } | { ok: false; mensagem: string }
+
+/** Troca a própria foto. `foto` já passou por `lerFotoSegura` (tipo real, até 2 MB). */
+export async function trocarMinhaFoto(foto: File): Promise<ResultadoMinhaFoto> {
+  const eu = await getUsuarioAtual()
+  const erro = await trocarFoto(eu.id, foto, fotoDaPropriaPasta(eu.id, eu.fotoUrl))
+  return erro ? { ok: false, mensagem: erro } : { ok: true }
+}
+
+/** Remove a própria foto: o perfil volta às iniciais. */
+export async function removerMinhaFoto(): Promise<ResultadoMinhaFoto> {
+  const eu = await getUsuarioAtual()
+  if (!eu.fotoUrl) return { ok: true }
+  const supabase = await createClient()
+  const { error } = await supabase.from('profiles').update({ foto_url: null }).eq('id', eu.id)
+  if (error) {
+    console.error('remover foto_url', error.code)
+    return { ok: false, mensagem: 'Não foi possível remover a foto. Tente de novo.' }
+  }
+  const antiga = fotoDaPropriaPasta(eu.id, eu.fotoUrl)
+  if (antiga) await removerArquivo(antiga)
+  return { ok: true }
+}
+
+/** Só apaga arquivo da pasta do próprio usuário (defesa extra; o Storage também confere). */
+function fotoDaPropriaPasta(usuarioId: string, url: string | null): string | null {
+  if (!url) return null
+  return url.includes(`/storage/v1/object/public/${BUCKET}/${usuarioId}/`) ? url : null
+}
+
 /** Apaga do bucket a foto de uma URL pública. Falha aqui só deixa lixo. */
 async function removerArquivo(urlPublica: string) {
   const marcador = `/storage/v1/object/public/${BUCKET}/`

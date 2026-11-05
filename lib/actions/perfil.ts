@@ -3,8 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-import { getUsuarioAtual } from '@/lib/dal/auth'
+import { alterarMinhaSenha, getUsuarioAtual } from '@/lib/dal/auth'
+import { removerMinhaFoto, trocarMinhaFoto } from '@/lib/dal/usuarios'
 import { createClient } from '@/lib/supabase/server'
+import { lerFotoSegura } from '@/lib/utils/imagem'
+import { alterarMinhaSenhaSchema } from '@/lib/validations/auth'
 import { meuPerfilSchema } from '@/lib/validations/usuario'
 
 export type EstadoMeuPerfil = {
@@ -41,4 +44,51 @@ export async function atualizarMeuPerfilAction(
 
   revalidatePath('/', 'layout')
   return { ok: true }
+}
+
+export type EstadoMinhaSenha = {
+  ok?: boolean
+  erro?: string
+  campos?: Partial<Record<'senha_atual' | 'nova_senha' | 'confirmar_senha', string[]>>
+}
+
+/**
+ * Meu perfil → Segurança: o próprio usuário troca a senha. Exige sessão e a
+ * senha atual; nenhuma senha é registrada em log ou devolvida na resposta.
+ */
+export async function alterarMinhaSenhaAction(
+  _estado: EstadoMinhaSenha | undefined,
+  formData: FormData,
+): Promise<EstadoMinhaSenha> {
+  await getUsuarioAtual()
+  const parsed = alterarMinhaSenhaSchema.safeParse({
+    senha_atual: formData.get('senha_atual') ?? '',
+    nova_senha: formData.get('nova_senha') ?? '',
+    confirmar_senha: formData.get('confirmar_senha') ?? '',
+  })
+  if (!parsed.success) return { campos: z.flattenError(parsed.error).fieldErrors }
+
+  const r = await alterarMinhaSenha(parsed.data.senha_atual, parsed.data.nova_senha)
+  if (!r.ok) return r.campo ? { campos: { [r.campo]: [r.mensagem] } } : { erro: r.mensagem }
+  return { ok: true }
+}
+
+export type EstadoMinhaFoto = { ok?: 'trocada' | 'removida'; erro?: string }
+
+/** Meu perfil → Foto: troca ou remove a PRÓPRIA foto (botão "remover" manda `acao=remover`). */
+export async function minhaFotoAction(_estado: EstadoMinhaFoto | undefined, formData: FormData): Promise<EstadoMinhaFoto> {
+  await getUsuarioAtual()
+  if (formData.get('acao') === 'remover') {
+    const r = await removerMinhaFoto()
+    if (!r.ok) return { erro: r.mensagem }
+    revalidatePath('/', 'layout')
+    return { ok: 'removida' }
+  }
+  const foto = await lerFotoSegura(formData.get('foto'))
+  if (!foto) return { erro: 'Escolha uma imagem JPG, PNG ou WebP de até 2 MB.' }
+  if (!foto.ok) return { erro: foto.mensagem }
+  const r = await trocarMinhaFoto(foto.arquivo)
+  if (!r.ok) return { erro: r.mensagem }
+  revalidatePath('/', 'layout')
+  return { ok: 'trocada' }
 }

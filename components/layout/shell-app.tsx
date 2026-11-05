@@ -126,12 +126,14 @@ export function ShellApp({
             onClickCapture={(e) => {
               if (sobreposto && (e.target as HTMLElement).closest('a[href]')) setAbertaNaTelaEstreita(false)
             }}
-            className="fixed inset-y-0 left-0 z-30 flex w-[232px] flex-col border-r border-premium-borda bg-premium-lateral transition-[width] duration-200 group-data-[sidebar=recolhida]/shell:w-[70px] group-data-[sobreposto=sim]/shell:shadow-2xl motion-reduce:transition-none"
+            // Celular (< 640 px): fora da tela desde o primeiro desenho (CSS, sem esperar o JavaScript);
+            // o botão de menu do topo abre por cima do conteúdo. Tablet e computador: como antes.
+            className="fixed inset-y-0 left-0 z-30 flex w-[232px] flex-col border-r border-premium-borda bg-premium-lateral transition-[width,translate] duration-200 group-data-[sidebar=recolhida]/shell:w-[70px] group-data-[sobreposto=sim]/shell:shadow-2xl max-sm:invisible max-sm:-translate-x-full group-data-[sobreposto=sim]/shell:visible group-data-[sobreposto=sim]/shell:translate-x-0 motion-reduce:transition-none"
           >
             {sidebar}
           </aside>
           <main
-            className="min-h-full min-w-0 flex-1 bg-premium-bg pl-[232px] text-premium-texto transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] group-data-[sobreposto=sim]/shell:pl-[70px] motion-reduce:transition-none"
+            className="min-h-full min-w-0 flex-1 bg-premium-bg pl-[232px] text-premium-texto transition-[padding] duration-200 group-data-[sidebar=recolhida]/shell:pl-[70px] group-data-[sobreposto=sim]/shell:pl-[70px] max-sm:pl-0! motion-reduce:transition-none"
           >
             {topo && (
               <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-premium-borda bg-premium-topo/95 px-3 shadow-[0_1px_2px_rgb(0_0_0/0.04)] backdrop-blur sm:px-6 lg:px-8">
@@ -151,6 +153,30 @@ export function ShellApp({
         </div>
       </ContextoTema.Provider>
     </ContextoSidebar.Provider>
+  )
+}
+
+/**
+ * Celular (< 640 px): o menu lateral fica fora da tela e este botão, no topo,
+ * abre o menu por cima do conteúdo (o mesmo estado do "Expandir menu").
+ */
+export function BotaoMenuCelular() {
+  const contexto = useContext(ContextoSidebar)
+  if (!contexto) return null
+  const { recolhida, alternar } = contexto
+  return (
+    <button
+      type="button"
+      onClick={alternar}
+      aria-expanded={!recolhida}
+      aria-label={recolhida ? 'Abrir menu' : 'Fechar menu'}
+      title={recolhida ? 'Abrir menu' : 'Fechar menu'}
+      className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-premium-mudo transition hover:bg-premium-card hover:text-premium-texto sm:hidden"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden className="size-5">
+        <path d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
   )
 }
 
