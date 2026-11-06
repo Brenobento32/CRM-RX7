@@ -37,6 +37,8 @@ const EVENTO: Record<string, { rotulo: string; tom: TomSelo }> = {
   rejeitado: { rotulo: 'Rejeitado', tom: 'vermelho' },
   sem_correspondencia: { rotulo: 'Não enviado: sem ID de lead da Meta', tom: 'neutro' },
   expirado: { rotulo: 'Expirado (mais de 7 dias)', tom: 'neutro' },
+  valor_pendente: { rotulo: 'Retido: fechamento sem valor válido (corrija o fechamento)', tom: 'ambar' },
+  descartado: { rotulo: 'Não enviado', tom: 'neutro' },
 }
 /** Sugestão de nome por posição da etapa (o Administrador ajusta; a Meta aceita o nome da etapa do CRM). */
 const sugestao = (nome: string, tipo: string) => (tipo === 'perdida' ? '' : nome)

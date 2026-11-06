@@ -29,9 +29,14 @@ export type EventoFila = {
   lead_id: string | null
   valor: number | string | null
   moeda: string | null
+  /** O que o valor representa (tcv = total do contrato, mrr = uma mensalidade, venda = venda única). Banco antigo: ausente. */
+  modalidade?: string | null
   email: string | null
   telefone: string | null
 }
+
+/** Rótulo da modalidade no evento da Meta; só as três conhecidas, nunca texto livre. */
+const TIPO_VENDA_META: Record<string, string> = { tcv: 'TCV', mrr: 'MRR', venda: 'VENDA' }
 
 const codificador = new TextEncoder()
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('')
@@ -76,6 +81,9 @@ export async function corpoDoEvento(ev: EventoFila): Promise<string> {
   if (valor !== null && Number.isFinite(valor) && valor > 0) {
     custom_data.value = Math.round(valor * 100) / 100
     custom_data.currency = ev.moeda ?? 'BRL'
+    // O valor vai exatamente como registrado: a modalidade diz se é o total ou uma mensalidade.
+    const tipo = ev.modalidade ? TIPO_VENDA_META[ev.modalidade] : undefined
+    if (tipo) custom_data.tipo_venda = tipo
   }
   const corpo = {
     data: [

@@ -14,11 +14,13 @@ import {
   restaurarClienteExcluido,
   type ClienteDetalhe,
 } from '@/lib/dal/clientes'
+import { registrarOposicaoMedicao } from '@/lib/dal/meta-conversoes'
 import {
   CAMPOS_CLIENTE,
   clienteSchema,
   type CampoCliente,
 } from '@/lib/validations/cliente'
+import { ehCanalOposicao } from '@/lib/validations/oposicao-medicao'
 
 export type EstadoFormCliente = {
   erro?: string
@@ -170,4 +172,27 @@ export async function restaurarClienteExcluidoAction(id: string): Promise<void> 
   }
 
   revalidatePath('/clientes')
+}
+
+// ------------------------------------------------------------------ Oposição do titular à medição de anúncios (LGPD)
+export type EstadoOposicaoMedicao = { erro?: string; ok?: boolean }
+
+export async function registrarOposicaoMedicaoAction(
+  id: string,
+  _estado: EstadoOposicaoMedicao | undefined,
+  formData: FormData,
+): Promise<EstadoOposicaoMedicao> {
+  if (!z.uuid().safeParse(id).success) return { erro: 'Cliente inválido.' }
+  const canal = formData.get('canal')
+  if (!ehCanalOposicao(canal)) {
+    return { erro: 'Escolha por qual canal o titular pediu.' }
+  }
+  const obs = formData.get('observacao')
+  const observacao = typeof obs === 'string' && obs.trim() ? obs.trim() : null
+  if (observacao && observacao.length > 300) return { erro: 'A observação tem no máximo 300 caracteres.' }
+
+  const r = await registrarOposicaoMedicao(id, canal, observacao)
+  if (!r.ok) return { erro: r.mensagem }
+  revalidatePath(`/clientes/${id}`)
+  return { ok: true }
 }

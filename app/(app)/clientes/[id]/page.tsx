@@ -10,13 +10,14 @@ import {
   criarProximaAcaoAction,
   registrarAtividadeAction,
 } from '@/lib/actions/atividades'
-import { arquivarClienteAction } from '@/lib/actions/clientes'
+import { arquivarClienteAction, registrarOposicaoMedicaoAction } from '@/lib/actions/clientes'
 import { LIMITE_TIMELINE, listarProximasAcoes, listarTimeline } from '@/lib/dal/atividades'
 import { EstadoVazio } from '@/components/ui/estado-vazio'
 import { Secao } from '@/components/ui/secao'
 import { getUsuarioAtual } from '@/lib/dal/auth'
 import { obterCliente, type NegociacaoDoCliente } from '@/lib/dal/clientes'
 import { listarEventosDoCliente } from '@/lib/dal/eventos'
+import { oposicaoMedicaoDoCliente } from '@/lib/dal/meta-conversoes'
 import {
   formatarCnpj,
   formatarCpf,
@@ -43,6 +44,7 @@ import { EventoItem, ListaEventos } from '@/components/agenda/evento-item'
 import { BotaoArquivarCliente } from './_components/botao-arquivar'
 import { FormAtividade } from './_components/form-atividade'
 import { FormProximaAcao } from './_components/form-proxima-acao'
+import { OposicaoMedicao } from './_components/oposicao-medicao'
 
 async function carregar(id: string) {
   if (!z.uuid().safeParse(id).success) notFound()
@@ -63,11 +65,12 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
   const usuario = await getUsuarioAtual()
   const { id } = await params
   const cliente = await carregar(id)
-  const [timeline, proximasAcoes, eventos, regrasEtapas] = await Promise.all([
+  const [timeline, proximasAcoes, eventos, regrasEtapas, oposicao] = await Promise.all([
     listarTimeline(cliente.id),
     listarProximasAcoes(cliente.id),
     listarEventosDoCliente(cliente.id),
     obterRegrasEtapas(),
+    oposicaoMedicaoDoCliente(cliente.id),
   ])
 
   const data = formatarDataHoraCompleta
@@ -238,6 +241,17 @@ export default async function ClientePage({ params }: PageProps<'/clientes/[id]'
               </div>
             </dl>
           </Secao>
+
+          {/* Só o Administrador, e só em empresa com Conversões do CRM (Meta Ads) conectadas. */}
+          {oposicao && (
+            <Secao titulo="Medição de anúncios (Meta)" descricao="Oposição do titular (LGPD)">
+              <OposicaoMedicao
+                registradaEm={oposicao.registradaEm}
+                canal={oposicao.canal}
+                action={registrarOposicaoMedicaoAction.bind(null, cliente.id)}
+              />
+            </Secao>
+          )}
 
           <Secao titulo="Próximas ações">
             <div className="space-y-4">

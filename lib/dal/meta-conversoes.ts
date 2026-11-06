@@ -2,6 +2,7 @@ import 'server-only'
 
 import { getEmpresaAtual } from '@/lib/dal/empresa'
 import { banco, chamarIntegracoes, exigirAdministrador, falhaDoBanco, podeAdministrarIntegracoes, type Resultado } from '@/lib/dal/integracoes-oficiais'
+import type { CanalOposicao } from '@/lib/validations/oposicao-medicao'
 
 /**
  * Franquia mensal do WhatsApp (painel do Administrador) e Meta Ads —
@@ -128,7 +129,7 @@ export async function modalidadesDeValorMetaAds(): Promise<ModalidadeValor[]> {
 export type EventoMetaAds = {
   id: number
   evento: string
-  situacao: 'pendente' | 'enviando' | 'enviado' | 'rejeitado' | 'sem_correspondencia' | 'expirado'
+  situacao: 'pendente' | 'enviando' | 'enviado' | 'rejeitado' | 'sem_correspondencia' | 'expirado' | 'valor_pendente' | 'descartado'
   negociacaoId: string
   clienteNome: string | null
   funilNome: string | null
@@ -194,6 +195,35 @@ export async function acaoMetaAds(acao: 'ativar' | 'retomar' | 'pausar' | 'defin
   const { rpc } = await banco()
   const { error } = await rpc('capi_acao', { p_acao: acao, p_codigo_teste: codigoTeste ?? null })
   return error ? falhaDoBanco(error, 'Não foi possível alterar a conexão.') : { ok: true }
+}
+
+// ------------------------------------------------------------------ Meta Ads: oposição do titular à medição (LGPD)
+export type OposicaoMedicao = { registradaEm: string | null; canal: CanalOposicao | null }
+
+/**
+ * Situação da oposição na ficha do cliente. `null` = não se aplica (quem vê
+ * não é Administrador, a empresa não tem conexão de conversões ou o banco
+ * ainda não tem a função): a seção não aparece. Falha fechada.
+ */
+export async function oposicaoMedicaoDoCliente(clienteId: string): Promise<OposicaoMedicao | null> {
+  if (!(await podeAdministrarIntegracoes())) return null
+  try {
+    const { rpc } = await banco()
+    const { data, error } = await rpc('capi_oposicao_do_cliente', { p_cliente: clienteId })
+    const linha = (data as { aplicavel: boolean; registrada_em: string | null; canal: CanalOposicao | null }[] | null)?.[0]
+    if (error || !linha?.aplicavel) return null
+    return { registradaEm: linha.registrada_em, canal: linha.canal }
+  } catch {
+    return null
+  }
+}
+
+export async function registrarOposicaoMedicao(clienteId: string, canal: CanalOposicao, observacao: string | null): Promise<Resultado> {
+  const recusa = await exigirAdministrador()
+  if (recusa) return recusa
+  const { rpc } = await banco()
+  const { error } = await rpc('capi_registrar_oposicao', { p_cliente: clienteId, p_canal: canal, p_observacao: observacao })
+  return error ? falhaDoBanco(error, 'Não foi possível registrar a oposição.') : { ok: true }
 }
 
 export async function reprocessarEventoMetaAds(id: number): Promise<Resultado> {
